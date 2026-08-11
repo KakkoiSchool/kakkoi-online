@@ -17,6 +17,21 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-11 — the CNAME file did nothing
+**Lesson:** A10 (deploying)
+**What it produced:** a `CNAME` file in the repo root containing `online.kakkoi.dev`, copied into `dist/`
+by the deploy workflow. It looked like the domain was configured. DNS was correct too.
+**Why it was wrong:** a `CNAME` file only sets the custom domain for **branch-based** Pages publishing.
+This repo publishes with **GitHub Actions**, where the domain lives in the Pages *configuration* — which
+was `null`. So the file was inert, and the domain served nothing.
+**How I caught it:** `gh api repos/OWNER/REPO/pages` showed `"cname": null` while `dig` showed the DNS
+record resolving correctly. Checking both ends separately is what located it.
+**The fix:** `gh api -X PUT repos/OWNER/REPO/pages -f cname=online.kakkoi.dev`, wait for the certificate,
+then `-F https_enforced=true`.
+**Worth telling students:** a file that looks like configuration is not configuration. When something
+should be live and isn't, check each end on its own — is DNS right? is the host expecting this name? —
+instead of staring at the middle.
+
 ## 2026-08-11 — index.html linked a file that was never vendored
 **Lesson:** A10 (deploying) / A12 (CI)
 **What it produced:** `index.html` with `<link rel="stylesheet" href="./vendor/basecoat.min.css">`, while

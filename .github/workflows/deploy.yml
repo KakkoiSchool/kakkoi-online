@@ -38,7 +38,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile || bun install
       - run: bun build ./index.html --minify --outdir=dist --sourcemap
-      # Static assets Bun does not bundle, plus the custom domain.
+      # Static assets Bun does not bundle. NOTE: the CNAME file is inert for
+      # workflow-based Pages - the custom domain is set in the Pages config
+      # (gh api -X PUT .../pages -f cname=...). Kept only for branch-based fallback.
       - run: cp -r vendor audio data CNAME dist/ 2>/dev/null || true
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
