@@ -1,0 +1,11 @@
+{
+  "_comment": "Playable monsters. Choosing a monster chooses its element. rect = 16x16 cell in the Kenney Tiny Creatures atlas; values are placeholders until the atlas is vendored.",
+  "monsters": [
+    { "id": 0, "nameKey": "monster.ember",  "element": "fire",  "atlas": "creatures", "rect": [0, 0] },
+    { "id": 1, "nameKey": "monster.cinder", "element": "fire",  "atlas": "creatures", "rect": [1, 0] },
+    { "id": 2, "nameKey": "monster.ripple", "element": "water", "atlas": "creatures", "rect": [2, 0] },
+    { "id": 3, "nameKey": "monster.brine",  "element": "water", "atlas": "creatures", "rect": [3, 0] },
+    { "id": 4, "nameKey": "monster.pebble", "element": "earth", "atlas": "creatures", "rect": [4, 0] },
+    { "id": 5, "nameKey": "monster.thorn",  "element": "earth", "atlas": "creatures", "rect": [5, 0] }
+  ]
+}

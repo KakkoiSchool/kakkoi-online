@@ -1,0 +1,18 @@
+{
+  "hp": 30,
+  "baseDamage": 4,
+  "elementAdvantage": 2.0,
+  "elementResist": 0.5,
+  "punishMultiplier": 1.5,
+  "chargeMultiplier": [1, 2, 3],
+  "maxCharges": 2,
+  "blockRewardCharges": 1,
+  "maxHitFraction": 0.5,
+  "damageRoll": [0.9, 1.0],
+  "stallChipDamage": 1,
+  "stallRounds": 3,
+  "targetRounds": [4, 12],
+  "commitTimeoutMs": 10000,
+  "posHz": 10,
+  "interpDelayMs": 150
+}

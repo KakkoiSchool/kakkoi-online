@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakkoi Online</title>
+  <link rel="stylesheet" href="./vendor/basecoat.min.css">
+  <link rel="stylesheet" href="./src/ui/game.css">
+</head>
+<body>
+  <!-- The world. Everything drawn with canvas 2D. -->
+  <canvas id="world" width="640" height="480"></canvas>
+
+  <!-- The UI. DOM + Basecoat on top of the canvas: text, buttons and dialogs
+       are miserable to build on a canvas and easy in HTML. -->
+  <div id="ui">
+    <div id="status" class="badge" aria-live="polite">starting…</div>
+  </div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
