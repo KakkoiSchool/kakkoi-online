@@ -3,8 +3,8 @@
 A tiny top-down multiplayer game that runs with **no server at all**. Your browser talks straight to
 the other players' browsers. Hosting is a static page, so it costs nothing to run, forever.
 
-**Play:** https://mmo.kakkoi.dev (once M0 lands)
-**Learn to build it:** lessons A09–A28 at https://school.kakkoi.dev
+**Play:** https://online.kakkoi.dev (once M0 lands)
+**Learn to build it:** lessons A09–A29 at https://school.kakkoi.dev
 
 You are a monster — fire, water or earth. You walk around, you talk in set phrases, and you duel
 other players with three buttons: **Strike, Block, Charge**. Water beats fire, fire beats earth,
