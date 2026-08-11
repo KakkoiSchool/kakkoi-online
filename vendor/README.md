@@ -7,7 +7,7 @@ Populate with `make vendor` (to be added) or by hand:
 
 | File | Source | Licence |
 |---|---|---|
-| `basecoat.min.css` | `https://cdn.jsdelivr.net/npm/basecoat-css@1.0.2/dist/basecoat.cdn.min.css` | MIT |
+| `basecoat.min.css` ✅ **vendored 2026-08-11, basecoat-css@1.0.2** (213 kB) | `https://cdn.jsdelivr.net/npm/basecoat-css@1.0.2/dist/basecoat.cdn.min.css` | MIT |
 | `trystero.js` | bundle `trystero@0.25.3` (nostr strategy) — `bun build --target=browser` | MIT |
 | `tiny-dungeon.png` | https://kenney.nl/assets/tiny-dungeon | CC0 |
 | `tiny-creatures.png` | https://opengameart.org/content/tiny-creatures | CC0 |
