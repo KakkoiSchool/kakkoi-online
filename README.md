@@ -59,7 +59,7 @@ peers find each other through a public relay, not through this domain. Your copy
 ## Plan and docs
 
 Design rationale, technical spec, lesson track and asset provenance live in the school repo:
-`izumo-io/planning/` — `p2p-mmo.md`, `p2p-mmo-trd.md`, `kakkoi-online-lessons.md`,
+`izumo-io/planning/` — `kakkoi-online-design.md`, `kakkoi-online-trd.md`, `kakkoi-online-lessons.md`,
 `kakkoi-online-sources.md`. See also `DESIGN.md` here.
 
 ## Licence

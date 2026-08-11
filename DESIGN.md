@@ -4,8 +4,8 @@ The full plan lives in the school repo, `izumo-io/planning/`:
 
 | Doc | Contents |
 |---|---|
-| `p2p-mmo.md` | Why every decision is what it is. 42-row decision log, six recorded reversals |
-| `p2p-mmo-trd.md` | What to build: data model, network protocol, battle rules, milestones, tests |
+| `kakkoi-online-design.md` | Why every decision is what it is. 42-row decision log, six recorded reversals |
+| `kakkoi-online-trd.md` | What to build: data model, network protocol, battle rules, milestones, tests |
 | `kakkoi-online-lessons.md` | The 20 lessons (A09–A28), writing standard, safety lesson, build process |
 | `kakkoi-online-sources.md` | Every asset pack, library and reference, with licences |
 
