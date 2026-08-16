@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A17 — sound</title>
+  <style>
+    body { font: 16px/1.6 system-ui, sans-serif; background: #12121a; color: #e8e8ef;
+           display: grid; place-items: center; gap: 0.8rem; height: 100vh; margin: 0; }
+    canvas { background: #1b1b22; border-radius: 8px; touch-action: none; }
+    button { font: inherit; padding: 0.3rem 0.9rem; border-radius: 6px; border: 1px solid #555;
+             background: #23232e; color: #e8e8ef; cursor: pointer; }
+    p { margin: 0; opacity: 0.75; min-height: 1.6em; }
+  </style>
+</head>
+<body>
+  <canvas id="world" width="480" height="320"></canvas>
+  <div>
+    <button id="soundBtn">Sound: off</button>
+    <button id="musicBtn">Play music</button>
+  </div>
+  <p id="loaded">Loading…</p>
+  <p id="status">Arrow keys or WASD to walk.</p>
+  <script src="main.js"></script>
+</body>
+</html>

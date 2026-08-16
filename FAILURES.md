@@ -17,6 +17,81 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — two tabs, two different lies from my own test rig
+**Lesson:** A19 (challenge someone)
+**What it produced:** a two-tab check that reported the demo was fine when it was reading nothing at all.
+**Why it was wrong:** two separate faults, both in the checker, not the demo.
+(1) To get two tabs I opened `…/19-challenge/#a` and `…/19-challenge/#b`. When I later re-navigated a tab
+to the same address with only the `#` part different, **the browser did not reload the page** — a hash-only
+navigation changes no document. So I kept testing a stale copy of my own file: `window.getState()` was
+missing a field I had added seconds earlier, and the random per-tab id stayed the same across a "reload",
+which is what gave it away. The fix was `Page.reload` with the cache ignored, not a fresh address.
+(2) The console reader returned an empty list — including no sign of the `console.warn('canary')` I had
+just sent. The debugging channels have to be switched on again after every navigation, and I had not done
+it. An empty console reading is not the same as a clean console, and the only way to tell them apart is to
+put a known message in and check you can see it.
+**How I caught it:** the canary. Every "console is clean" claim in this file was checked by first proving
+the checker could see a message I planted.
+**The fix:** re-enable the channels after every navigation, and never trust an empty result without a canary.
+
+## 2026-08-16 — "both players challenge at the same moment" could not be produced by pressing two keys
+**Lesson:** A19 (challenge someone)
+**What it produced:** the rule for two players challenging each other at the same instant — treat it as
+agreement and start the fight — was written, and then could not be tested. Twice, two quick key presses in
+two tabs produced an ordinary sequential challenge instead: the first tab's message had already arrived
+before the second key was pressed.
+**Why it was wrong:** nothing was wrong with the demo. The race window is a few tens of milliseconds wide,
+and a tab that is not on screen has its timers slowed down by the browser on purpose, to save battery. So
+"press F in both tabs at about the same time" is not a thing a test can do by asking politely.
+**How I caught it:** the state read back was `waiting` / `asked` — a normal challenge — not the
+`fighting` / `fighting` the rule predicts.
+**The fix:** picked a wall-clock instant a few seconds in the future, told both pages to wake up two
+seconds early and then spin in a tight loop until that exact millisecond, and fire the key event there.
+Both pages reported firing at the same millisecond, and both then went to `fighting`. The branch is real
+and now proven.
+
+## 2026-08-16 — a red error in the console during behaviour that is completely correct
+**Lesson:** A19 (challenge someone)
+**What it produced:** closing one of the two tabs — the exact thing the "the other player walked away"
+rule is for — printed a red error in the surviving tab:
+`RTCErrorEvent { error: OperationError: User-Initiated Abort, reason=Close called, target: RTCDataChannel }`
+**Why it was wrong:** it is not wrong. The direct connection between the two browsers was closed by the
+other side, and the library reports the closed channel as an error. The surviving tab handled it properly:
+it dropped the missing player and left the "waiting for an answer" state on its own, about seven seconds
+later. Same shape as the dead-relay warning in A12 — an error in the console is not the same as a broken
+game.
+**How I caught it:** read the console during the leave test instead of only checking the state afterwards.
+**The fix:** none in code. It is written into the lesson so a student who sees it does not think they broke
+something.
+
+## 2026-08-16 — the loading message wiped out the message that was the whole point
+**Lesson:** A17 (sound)
+**What it produced:** the demo asks to play music on page load so that the browser's refusal can be seen.
+The refusal was caught correctly — `window.firstPlayError` held it — but the line on the page said
+`step.wav is ready.` instead.
+**Why it was wrong:** two different messages were sharing one line, and `canplaythrough` is not a
+once-per-page event. It fires again every time a sound is rewound to the start, so a footstep at any moment
+could overwrite whatever the status line was saying. On load it simply arrived last and won.
+**How I caught it:** drove the demo in a real browser and read the text of the element back, rather than
+trusting that the code that set it had run. The value in `window.firstPlayError` and the text on screen
+disagreed.
+**The fix:** two separate lines on the page — one for "did the file load", one for "did it play" — which is
+also the honest shape, because loading and playing fail separately. Plus `{ once: true }` on the load
+listener.
+
+## 2026-08-16 — the browser refused to play a sound, exactly as designed
+**Lesson:** A17 (sound)
+**What it produced:** `music.play()` called during page load, with nobody having touched the page, rejected
+with:
+`NotAllowedError: play() failed because the user didn't interact with the document first. https://goo.gl/xX8pDD`
+**Why it was wrong:** it was not a mistake — it is the rule, and the demo now provokes it on purpose so
+students meet it with an explanation instead of as a mystery. Worth recording because the failure is
+*silent* unless you attach a `.catch`: `play()` hands back a promise, and an ignored rejected promise means
+no sound, no error, and nothing to look at.
+**How I caught it:** attached `.catch` to the promise and stored the message, then read it back from the
+console after the page loaded untouched.
+**The fix:** every `play()` in the demo has a `.catch`, and the first one puts its refusal on the screen.
+
 ## 2026-08-16 — a commit swept up two scratch files belonging to somebody else
 **Lesson:** none directly — a working habit
 **What it produced:** commit `a69e6db` ("Swap a dead relay in the peer-to-peer demos") contains
