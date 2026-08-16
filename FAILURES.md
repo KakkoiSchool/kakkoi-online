@@ -17,6 +17,78 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — the keyboard stopped working, and it was not the game
+**Lesson:** A19 (challenging someone)
+**What it produced:** `F` challenges whoever you are standing next to. Driving it from the browser
+tools, `F` did nothing at all: the duel never started and the state machine stayed on `walking`.
+**Why it was wrong:** it wasn't. The page had lost focus. A listener added from the console recorded
+**zero** `keydown` events, while `game.near` still said `"Flint"` and the Challenge button was still on
+screen — so the game was fine and the events were never arriving. Reloading the page did not fix it;
+clicking anywhere on the page did, instantly.
+**How I caught it:** by asking the page what it had *heard* rather than what it had *done* —
+`addEventListener('keydown', e => window.__keys.push(e.key))`, then reading `window.__keys` back. An
+empty array is a very different fact from a broken handler.
+**The fix:** click the page first, then send keys. Nothing in the game changed.
+**Worth telling students:** when input "does nothing", find out whether the event ever arrived before
+you touch the code that handles it. Hours can go into fixing a handler that was never called.
+
+## 2026-08-16 — the sound buttons were off the bottom of the window
+**Lesson:** A17 (sound)
+**What it produced:** a row of Sound / Music buttons under the game, added for stage 3.
+**Why it was wrong:** the canvas sizes itself from the window height minus a fixed allowance for
+everything under it (`calc((100svh - 5.5rem) * 4 / 3)`). Stage 3 added a whole row and did not change
+the allowance, so the page grew taller than the window and the new buttons sat below the fold. Clicking
+them did nothing, and *nothing* appeared in the console — a click on empty space is not an error.
+**How I caught it:** the click reported success and `game.audio.on` was still `false`. Asking the page
+where the button actually was gave `y: 899` in a 710-pixel-tall window, and
+`document.elementFromPoint(...)` on its own centre returned `null` — it was not on screen at all.
+**The fix:** raise the allowance to `14rem`, and check `document.body.scrollHeight === innerHeight`.
+**Worth telling students:** "I clicked it and nothing happened" has two very different causes — the
+handler is wrong, or the click never landed on the button. Measure before you debug.
+
+## 2026-08-16 — the Challenge button sat on top of the sound buttons
+**Lesson:** A19
+**What it produced:** `#nearby`, the button that appears when you walk up to someone, positioned with
+`position: absolute; bottom: 7.5rem` so it would float over the game.
+**Why it was wrong:** `bottom` is measured from the bottom of `#stage`, which is the whole column —
+canvas, phrase bar, hint line and tools. 7.5rem up from there is exactly where the sound buttons live,
+so the sound row was underneath something else.
+**How I caught it:** the same `elementFromPoint` check, which named a different element than the one
+being clicked.
+**The fix:** put `#nearby` in the canvas's own grid cell (`grid-row: 1; align-self: end`) instead of
+measuring from the page bottom. Now it is over the canvas by construction, whatever else is on the page.
+**Worth telling students:** `position: absolute` is measured from an ancestor you have to go and look
+up, and it is rarely the box you had in mind. Putting something in a grid cell says what you meant.
+
+## 2026-08-16 — "sUSd left" is not what a person needs to read
+**Lesson:** A19 / A22
+**What it produced:** when an opponent closes their tab mid-duel, the other player is told the duel is
+over and who left.
+**Why it was wrong:** the message said `sUSd left` — the first four characters of their network id.
+`net.js` deleted the peer record and *then* closed the duel link, and a link looks its opponent's name
+up from the peer record. By the time anything asked, "Bob" no longer existed.
+**How I caught it:** played it. Closed one of the two browsers mid-round and read the other one's screen.
+**The fix:** close the link before forgetting the peer. Two lines swapped.
+**Worth telling students:** the fallback name exists for a good reason — a peer we were never
+introduced to. It just also fired in a case where the name was known a millisecond earlier. Ordering
+bugs like this never appear on the happy path, only on the leaving-and-crashing path, which is exactly
+the path you have to go and act out on purpose.
+
+## 2026-08-16 — the goodbye was posted to someone who had already gone
+**Lesson:** A22
+**What it produced:** when a duel ends because the other player vanished, this side sends them an "I am
+leaving" message so nobody is left staring at three buttons.
+**Why it was wrong:** if they vanished because they *closed the tab*, that message goes to a peer
+trystero no longer has, and it logged `Trystero: no peer with id … found` — several times, in a console
+that is otherwise deliberately kept empty.
+**How I caught it:** draining the browser's own event stream after acting out the tab-close case.
+Warnings are easy to skim past; a rule of "the console is empty or I go and look" is what makes them
+visible.
+**The fix:** a link marks itself dead when the peer leaves, and a dead link swallows anything sent down
+it. The duel code did not change — it should not have to know.
+**Worth telling students:** a library warning in your console is usually your bug, not the library's.
+"Send it anyway, it probably works" is how a console fills with noise you eventually stop reading.
+
 ## 2026-08-16 — two tabs of the game were the same player, and I nearly tested nothing
 **Lesson:** A17–A18 (other people) / A11 (saving)
 **What it produced:** the two-tab check for stage 2. Open the game in a second tab, walk in one, watch the

@@ -117,6 +117,26 @@ export function drawBubble(ctx, text, centerX, bottomY) {
   ctx.restore();
 }
 
+/**
+ * The little arrow over whoever you are close enough to challenge.
+ *
+ * The affordance is the point: you find out you can fight somebody by walking
+ * up to them, not by reading a list of names with a button beside each one.
+ */
+export function drawMarker(ctx, centerX, bottomY, now) {
+  const lift = Math.round(Math.sin(now / 220) * 2);
+  const y = Math.round(bottomY) - lift;
+  ctx.save();
+  ctx.fillStyle = '#ffd76a';
+  ctx.beginPath();
+  ctx.moveTo(Math.round(centerX) - 5, y - 6);
+  ctx.lineTo(Math.round(centerX) + 5, y - 6);
+  ctx.lineTo(Math.round(centerX), y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 /** The name above your head. Chunky on purpose: it is a pixel game. */
 export function drawNameplate(ctx, text, centerX, baselineY, { self = false } = {}) {
   if (!text) return;

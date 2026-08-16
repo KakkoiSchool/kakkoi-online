@@ -22,10 +22,25 @@
       <span id="status" class="badge hud-quiet" aria-live="polite">starting…</span>
     </div>
 
+    <!-- Walk up to somebody and this appears. There is deliberately no
+         challenge button beside every name in a list: picking a fight should
+         mean going to find them. -->
+    <button id="nearby" class="btn" type="button" hidden></button>
+
     <!-- Talking: six set phrases, and no text box anywhere. See src/chat.js. -->
     <div id="chatbar" aria-label="Say something" hidden></div>
 
-    <p id="controls">Arrow keys or <kbd class="kbd">WASD</kbd> to walk — or touch the floor.</p>
+    <p id="controls">Arrow keys or <kbd class="kbd">WASD</kbd> to walk — or touch the floor.
+      <kbd class="kbd">F</kbd> challenges whoever you are standing next to.</p>
+
+    <!-- Sound is OFF until one of these is pressed. See src/audio.js. -->
+    <div id="tools">
+      <button id="soundBtn" class="btn-outline" type="button" aria-pressed="false">Sound: off</button>
+      <button id="musicBtn" class="btn-outline" type="button" aria-pressed="false">Music: off</button>
+    </div>
+
+    <!-- The duel: the challenge, the three moves, and what just happened. -->
+    <div id="duel" hidden></div>
 
     <!-- First run only: name, then monster. Hidden the moment both are known. -->
     <div id="overlay" hidden></div>

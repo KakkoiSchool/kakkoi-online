@@ -22,7 +22,10 @@
   <!-- No test runner, no npm. A test is a function that throws when it is unhappy;
        everything below is just enough scaffolding to print the results. -->
   <script type="module">
-    import { actionWinner, elementMultiplier } from '../src/battle/rules.js';
+    import {
+      actionWinner, elementMultiplier,
+      MOVES, isMove, roundResult, matchWinner,
+    } from '../src/battle/rules.js';
 
     const rows = document.querySelector('#rows');
     let passed = 0;
@@ -78,6 +81,47 @@
           else is(actionWinner(a, b), -actionWinner(b, a), `${a} vs ${b}`);
         }
       }
+    });
+
+    // ---- the duel the game actually plays: three moves, first to three rounds
+
+    test('a round is decided by the element triangle, and says why', () => {
+      is(roundResult('water', 'fire').winner, 'you', 'water vs fire');
+      is(roundResult('water', 'fire').why, 'water beats fire', 'the words');
+      is(roundResult('fire', 'water').winner, 'them', 'fire vs water');
+      is(roundResult('fire', 'water').why, 'water beats fire', 'the words, losing');
+      is(roundResult('earth', 'earth').winner, 'nobody', 'same move');
+    });
+
+    test('both players get the same answer from the same two moves', () => {
+      // This is the property the whole duel rests on: nobody is in charge, so
+      // the two browsers must agree without asking each other.
+      for (const a of MOVES) {
+        for (const b of MOVES) {
+          const mine = roundResult(a, b);
+          const theirs = roundResult(b, a);
+          const agree = mine.winner === 'nobody' ? theirs.winner === 'nobody'
+                      : mine.winner === 'you' ? theirs.winner === 'them'
+                      : theirs.winner === 'you';
+          is(agree, true, `${a} vs ${b} seen from both sides`);
+          is(mine.why, theirs.why, `${a} vs ${b} explained the same way`);
+        }
+      }
+    });
+
+    test('anything that is not one of the three moves is not a move', () => {
+      for (const move of MOVES) is(isMove(move), true, move);
+      for (const junk of ['strike', 'FIRE', '', null, 3, {}, ['fire']]) {
+        is(isMove(junk), false, JSON.stringify(junk));
+      }
+      is(roundResult('fire', 'lava'), null, 'a made-up move gives no result');
+    });
+
+    test('the duel is over at three round wins, and not before', () => {
+      is(matchWinner({ you: 2, them: 2 }, 3), null, '2–2');
+      is(matchWinner({ you: 3, them: 2 }, 3), 'you', '3–2');
+      is(matchWinner({ you: 0, them: 3 }, 3), 'them', '0–3');
+      is(matchWinner({ you: 0, them: 0 }, 3), null, 'nothing played yet');
     });
 
     const summary = document.querySelector('#summary');

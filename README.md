@@ -3,12 +3,18 @@
 A tiny top-down multiplayer game that runs with **no server at all**. Your browser talks straight to
 the other players' browsers. Hosting is a static page, so it costs nothing to run, forever.
 
-**Play:** https://online.kakkoi.dev (once M0 lands)
+**Play:** https://online.kakkoi.dev
 **Learn to build it:** lessons A09–A29 at https://school.kakkoi.dev
 
-You are a monster — fire, water or earth. You walk around, you talk in set phrases, and you duel
-other players with three buttons: **Strike, Block, Charge**. Water beats fire, fire beats earth,
-earth beats water.
+You pick a name and one of six monsters, and you are in a dungeon. You walk around it, you see anyone
+else who has the page open walking around it too, and you talk to them in six set phrases. Walk up to
+one of them and a **Challenge** button appears: a duel is **fire, water, earth**, first to three
+rounds. Water beats fire, fire beats earth, earth beats water. Neither player can peek — both sides
+send a fingerprint of their move before either sends the move, and a move that does not match its
+fingerprint is caught and the duel ends there.
+
+Nobody else online? **Flint** is always standing in the plaza, and he fights exactly the way a person
+does — he even remembers what you like playing and leans against it.
 
 ## Run it
 
@@ -22,8 +28,16 @@ in this repo are exactly the files the browser runs.
 That's the whole toolchain. From a terminal, `make dev` (`python3 -m http.server 8000`) does the
 same thing without the auto-reload.
 
-Open the page **twice** to be two players. `file://` will not work, on purpose — browsers refuse
-modules and crypto without a real origin (lesson A10).
+**Controls.** Arrow keys or WASD to walk, or touch the floor — the whole game works on a phone.
+`F` challenges whoever you are standing next to. Sound is **off** until you press the Sound button.
+
+`file://` will not work, on purpose — browsers refuse modules and `crypto.subtle` without a real
+origin (lesson A10), and the duel needs `crypto.subtle`. `http://localhost` is fine, and so is the
+live https site.
+
+**To be two players on one machine**, open the page on **two different origins** — say
+`localhost:8000` and `127.0.0.1:8001`. Two tabs on the *same* origin share one `localStorage`, so
+they are the same character and overwrite each other's save.
 
 **Tests** are a web page: open `tests/rules.test.html` through the same server and read the
 PASS/FAIL rows. No test runner, no npm.
@@ -32,8 +46,12 @@ PASS/FAIL rows. No test runner, no npm.
 
 ```
 index.html          canvas + Basecoat UI shell
+src/main.js         boot and wiring only — everything else is one idea per file
 src/loop.js         the requestAnimationFrame loop
-src/battle/rules.js PURE rules: element chart, action triangle — imports nothing, fully testable
+src/net.js          the only file that knows trystero exists
+src/duel.js         the challenge state machine, the rounds, and commit–reveal
+src/npc.js          Flint — answers the same questions a peer does, so duel.js cannot tell
+src/battle/rules.js PURE rules: the element triangle — imports nothing, fully testable
 tests/*.test.html   tests you open in a browser
 demos/NN-name/      one standalone demo per lesson: open its index.html and look at it
 data/*.json         every balance number, the type chart, the monsters, the map
@@ -56,8 +74,8 @@ Three rules that shape the codebase:
   reveals, so neither can peek and change their mind.
 - **No moderation is possible** — no bans, no logs, no reports. So chat is **preset phrases only**.
   Abuse is designed out rather than policed.
-- **Nothing is stored anywhere.** Your character lives in your own browser. Clear your browser data
-  and it's gone — export your save first.
+- **Nothing is stored anywhere.** Your character lives in your own browser, in `localStorage`. Clear
+  your browser data and it is gone; there is nowhere else it could have been kept.
 - **Some networks can't connect at all** (roughly 8–15%, strict NAT). That's not your bug.
 
 ## Fork it

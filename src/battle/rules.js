@@ -5,12 +5,21 @@
  * players in a duel must compute byte-identical results from it. That is why it
  * imports nothing (lessons A22, A24; design doc §6).
  *
- * Elements are the strings 'fire', 'water', 'earth'.
- * Actions are the strings 'strike', 'block', 'charge'.
+ * A duel is played with the three elements themselves — `fire`, `water`,
+ * `earth` — and nothing else. No hit points, no charges, no damage numbers:
+ * you pick one of three, the other player picks one of three, and the triangle
+ * says who took the round. First to `winsNeeded` round wins takes the duel; a
+ * draw simply replays the round. That is exactly the game lessons A20–A22
+ * teach, and the live game has to be the game the course builds.
  *
- * Scaffold: the action triangle is here so tests can be written first. Damage
- * resolution lands in M3.
+ * `actionWinner` below is the strike/block/charge triangle from an earlier
+ * design that no lesson teaches, and `elementMultiplier` is the damage scaling
+ * that went with it. Neither is used by the duel. They stay because the tests
+ * are written against them and the shape may yet come back.
  */
+
+/** The three moves, in the order the buttons show them. */
+export const MOVES = ['fire', 'water', 'earth'];
 
 /** water beats fire, fire beats earth, earth beats water. */
 const BEATS = {
@@ -18,6 +27,40 @@ const BEATS = {
   fire: 'earth',
   earth: 'water',
 };
+
+/** Is this string one of the three moves? Everything off the wire comes here first. */
+export function isMove(move) {
+  return typeof move === 'string' && MOVES.includes(move);
+}
+
+/** What `move` beats. */
+export function beats(move) {
+  return BEATS[move];
+}
+
+/**
+ * One round, in words.
+ *
+ * Pure in the strictest sense: the same two moves always give the same answer
+ * on both players' machines, which is the whole reason this file imports
+ * nothing. `winner` is from the point of view of whoever passed `mine`.
+ */
+export function roundResult(mine, theirs) {
+  if (!isMove(mine) || !isMove(theirs)) return null;
+  if (mine === theirs) return { winner: 'nobody', why: `${mine} does not beat ${theirs}` };
+  if (BEATS[mine] === theirs) return { winner: 'you', why: `${mine} beats ${theirs}` };
+  return { winner: 'them', why: `${theirs} beats ${mine}` };
+}
+
+/**
+ * Has anyone taken the duel yet? A score is `{ you, them }` counting round
+ * wins; draws are in neither total, because a draw replays the round.
+ */
+export function matchWinner(score, needed) {
+  if (score.you >= needed) return 'you';
+  if (score.them >= needed) return 'them';
+  return null;
+}
 
 export function elementMultiplier(attacker, defender, advantage = 2, resist = 0.5) {
   if (BEATS[attacker] === defender) return advantage;

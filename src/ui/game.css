@@ -27,7 +27,10 @@ body {
 #world {
   display: block;
   image-rendering: pixelated;
-  width: min(96vw, calc((100svh - 5.5rem) * 4 / 3));
+  /* Leave room for the phrase bar, the hint line and the sound buttons. Stage 3
+     added a row and the canvas did not shrink to match, which pushed the sound
+     buttons off the bottom of the window where they could not be clicked. */
+  width: min(96vw, calc((100svh - 14rem) * 4 / 3));
   aspect-ratio: 4 / 3;
   background: #0c0c12;
   border-radius: 10px;
@@ -77,6 +80,167 @@ body {
   font-size: 0.95rem;
   border-radius: 0.6rem;
   touch-action: manipulation;
+}
+
+/* ----------------------------------------------------------- sound + tools */
+
+#tools {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+#tools button {
+  min-height: 36px;
+  padding: 0 0.8rem;
+  font-size: 0.8rem;
+  border-radius: 0.5rem;
+  opacity: 0.75;
+}
+
+#tools button[aria-pressed="true"] { opacity: 1; border-color: #ffd76a; color: #ffd76a; }
+
+/* ------------------------------------------------ the "challenge" affordance */
+
+/* Over the bottom of the canvas, so it turns up where you are already looking
+   when you walk into somebody — not in a menu somewhere else. */
+#nearby[hidden] { display: none; }
+
+/* Placed in the canvas's own grid cell rather than positioned from the bottom of
+   the page: the first version was measured from the page bottom and quietly sat
+   on top of the sound buttons, which then could not be clicked. */
+#nearby {
+  grid-row: 1;
+  grid-column: 1;
+  align-self: end;
+  justify-self: center;
+  margin-bottom: 1.2rem;
+  min-height: 44px;
+  padding: 0 1.1rem;
+  font-weight: 700;
+  border-radius: 0.6rem;
+  background: #ffd76a;
+  color: #22160a;
+  box-shadow: 0 6px 22px rgb(0 0 0 / 0.5);
+  animation: nudge 1.6s ease-in-out infinite;
+  touch-action: manipulation;
+  z-index: 5;
+}
+
+@keyframes nudge {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) { #nearby { animation: none; } }
+
+/* -------------------------------------------------------------- duel screen */
+
+#duel[hidden] { display: none; }
+
+#duel {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(6 6 10 / 0.86);
+  overflow-y: auto;
+  z-index: 9;
+}
+
+.duel-card {
+  width: min(30rem, 100%);
+  padding: 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.duel-title { margin: 0; font-size: 1.15rem; }
+.duel-sub { margin: 0; font-size: 0.8rem; opacity: 0.7; }
+
+.duel-score {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.8rem;
+  margin: 0.2rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.duel-num { font-size: 2.4rem; font-weight: 800; line-height: 1; }
+.duel-dash { opacity: 0.4; font-size: 1.4rem; }
+
+.duel-status { margin: 0; font-weight: 700; min-height: 1.4rem; }
+.duel-why { margin: 0; font-size: 0.85rem; opacity: 0.8; min-height: 2.4rem; line-height: 1.5; }
+
+/* Three targets a thumb cannot miss. This is the game, on a phone. */
+.duel-moves {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.duel-moves[hidden] { display: none; }
+
+.duel-move {
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  min-height: 76px;
+  padding: 0.5rem 0.2rem;
+  border-radius: 0.7rem;
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.duel-move-icon { font-size: 1.7rem; line-height: 1.1; }
+.duel-move-name { font-size: 0.8rem; font-weight: 600; }
+.duel-move:disabled { opacity: 0.45; }
+.duel-move.is-picked { outline: 2px solid #ffd76a; outline-offset: 2px; }
+
+/* Both folded fingerprints, on screen, while neither move is known yet: that is
+   the whole idea of commit–reveal, and it is worth being able to watch. */
+.duel-folds {
+  display: grid;
+  gap: 0.15rem;
+  margin-top: 0.35rem;
+  font-size: 0.68rem;
+  opacity: 0.55;
+}
+
+.duel-folds[hidden] { display: none; }
+.duel-score[hidden] { display: none; }
+
+.duel-fold {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.duel-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.6rem;
+}
+
+.duel-actions button {
+  min-height: 44px;
+  padding: 0 1.1rem;
+  border-radius: 0.6rem;
+  touch-action: manipulation;
+}
+
+.duel-actions button[hidden] { display: none; }
+.duel-yes { font-weight: 700; }
+
+@media (max-width: 26rem) {
+  .duel-num { font-size: 2rem; }
+  .duel-move { min-height: 68px; }
 }
 
 /* ---------------------------------------------------------------- overlay */

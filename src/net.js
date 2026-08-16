@@ -60,6 +60,7 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
 
   const [sendMove, onMove] = room.makeAction('move');
   const [sendHello, onHello] = room.makeAction('hello');
+  const [sendDuel, onDuel] = room.makeAction('duel');
 
   const interpDelay = number(tuning.interpDelayMs, 150);
   const posEvery = 1000 / Math.max(1, number(tuning.posHz, 10));
@@ -128,8 +129,70 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
 
   room.onPeerLeave((id) => {
     const peer = peers.get(id);
+    // Close any duel with them BEFORE forgetting who they were: a link's name
+    // is looked up from the peer list, and "sUSd left" is not what a person
+    // needs to read when their opponent's tab closes mid-duel.
+    const link = links.get(id);
+    if (link) { links.delete(id); link.closed(); }
     peers.delete(id);
     for (const fn of leaveHandlers) fn(id, peer);
+  });
+
+  // ---------------------------------------------------------------- duelling
+  //
+  // A duel is a private conversation with one peer, so it gets its own little
+  // object — a "link" — instead of a pile of global handlers. `src/duel.js` is
+  // handed one of these and never learns what is behind it; `src/npc.js` makes
+  // one of exactly the same shape that goes nowhere near the network, which is
+  // why the fight code has no branch for "am I playing a computer".
+  //
+  // All five duel messages ride one trystero action with a `t` field, because a
+  // duel is one conversation and one action keeps it in order.
+
+  /** peer id -> link, for as long as a conversation with them is open. */
+  const links = new Map();
+  const linkHandlers = [];
+
+  function makeLink(id) {
+    const handlers = [];
+    const closers = [];
+    // Once they have gone, nothing more is said down this link. Without this,
+    // the duel's parting "I am leaving" is posted to a peer who is already gone
+    // and trystero warns about an id it no longer knows.
+    let alive = true;
+    const link = {
+      id,
+      get name() { return peers.get(id)?.name || id.slice(0, 4); },
+      get monster() { return peers.get(id)?.monster ?? -1; },
+      get element() { return peers.get(id)?.element || ''; },
+      send(kind, payload = {}) { if (alive && peers.has(id)) sendDuel({ ...payload, t: kind }, id); },
+      onMessage(fn) { handlers.push(fn); },
+      onClose(fn) { closers.push(fn); },
+      close() { if (links.get(id) === link) links.delete(id); },
+      deliver(kind, payload) { for (const fn of handlers) fn(kind, payload); },
+      closed() { alive = false; for (const fn of closers) fn(); },
+    };
+    links.set(id, link);
+    return link;
+  }
+
+  /** Start (or carry on) a duel conversation with this peer. */
+  function linkTo(id) {
+    return links.get(id) || makeLink(id);
+  }
+
+  onDuel((data, id) => {
+    if (!data || typeof data !== 'object' ||
+        typeof data.t !== 'string' || data.t.length > 8) { dropped.message++; return; }
+    // Somebody can start a duel before their greeting has landed, and a link
+    // that has no peer record cannot answer. Make the record first.
+    if (!peers.has(id)) makePeer(id);
+    const fresh = !links.has(id);
+    const link = linkTo(id);
+    // Tell whoever cares about a brand new conversation BEFORE the message that
+    // started it, so their handler is listening in time to hear it.
+    if (fresh) for (const fn of linkHandlers) fn(link);
+    link.deliver(data.t, data);
   });
 
   // -------------------------------------------------------------- listening
@@ -247,6 +310,8 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
   function leave() {
     if (timer) clearInterval(timer);
     timer = null;
+    for (const link of links.values()) link.closed();
+    links.clear();
     peers.clear();
     room.leave();
   }
@@ -260,6 +325,9 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     onPeerLeave: (fn) => leaveHandlers.push(fn),
     onPosition: (fn) => positionHandlers.push(fn),
     onMessage: (fn) => messageHandlers.push(fn),
+    /** A peer has started a duel conversation with us. */
+    onLink: (fn) => linkHandlers.push(fn),
+    linkTo,
     /** Register a kind now so its first arrival is not a surprise. */
     expect: (kind) => { action(kind); },
     send,

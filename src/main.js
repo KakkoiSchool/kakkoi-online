@@ -6,19 +6,23 @@
  * you are. This file's whole job is to load them, hand them to each other in
  * the right order, and run the loop.
  *
- * Stage 1 is a world you can walk around; stage 2 puts other people in it.
- * `duel.js` and `npc.js` are still deliberately empty — stage 3 plugs in here.
+ * Stage 1 is a world you can walk around, stage 2 puts other people in it, and
+ * stage 3 is the fight, the computer opponent standing in the plaza, and sound.
  */
 import { startLoop } from './loop.js';
 import { createInput } from './input.js';
 import { loadAtlas } from './sprites.js';
 import { loadWorld } from './world.js';
-import { createCamera, drawMap, drawActor, drawNameplate, drawBubble } from './render.js';
+import { createCamera, drawMap, drawActor, drawNameplate, drawBubble, drawMarker } from './render.js';
 import { createIdentity, loadMonsters, persist } from './identity.js';
 import { askIdentity, showSafetyCard } from './ui/onboarding.js';
 import { joinRoom } from './net.js';
 import { createChat } from './chat.js';
 import { createChatBar } from './ui/chatbar.js';
+import { createDuel } from './duel.js';
+import { createNpc } from './npc.js';
+import { createAudio } from './audio.js';
+import { createDuelScreen } from './ui/duel-screen.js';
 
 const canvas = document.querySelector('#world');
 if (!canvas) throw new Error('no #world canvas in index.html');
@@ -31,6 +35,9 @@ const hudName = document.querySelector('#hud-name');
 const hudPlace = document.querySelector('#hud-place');
 const hudOnline = document.querySelector('#hud-online');
 const statusEl = document.querySelector('#status');
+const nearbyBtn = document.querySelector('#nearby');
+const soundBtn = document.querySelector('#soundBtn');
+const musicBtn = document.querySelector('#musicBtn');
 
 const say = (text) => { if (statusEl) statusEl.textContent = text; };
 
@@ -60,6 +67,13 @@ async function boot() {
   ]);
 
   const identity = createIdentity(monsters);
+
+  // Sound, before anything has been clicked. `probe()` asks to play at once and
+  // writes down the refusal: it is the browser's rule that a page may not make
+  // noise nobody asked for, and being able to see that it happened is worth one
+  // silent, zero-volume attempt.
+  const audio = createAudio({ tuning });
+  audio.probe();
 
   // First run asks two questions, in the DOM. A returning player skips both.
   say('who are you?');
@@ -105,21 +119,119 @@ async function boot() {
   net.onPeerLeave(showOnline);
   showOnline();
 
+  // ------------------------------------------------------------------ sound
+  // Off until one of these two buttons is pressed, and the press is also the
+  // interaction the browser was waiting for.
+  soundBtn.addEventListener('click', () => {
+    const on = audio.toggle();
+    soundBtn.textContent = `Sound: ${on ? 'on' : 'off'}`;
+    soundBtn.setAttribute('aria-pressed', String(on));
+    if (!on) { musicBtn.textContent = 'Music: off'; musicBtn.setAttribute('aria-pressed', 'false'); }
+    else audio.play('ping');
+    soundBtn.blur();
+  });
+
+  musicBtn.addEventListener('click', () => {
+    if (!audio.on) return say('Turn the sound on first.');
+    const playing = audio.toggleMusic();
+    musicBtn.textContent = `Music: ${playing ? 'on' : 'off'}`;
+    musicBtn.setAttribute('aria-pressed', String(playing));
+    musicBtn.blur();
+  });
+
+  // ------------------------------------------------------------- the fight
+  //
+  // Flint stands in the plaza so there is always somebody to fight — this game
+  // will usually have one person in it. He is challenged exactly the way a
+  // person is, and `duel.js` is never told which one it has.
+  const npc = createNpc({ monsters, world, tuning });
+
+  const duel = createDuel({ tuning });
+  createDuelScreen({ root: document.querySelector('#duel'), duel });
+  duel.onSound((name) => audio.play(name));
+  duel.onNotice((text) => { say(text); setTimeout(() => { if (statusEl.textContent === text) say(''); }, 4000); });
+  duel.onChange(() => { if (duel.state !== 'walking') hideNearby(); });
+
+  // Somebody out there has started talking duel to us.
+  net.onLink((link) => duel.receive(link));
+
+  const reach = Number(tuning.challengeReachPx) || 64;
+  const middle = (body) => ({ x: body.x + body.w / 2, y: body.y + body.h / 2 });
+
+  /** Everyone in the world who could be challenged, peer or not. */
+  function challengeable() {
+    const list = [{ id: npc.id, name: npc.name, body: npc.body, link: () => npc.link() }];
+    for (const peer of net.peers()) {
+      if (peer.x === null) continue;
+      list.push({ id: peer.id, name: peer.name, body: peer.body, link: () => net.linkTo(peer.id) });
+    }
+    return list;
+  }
+
+  /** The closest of them, if you are standing near enough to reach out. */
+  function nearestTarget() {
+    const me = middle(player);
+    let best = null;
+    let bestDistance = reach;
+    for (const target of challengeable()) {
+      const at = middle(target.body);
+      const distance = Math.hypot(at.x - me.x, at.y - me.y);
+      if (distance < bestDistance) { bestDistance = distance; best = target; }
+    }
+    return best;
+  }
+
+  let near = null;
+
+  function hideNearby() { nearbyBtn.hidden = true; }
+
+  function showNearby(target) {
+    if (!target || duel.state !== 'walking') return hideNearby();
+    const label = `Challenge ${target.name}`;
+    if (nearbyBtn.textContent !== label) nearbyBtn.textContent = label;
+    nearbyBtn.hidden = false;
+  }
+
+  const startFight = () => {
+    if (!near || duel.state !== 'walking') return;
+    audio.play('ping');
+    duel.challenge(near.link());
+    hideNearby();
+  };
+
+  nearbyBtn.addEventListener('click', () => { startFight(); nearbyBtn.blur(); });
+
+  // F is the same key A19 uses, and it only does anything while walking.
+  addEventListener('keydown', (e) => {
+    if (e.key !== 'f' && e.key !== 'F') return;
+    if (e.target instanceof HTMLElement && (e.target.tagName === 'INPUT' || e.target.isContentEditable)) return;
+    startFight();
+  });
+
   let sinceSave = 0;
 
   startLoop({
     update(dt) {
-      const wish = steer(input, player, camera);
+      // In a duel you are not also walking around. A19's state machine again:
+      // one state at a time, and the keys that do nothing here do nothing.
+      const wish = duel.busy ? { dx: 0, dy: 0 } : steer(input, player, camera);
       const before = { x: player.x, y: player.y };
 
       // One axis at a time — that is what makes sliding along a wall work.
       world.moveX(player, wish.dx * speed * dt);
       world.moveY(player, wish.dy * speed * dt);
 
-      player.moving = Math.abs(player.x - before.x) > 0.01 || Math.abs(player.y - before.y) > 0.01;
+      const moved = Math.hypot(player.x - before.x, player.y - before.y);
+      player.moving = moved > 0.01;
       player.walked = player.moving ? player.walked + dt : 0;
+      audio.walk(moved);
 
       camera.follow(player);
+
+      // Who is within arm's reach? Recomputed every frame because everyone in
+      // it is moving, and it is a handful of distances.
+      near = duel.busy ? null : nearestTarget();
+      if (near) showNearby(near); else hideNearby();
 
       // Peers arrive ten times a second and are drawn sixty, so this slides
       // them along instead of letting them teleport. It touches no network.
@@ -140,17 +252,22 @@ async function boot() {
       // Everyone in the room, sorted by how far down the screen their feet are,
       // so a monster standing in front of another one is drawn in front of it.
       const cast = [
-        { body: player, name: identity.name, self: true },
+        { id: '', body: player, name: identity.name, self: true },
+        { id: npc.id, body: npc.body, name: npc.name, self: false },
         ...net.peers()
           .filter((peer) => peer.x !== null)
-          .map((peer) => ({ body: peer.body, name: peer.name, said: peer.said, self: false })),
+          .map((peer) => ({ id: peer.id, body: peer.body, name: peer.name, said: peer.said, self: false })),
       ].sort((a, b) => (a.body.y + a.body.h) - (b.body.y + b.body.h));
 
+      const now = performance.now();
       for (const who of cast) {
         const drawn = drawActor(ctx, creatures, who.body, camera, world.scale);
-        drawNameplate(ctx, who.name, drawn.x + drawn.sprite / 2, drawn.y - 2, { self: who.self });
+        const middleX = drawn.x + drawn.sprite / 2;
+        drawNameplate(ctx, who.name, middleX, drawn.y - 2, { self: who.self });
         const said = who.self ? player.said : who.said;
-        if (said) drawBubble(ctx, said, drawn.x + drawn.sprite / 2, drawn.y - 17);
+        if (said) drawBubble(ctx, said, middleX, drawn.y - 17);
+        // An arrow over whoever the "Challenge" button is currently about.
+        if (near && who.id === near.id) drawMarker(ctx, middleX, drawn.y - 16, now);
       }
     },
   });
@@ -161,7 +278,12 @@ async function boot() {
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
 
   // A handle for verification, and for the stages that come next.
-  globalThis.game = { world, player, camera, identity, monsters, input, tuning, flush, net, chat };
+  globalThis.game = {
+    world, player, camera, identity, monsters, input, tuning, flush,
+    net, chat, duel, npc, audio,
+    /** Who the Challenge button is about right now, or null. */
+    get near() { return near; },
+  };
 }
 
 /** Where the monster starts: where the save says, if that is still a real place. */
