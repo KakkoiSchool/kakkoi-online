@@ -651,3 +651,71 @@ workflow against it.
 **The fix:** `branches: [main]`, and the same in the deploy job's `if:` guard.
 **Worth telling students:** a CI that never runs looks exactly like a CI that passes. Green is not the
 same as checked — go and look at the run.
+
+## 2026-08-16 — read back a stale copy of my own edit and believed it
+**Lesson:** A10 (running it locally) / verification discipline
+**What it produced:** added a `<a id="learnLink">` to `index.html`, reloaded the page through the
+browser tools, and read `document.querySelector('#learnLink')` back as `null` — twice. The obvious
+conclusion was that the edit was wrong.
+**Why it was wrong:** the edit was fine. `curl` on the same URL showed the new markup immediately, so
+the file on disk and the file the server was sending were both correct. What was stale was the copy in
+the tab: `Network.setCacheDisabled` was on, but reusing an already-open tab never re-fetched the
+document at all, so nothing about the cache setting mattered.
+**How I caught it:** checked the server's answer with `curl` before touching the code again — the one
+place where the two stories could differ.
+**The fix:** an explicit `Page.reload {ignoreCache: true}`, after which the element was there.
+**Worth telling students:** when the browser disagrees with your editor, find out which copy the
+browser is actually holding before you change the code. "It is not there" and "I am looking at
+yesterday's page" are indistinguishable from the console, and one of them is not a bug.
+
+## 2026-08-16 — tested "offline" against a network that was never cut
+**Lesson:** A10 / testing a service worker
+**What it produced:** `Network.emulateNetworkConditions {offline: true}`, then a reload, then
+`Network.enable` so the console could be read — and a triumphant readback showing the game booting
+"with no network".
+**Why it was wrong:** enabling the Network domain resets the emulated conditions. The offline flag had
+been thrown away before the reload, so the game booted from the network like any other page and the
+service worker proved nothing at all.
+**How I caught it:** the honesty check that should be in every offline test — `fetch()` something that
+is deliberately NOT in the precache list. It returned `200`, which is impossible offline.
+**The fix:** set the offline condition *after* every `Network.enable`, and prove the cut with both an
+uncached same-origin request and an off-site one before believing any result. Re-run: the uncached
+fetch fails, the cached one is served, and the game boots anyway.
+**Worth telling students:** a test that cannot fail has not passed. Before trusting "it works
+offline", check that something is genuinely broken offline — otherwise you have tested nothing but
+your own optimism.
+
+## 2026-08-16 — the docs named six monsters the game has never had
+**Lesson:** A20–A22 (the duel) / keeping documents honest
+**What it produced:** `DESIGN.md` describing the six playable creatures as "Scorchwing and Emberhorn
+(fire), Brinescale and Frostguard (water), Mossgolem and Sporecap (earth)", and a comment in
+`src/npc.js` calling monster 1 "Emberhorn". `data/monsters.json` has called them Sunmane, Bristle,
+Rumble, Bandit, Fern and Coco since the day it was written.
+**Why it was wrong:** the names came from an earlier design and were never revisited when the real
+creatures were picked out of the atlas. Nothing broke, so nothing ever complained — the drift only
+became visible when the six were read out on screen next to the document that described them.
+**How I caught it:** grepping for the old element names while removing the concept, and comparing what
+came back against `data/monsters.json`.
+**The fix:** `DESIGN.md` now names the six that exist, and `npc.js` says Bristle.
+**Worth telling students:** a document that is never executed is never tested. Data files are the
+truth; anything that only repeats them will eventually be wrong, and the cheapest defence is to check
+them against each other whenever you are in there for another reason.
+
+## 2026-08-16 — the service worker served the game in place of every other page
+**Lesson:** A10 (deploying) / PWA
+**What it produced:** a `fetch` handler that answered *any* navigation with the cached
+`index.html`, on the reasoning that offline there is nothing else it could answer with.
+**Why it was wrong:** a service worker registered at the root has the whole origin for its scope, so
+"any navigation" is not "the game" — it is every other page in the repo and every page a fork ever
+adds. Opening `tests/rules.test.html` loaded the *game*: same URL in the address bar, the game's
+markup underneath. Nothing errored. A test page that silently becomes a different page is worse than
+one that fails, because the failure it hides is your own test run.
+**How I caught it:** the last check of the session, re-running the tests through the same server after
+the worker was installed. `document.querySelector('#summary')` was `null`, and the page title was
+"Kakkoi Online" instead of "Kakkoi Online — rules tests".
+**The fix:** answer with the shell only for navigations to the scope root (`start_url`) or
+`./index.html`. Everything else falls through to the network and fails on its own honest terms. Cache
+version bumped so the broken worker cannot survive.
+**Worth telling students:** a service worker's scope is bigger than the page you were thinking about
+when you wrote it. Before shipping one, open a *different* page on the same site — the one you were
+not thinking about is the one it breaks, and it breaks it silently.

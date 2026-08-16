@@ -320,9 +320,68 @@ The label went first, then the concept (decision-log row 53). `data/type-chart.j
 reads any of them; `grep -ri element src data tests` finds only DOM elements. A creature is an animal
 you like the look of.
 
+## Installable, and it opens with no network
+
+The game is a static HTTPS page, so making it installable on a phone's home screen costs three files
+and no build step.
+
+**`manifest.webmanifest`** at the repo root, linked from `index.html`. `display: "standalone"`, so an
+installed copy opens without a browser bar; `start_url` and `scope` are both `"./"`, which resolves to
+the domain root on online.kakkoi.dev and to `/kakkoi-online/` in a fork, without either having to be
+written down. Theme and background are `#0c0c12`, the colour the canvas already is, so the splash and
+the status bar match the game rather than flashing white in front of it.
+
+**The icons are the game's own art.** Sunmane the lion — cell 156 of
+`vendor/opengameart/tiny-creatures.png` — scaled up from 16px with smoothing OFF and centred on
+`#0c0c12`. Nothing new was imported and nothing was drawn: the icon on the home screen is a sprite
+from the game. They live in `icons/`, at 192 and 512, plus 180 for iOS. Every scale is a whole
+multiple of 16 or the pixels stop being square.
+
+The two **maskable** variants exist because Android crops an icon to whatever shape the launcher
+likes. The safe area is a circle of 80% of the square, so the animal has to fit the square inscribed
+in that circle — 0.8/√2 ≈ 0.566 of the side, rounded down to a multiple of 16: 96px inside 192, 288px
+inside 512. Without that, the launcher crops the lion's head off.
+
+**`sw.js`** caches the app shell. It answers with the cached page for exactly two navigations — the
+scope root, which is `start_url`, and `./index.html` — and for nothing else. The first version answered
+*every* navigation with the shell, and so served the game in place of `tests/rules.test.html`: the
+scope is the whole origin, and "every navigation" is every other page in the repo. It precaches a
+hand-written list of every file the game actually loads — html, css, js, the six trystero modules, the two atlases it draws with, `data/*.json` and the
+audio — and serves exactly those cache-first. Everything else goes to the network and is never cached,
+so nothing can go stale by accident. The list is written out rather than crawled because there is no
+build step here to crawl with, and a list you can read is a list you can check.
+
+**The cache has a version in its name and `activate` deletes every other cache on the origin.** That
+is the whole reason a PWA does not become unfixable. Without it the old cache survives every deploy,
+the stale copy is what answers, and the fix ships to nobody. **Bump `CACHE` in `sw.js` on any deploy
+that changes a file in `SHELL`.** Verified in the browser, both directions: after a version change
+`caches.keys()` is exactly one name, never two.
+
+**What works offline:** the world, walking and collision, your saved name, animal and position, the
+whole interface, sound, and a complete duel against Flint — all of it, from the cache, with the
+network genuinely cut. **What does not:** other people. Finding them is a WebSocket to a relay on
+another origin, which never comes near the service worker, and no amount of caching invents a second
+player. Offline the HUD honestly says "Just you here for now".
+
+The worker is registered from `index.html`, last, in a `catch`, and only over https or localhost —
+everywhere else `navigator.serviceWorker` is absent and asking for it would throw for no reason. A
+service worker is an improvement to a game that already works, so it is never allowed to stop the game
+starting.
+
+**It does not touch `localStorage`.** There are real saved characters on the live site; a cache is not
+a save, and nothing here clears or migrates one.
+
+## The lessons link
+
+`index.html`'s tools row has a quiet "Learn to build this" link to the lesson track, beside the sound
+buttons and styled exactly like them. Somebody who was sent the game link should be able to find out
+they could build one — that is the whole reason the game exists — and a README is not where they would
+look. It is deliberately not a banner or a call to action.
+
 ## Status at last commit
 
-- **Live:** https://online.kakkoi.dev (stage 1 — stages 2 and 3 are committed but not yet pushed)
+- **Live:** https://online.kakkoi.dev (stage 1 — stages 2 and 3, the rock-paper-scissors duel and the
+  PWA are committed but not yet pushed)
 - **Deploy:** the repo is published verbatim as static files; no check job, no build
 - **Lessons written:** A09, A10 (in the `izumo-io` repo, live in EN/JA/PT)
 - **Tests:** `tests/rules.test.html` — 7 passing, covering the rock-paper-scissors triangle by name,
@@ -332,3 +391,6 @@ you like the look of.
   with both sides agreeing on the score, both fingerprints on the table before either move, a tampered
   reveal caught by the other side, refusing, timing out, a tab closed mid-duel, both challenging at
   once, and a duel against Flint
+- **Verified offline** with the network cut at the browser: the game boots from the cache, the save
+  comes back, you can walk, and a full duel against Flint plays out — 2–3, both sides of the triangle
+  named in words

@@ -43,6 +43,11 @@ card explaining why. See "One window at a time" in `DESIGN.md`.
 **To change your name or your animal**, press **Start over** next to the sound buttons. It asks
 first, then puts you back at the name screen and the entrance.
 
+**Install it on your phone.** The live site is a proper PWA: open it and use your browser's "Add to
+Home Screen". It then opens like an app, with no browser bar, **and it works with no network** — the
+world, your saved character and Flint are all cached. Other players are the one thing offline cannot
+give you, because finding them needs a real connection.
+
 **Tests** are a web page: open `tests/rules.test.html` through the same server and read the
 PASS/FAIL rows. No test runner, no npm.
 
@@ -50,6 +55,9 @@ PASS/FAIL rows. No test runner, no npm.
 
 ```
 index.html          canvas + Basecoat UI shell
+manifest.webmanifest  makes it installable on a phone's home screen
+sw.js               caches the app shell so the game opens offline. BUMP ITS CACHE VERSION
+icons/              the home-screen icons, made from the game's own lion sprite
 src/main.js         boot and wiring only — everything else is one idea per file
 src/loop.js         the requestAnimationFrame loop
 src/net.js          the only file that knows trystero exists
@@ -70,6 +78,8 @@ Three rules that shape the codebase:
 - **`src/battle/rules.js` imports nothing.** Both players in a duel must compute identical results
   from it, and it must be testable without a network.
 - **Numbers live in `data/`, not in code.** Balancing is an edit, never a rewrite.
+- **Change a shipped file, bump `CACHE` in `sw.js`.** A service worker that keeps serving the old
+  cache is how a PWA becomes unfixable: the fix deploys and nobody ever receives it.
 
 ## No server means
 

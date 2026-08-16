@@ -104,12 +104,27 @@ body {
   justify-content: center;
 }
 
-#tools button {
+/* The link to the lessons is styled exactly as the buttons beside it, and not
+   as a call to action: it is a way out for the curious, not an advert. `a` and
+   `button` are listed together so the row cannot drift apart later — the same
+   height keeps the row's height, and the page's, unchanged. */
+#tools button,
+#tools a {
   min-height: 36px;
   padding: 0 0.8rem;
   font-size: 0.8rem;
   border-radius: 0.5rem;
   opacity: 0.75;
+}
+
+/* Basecoat's button styles centre their text with flex; an <a> is inline, so it
+   needs saying. Without this the label sits on the baseline and the link is a
+   pixel or two taller than the buttons next to it. */
+#tools a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 #tools button[aria-pressed="true"] { opacity: 1; border-color: #ffd76a; color: #ffd76a; }

@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0c0c12">
   <title>Kakkoi Online</title>
+  <!-- Installable on a phone's home screen: a manifest, an icon, and a service
+       worker that caches the game so it opens with no network. See sw.js. -->
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <!-- The standard name first. The `apple-` one is kept beside it because older
+       iOS reads only that, and Chrome warns about it alone. -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kakkoi">
   <link rel="stylesheet" href="./vendor/basecoat.min.css">
   <link rel="stylesheet" href="./src/ui/game.css">
 </head>
@@ -43,6 +53,12 @@
       <button id="musicBtn" class="btn-outline" type="button" aria-pressed="false">Music: off</button>
       <!-- A new name and a new animal. Asks first — see src/ui/onboarding.js. -->
       <button id="resetBtn" class="btn-outline" type="button">Start over</button>
+      <!-- Somebody was sent this link by somebody. The whole reason the game
+           exists is that they could build one too, so the way to find that out
+           belongs on the screen and not in a README. Quiet on purpose: it sits
+           in the tools row at the same weight as the sound buttons. -->
+      <a id="learnLink" class="btn-outline" href="https://school.kakkoi.dev/ai-lessons.html"
+         target="_blank" rel="noopener">Learn to build this</a>
     </div>
 
     <!-- The duel: the challenge, the three moves, and what just happened. -->
@@ -57,5 +73,23 @@
   </main>
 
   <script type="module" src="./src/main.js"></script>
+
+  <!-- Registering the worker is three lines and does not belong in a module of
+       its own. It is deliberately the LAST thing that happens and it is wrapped
+       in a catch: a service worker is an improvement to a game that already
+       works, so nothing about it is allowed to stop the game starting.
+
+       Only over https or localhost. Everywhere else `navigator.serviceWorker`
+       is simply not there, and asking for it would throw for no good reason —
+       so we look before we leap, and say nothing when the answer is no. -->
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch((err) => {
+          console.warn('sw: not registered —', err.message);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

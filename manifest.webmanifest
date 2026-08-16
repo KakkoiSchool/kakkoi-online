@@ -1,0 +1,20 @@
+{
+  "name": "Kakkoi Online",
+  "short_name": "Kakkoi",
+  "description": "A tiny top-down multiplayer game with no server at all. Walk around a dungeon, meet whoever else has it open, and duel them at rock, paper, scissors.",
+  "id": "/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0c0c12",
+  "background_color": "#0c0c12",
+  "lang": "en",
+  "categories": ["games"],
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "./icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
