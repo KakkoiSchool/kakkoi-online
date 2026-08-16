@@ -148,7 +148,7 @@ function askName(root, identity, next) {
 
 function askMonster(root, identity, monsters, atlas, done) {
   const card = panel(`Pick your monster, ${identity.name}`,
-    'Your monster is also your element. Fire beats earth, earth beats water, water beats fire.');
+    'Pick whichever you like the look of. In a duel you choose fire, water or earth yourself, each round — your monster does not choose for you.');
 
   const grid = document.createElement('div');
   grid.className = 'monster-grid';
