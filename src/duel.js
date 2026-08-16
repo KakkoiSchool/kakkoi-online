@@ -9,7 +9,7 @@
  *      Refused, both-challenged-at-once, they-left-mid-duel and they-went-quiet
  *      all end the same way: back to `walking`, never stuck.
  *
- *   2. THREE MOVES. fire, water, earth. Who won a round is decided by
+ *   2. THREE MOVES. rock, paper, scissors. Who won a round is decided by
  *      `battle/rules.js`, which is pure, so both browsers compute the same
  *      answer from the same two moves. First to `winsNeeded` rounds takes the
  *      duel; a draw replays the round. No hit points, no charges. The monster
@@ -56,7 +56,7 @@ export function randomSecret() {
  * What actually gets fingerprinted. The round number is in there so a
  * fingerprint from round 1 cannot be replayed in round 2, and the secret is in
  * there because there are only three moves — without it anyone could fingerprint
- * fire, water and earth themselves and see which one matched.
+ * rock, paper and scissors themselves and see which one matched.
  */
 export function foldedText(round, move, secret) {
   return `${round}:${move}:${secret}`;

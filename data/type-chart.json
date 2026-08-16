@@ -1,6 +1,0 @@
-{
-  "_comment": "attacker -> defender -> multiplier. water beats fire, fire beats earth, earth beats water.",
-  "fire":  { "fire": 1,   "water": 0.5, "earth": 2   },
-  "water": { "fire": 2,   "water": 1,   "earth": 0.5 },
-  "earth": { "fire": 0.5, "water": 2,   "earth": 1   }
-}

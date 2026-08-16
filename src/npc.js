@@ -23,7 +23,7 @@ import { fold } from './duel.js';
 export const NAME = 'Flint';
 
 /** Which of the six he is, and where he stands, in tiles. */
-export const NPC_MONSTER = 1;          // Emberhorn
+export const NPC_MONSTER = 1;          // Bristle, the boar
 export const NPC_TILE = { col: 27, row: 20 };
 
 export function createNpc({ monsters, world, tuning = {}, box = { w: 20, h: 14 } }) {
@@ -90,7 +90,6 @@ export function createNpc({ monsters, world, tuning = {}, box = { w: 20, h: 14 }
       id: `npc:${monster.id}`,
       name: NAME,
       monster: monster.id,
-      element: monster.element,
 
       async send(kind, payload) {
         if (!open) return;
@@ -128,7 +127,6 @@ export function createNpc({ monsters, world, tuning = {}, box = { w: 20, h: 14 }
     id: `npc:${monster.id}`,
     name: NAME,
     monster: monster.id,
-    element: monster.element,
     body,
     link,
     /** For checking from the console. */

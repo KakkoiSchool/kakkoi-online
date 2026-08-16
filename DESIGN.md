@@ -72,7 +72,7 @@ code, comments included, because a student has to be able to hold all of it at o
 `index.html` at the repo root **is** the game: a 640x480 canvas with the DOM interface on top of it.
 You are asked for a name, you pick one of six monsters, you read one short card about other people,
 and then you are in the dungeon — walking, sharing it with whoever else has it open, and duelling them
-(or Flint, who is always in the plaza) with fire, water and earth.
+(or Flint, who is always in the plaza) at rock, paper, scissors.
 
 ```
 index.html          canvas + DOM shell, imports src/main.js
@@ -93,7 +93,7 @@ src/
   npc.js            Flint: answers exactly the questions a peer answers
   audio.js          six effects and a music loop, OFF until you say otherwise
   ui/duel-screen.js the challenge, three thumb-sized moves, and what happened
-  battle/rules.js   PURE. imports nothing. the element triangle lives here
+  battle/rules.js   PURE. imports nothing. the rock-paper-scissors triangle lives here
 ```
 
 **Scale.** 16px art at 2x, so a tile is 32 screen pixels and the canvas shows 20x15 of them.
@@ -108,8 +108,9 @@ list of the numbers you cannot walk through; collision is "is the square I am mo
 list", checked one axis at a time so sliding along a wall works.
 
 **The monsters.** Six cells picked out of `vendor/opengameart/tiny-creatures.png` and named for what
-they look like: Scorchwing and Emberhorn (fire), Brinescale and Frostguard (water), Mossgolem and
-Sporecap (earth). Your monster is your element.
+they look like: Sunmane the lion, Bristle the boar, Rumble the elephant, Bandit the raccoon, Fern the
+deer and Coco the ape. A monster carries no stat and no type — it is an animal you like the look of,
+and nothing else.
 
 **A deliberate difference from A14.** Tiny Creatures has no walk frames — it is a 16px top-down set
 that matches the dungeon tiles exactly, which matters more here than legs. So a walking monster
@@ -162,21 +163,22 @@ look identical. Alone, it says "Just you here for now".
 
 ## The fight (stage 3)
 
-**The moves are the three elements, and nothing else.** fire, water, earth; water beats fire, fire
-beats earth, earth beats water — the same triangle the rest of the game already runs on. A duel is
-**first to three round wins**, and a draw replays the round. There are no hit points, no charges and no
-damage numbers.
+**The moves are rock, paper and scissors, and nothing else.** Rock beats scissors, scissors beats
+paper, paper beats rock. A duel is **first to three round wins**, and a draw replays the round. There
+are no hit points, no charges and no damage numbers.
 
-That is a deliberate reversal. `planning/kakkoi-online-trd.md` §3 describes a Strike / Block / Charge
-duel with charges, HP and a damage formula, and it is **superseded** (decision-log row 52). No lesson
-teaches it, and the live game has to be the game the course builds — otherwise every student who
-finishes A22 opens the real thing and finds a different game. `battle/rules.js` still exports
-`actionWinner` and `elementMultiplier`, unused, because the tests are written against them and the
-shape may come back.
+That is a deliberate reversal, twice over. `planning/kakkoi-online-trd.md` §3 describes a Strike /
+Block / Charge duel with charges, HP and a damage formula, and it is **superseded** (decision-log row
+52). The fire/water/earth triangle that replaced it is **also** superseded (decision-log row 53): the
+same three-way cycle, but with a name every player already knows, and without an "element" that has to
+be explained and then explained away. The mapping was `water → rock`, `fire → scissors`,
+`earth → paper`, so every beats-relationship is the one it always was. `battle/rules.js` still exports
+`actionWinner`, unused, because a test is written against it and the shape may come back;
+`elementMultiplier` and `data/type-chart.json` are gone, because nothing was left for them to scale.
 
-**Your monster is a costume in a duel.** It decides what you look like and which element you *are*,
-and it gives you no bonus at all in a fight. There is no lesson that teaches an element bonus, and
-inventing mechanics that nothing teaches is the exact mistake the paragraph above corrects.
+**Your monster is a costume in a duel.** It decides what you look like and gives you no bonus at all
+in a fight. There is no lesson that teaches a creature bonus, and inventing mechanics that nothing
+teaches is the exact mistake the paragraph above corrects.
 
 **Starting one is physical.** Walk up to somebody and a Challenge button appears over the canvas, with
 a small arrow over their head; `F` does the same. There is no list of players with a button beside each
@@ -308,21 +310,24 @@ paused card are all `position: fixed` for the same reason.
 The canvas's bounding rect is identical with the prompt shown and hidden, at desktop width and at
 390x780. If you add a panel, that is the check.
 
-## The element is not shown anywhere
+## There is no element, anywhere
 
-Each animal has an `element` in `data/monsters.json`, and it does nothing: a duel is decided entirely
-by the move you pick each round. It used to be printed under every animal in the picker, which reads
-as a promise that your choice matters. The label is gone. The field stays in the data — it is
-flavour, it is documented as such, and the v2 design uses it — but nothing on screen mentions it. The
-fire/water/earth on the duel screen is the *move* you choose, which is real.
+An animal used to carry an `element`, printed under it in the picker. That reads as a promise that
+your choice matters, and it never did: a duel is decided entirely by the move you pick each round.
+The label went first, then the concept (decision-log row 53). `data/type-chart.json` is deleted,
+`elementMultiplier()` is gone from `battle/rules.js`, the `element` field is out of
+`data/monsters.json`, and `elementAdvantage` / `elementResist` are out of `data/tuning.json`. Nothing
+reads any of them; `grep -ri element src data tests` finds only DOM elements. A creature is an animal
+you like the look of.
 
 ## Status at last commit
 
 - **Live:** https://online.kakkoi.dev (stage 1 — stages 2 and 3 are committed but not yet pushed)
 - **Deploy:** the repo is published verbatim as static files; no check job, no build
 - **Lessons written:** A09, A10 (in the `izumo-io` repo, live in EN/JA/PT)
-- **Tests:** `tests/rules.test.html` — 7 passing, covering both triangles, the round result, the
-  agree-from-both-sides property the duel rests on, and the first-to-three ending
+- **Tests:** `tests/rules.test.html` — 7 passing, covering the rock-paper-scissors triangle by name,
+  the leftover action triangle, the round result, the agree-from-both-sides property the duel rests
+  on, and the first-to-three ending
 - **Verified in two real browsers** (different origins, so two real players): a full duel end to end
   with both sides agreeing on the score, both fingerprints on the table before either move, a tampered
   reveal caught by the other side, refusing, timing out, a tab closed mid-duel, both challenging at

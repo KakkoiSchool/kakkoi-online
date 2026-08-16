@@ -8,8 +8,8 @@ the other players' browsers. Hosting is a static page, so it costs nothing to ru
 
 You pick a name and one of six monsters, and you are in a dungeon. You walk around it, you see anyone
 else who has the page open walking around it too, and you talk to them in six set phrases. Walk up to
-one of them and a **Challenge** button appears: a duel is **fire, water, earth**, first to three
-rounds. Water beats fire, fire beats earth, earth beats water. Neither player can peek — both sides
+one of them and a **Challenge** button appears: a duel is **rock, paper, scissors**, first to three
+rounds. Rock beats scissors, scissors beats paper, paper beats rock. Neither player can peek — both sides
 send a fingerprint of their move before either sends the move, and a move that does not match its
 fingerprint is caught and the duel ends there.
 
@@ -55,10 +55,10 @@ src/loop.js         the requestAnimationFrame loop
 src/net.js          the only file that knows trystero exists
 src/duel.js         the challenge state machine, the rounds, and commit–reveal
 src/npc.js          Flint — answers the same questions a peer does, so duel.js cannot tell
-src/battle/rules.js PURE rules: the element triangle — imports nothing, fully testable
+src/battle/rules.js PURE rules: the rock-paper-scissors triangle — imports nothing, fully testable
 tests/*.test.html   tests you open in a browser
 demos/NN-name/      one standalone demo per lesson: open its index.html and look at it
-data/*.json         every balance number, the type chart, the monsters, the map
+data/*.json         every balance number, the monsters, the map
 vendor/             pinned third-party files (see vendor/README.md)
 audio/              CC0 sound (see audio/README.md)
 ```

@@ -101,7 +101,6 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
       id,
       name: id.slice(0, 4),
       monster: fallback.id,
-      element: fallback.element,
       /** The last position this peer told us about — raw, checked, authoritative. */
       x: null,
       y: null,
@@ -164,7 +163,6 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
       id,
       get name() { return peers.get(id)?.name || id.slice(0, 4); },
       get monster() { return peers.get(id)?.monster ?? -1; },
-      get element() { return peers.get(id)?.element || ''; },
       send(kind, payload = {}) { if (alive && peers.has(id)) sendDuel({ ...payload, t: kind }, id); },
       onMessage(fn) { handlers.push(fn); },
       onClose(fn) { closers.push(fn); },
@@ -249,7 +247,6 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     const monster = Number.isInteger(id) ? monsters.find((m) => m.id === id) : undefined;
     if (!monster) { dropped.monster++; return false; }
     peer.monster = monster.id;
-    peer.element = monster.element;
     peer.body.cell = monster.cell;
     return true;
   }

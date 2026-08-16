@@ -5,27 +5,25 @@
  * players in a duel must compute byte-identical results from it. That is why it
  * imports nothing (lessons A22, A24; design doc §6).
  *
- * A duel is played with the three elements themselves — `fire`, `water`,
- * `earth` — and nothing else. No hit points, no charges, no damage numbers:
- * you pick one of three, the other player picks one of three, and the triangle
- * says who took the round. First to `winsNeeded` round wins takes the duel; a
- * draw simply replays the round. That is exactly the game lessons A20–A22
- * teach, and the live game has to be the game the course builds.
+ * A duel is rock, paper, scissors and nothing else. No hit points, no charges,
+ * no damage numbers: you pick one of three, the other player picks one of three,
+ * and the triangle says who took the round. First to `winsNeeded` round wins
+ * takes the duel; a draw simply replays the round. That is exactly the game
+ * lessons A20–A22 teach, and the live game has to be the game the course builds.
  *
  * `actionWinner` below is the strike/block/charge triangle from an earlier
- * design that no lesson teaches, and `elementMultiplier` is the damage scaling
- * that went with it. Neither is used by the duel. They stay because the tests
- * are written against them and the shape may yet come back.
+ * design that no lesson teaches. It is not used by the duel. It stays because
+ * the tests are written against it and the shape may yet come back.
  */
 
 /** The three moves, in the order the buttons show them. */
-export const MOVES = ['fire', 'water', 'earth'];
+export const MOVES = ['rock', 'paper', 'scissors'];
 
-/** water beats fire, fire beats earth, earth beats water. */
+/** rock beats scissors, scissors beats paper, paper beats rock. */
 const BEATS = {
-  water: 'fire',
-  fire: 'earth',
-  earth: 'water',
+  rock: 'scissors',
+  scissors: 'paper',
+  paper: 'rock',
 };
 
 /** Is this string one of the three moves? Everything off the wire comes here first. */
@@ -60,12 +58,6 @@ export function matchWinner(score, needed) {
   if (score.you >= needed) return 'you';
   if (score.them >= needed) return 'them';
   return null;
-}
-
-export function elementMultiplier(attacker, defender, advantage = 2, resist = 0.5) {
-  if (BEATS[attacker] === defender) return advantage;
-  if (BEATS[defender] === attacker) return resist;
-  return 1;
 }
 
 /**

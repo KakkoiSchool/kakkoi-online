@@ -1,6 +1,6 @@
 /**
  * Who you are: a random id that lasts, a name you typed, and the monster you
- * picked (which is also your element).
+ * picked.
  *
  * The id is not a login. It exists so that when other people arrive in stage
  * two, two tabs of the same game are two different players — and so a peer can

@@ -401,8 +401,8 @@ body {
 .monster-swatch { image-rendering: pixelated; width: 56px; height: 56px; }
 .monster-name { font-size: 0.85rem; font-weight: 600; }
 
-/* The element badge that used to sit under each animal is gone: the animal you
-   pick has no effect on a duel, and printing "Fire" under it said otherwise. */
+/* Nothing sits under an animal but its name: the animal you pick has no effect
+   on a duel, so any badge under it would say otherwise. */
 
 @media (max-width: 26rem) {
   .monster-grid { grid-template-columns: repeat(2, 1fr); }

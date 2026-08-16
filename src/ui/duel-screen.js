@@ -7,7 +7,7 @@
  * canvas. The three move buttons are deliberately enormous — this game is
  * played on phones, and a move you cannot hit is not a move.
  *
- * It says what happened in **words** — "water beats fire" — and not just who
+ * It says what happened in **words** — "rock beats scissors" — and not just who
  * won, because a player who cannot see why they lost cannot get better. The
  * running score sits above the buttons the whole time.
  *
@@ -17,9 +17,9 @@
 import { MOVES } from '../battle/rules.js';
 
 const LOOK = {
-  fire: { icon: '🔥', label: 'Fire' },
-  water: { icon: '💧', label: 'Water' },
-  earth: { icon: '🍃', label: 'Earth' },
+  rock: { icon: '🪨', label: 'Rock' },
+  paper: { icon: '📄', label: 'Paper' },
+  scissors: { icon: '✂️', label: 'Scissors' },
 };
 
 const HEADING = { you: 'You take the round', them: 'They take the round', nobody: 'A draw' };
@@ -99,7 +99,7 @@ export function createDuelScreen({ root, duel }) {
 
     if (v.state === 'asked') {
       title.textContent = `${them} challenges you!`;
-      sub.textContent = 'First to three rounds. Fire, water, earth — water beats fire, fire beats earth, earth beats water.';
+      sub.textContent = 'First to three rounds. Rock, paper, scissors — rock beats scissors, scissors beats paper, paper beats rock.';
       status.textContent = '';
       why.textContent = '';
       return;

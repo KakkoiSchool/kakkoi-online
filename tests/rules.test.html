@@ -23,7 +23,7 @@
        everything below is just enough scaffolding to print the results. -->
   <script type="module">
     import {
-      actionWinner, elementMultiplier,
+      actionWinner,
       MOVES, isMove, roundResult, matchWinner,
     } from '../src/battle/rules.js';
 
@@ -53,20 +53,7 @@
       }
     }
 
-    const ELEMENTS = ['fire', 'water', 'earth'];
     const ACTIONS = ['strike', 'block', 'charge'];
-
-    test('the element cycle has no ties and no dominant element', () => {
-      is(elementMultiplier('water', 'fire'), 2, 'water vs fire');
-      is(elementMultiplier('fire', 'earth'), 2, 'fire vs earth');
-      is(elementMultiplier('earth', 'water'), 2, 'earth vs water');
-
-      is(elementMultiplier('fire', 'water'), 0.5, 'fire vs water');
-      is(elementMultiplier('earth', 'fire'), 0.5, 'earth vs fire');
-      is(elementMultiplier('water', 'earth'), 0.5, 'water vs earth');
-
-      for (const e of ELEMENTS) is(elementMultiplier(e, e), 1, `${e} vs itself`);
-    });
 
     test('the action triangle is a proper cycle', () => {
       is(actionWinner('strike', 'charge'), 1, 'strike vs charge');
@@ -85,12 +72,18 @@
 
     // ---- the duel the game actually plays: three moves, first to three rounds
 
-    test('a round is decided by the element triangle, and says why', () => {
-      is(roundResult('water', 'fire').winner, 'you', 'water vs fire');
-      is(roundResult('water', 'fire').why, 'water beats fire', 'the words');
-      is(roundResult('fire', 'water').winner, 'them', 'fire vs water');
-      is(roundResult('fire', 'water').why, 'water beats fire', 'the words, losing');
-      is(roundResult('earth', 'earth').winner, 'nobody', 'same move');
+    test('the three moves are rock, paper and scissors, in that order', () => {
+      is(MOVES.join(','), 'rock,paper,scissors', 'the buttons, left to right');
+    });
+
+    test('a round is decided by the rock-paper-scissors triangle, and says why', () => {
+      is(roundResult('rock', 'scissors').winner, 'you', 'rock beats scissors');
+      is(roundResult('scissors', 'paper').winner, 'you', 'scissors beats paper');
+      is(roundResult('paper', 'rock').winner, 'you', 'paper beats rock');
+      is(roundResult('rock', 'scissors').why, 'rock beats scissors', 'the words');
+      is(roundResult('scissors', 'rock').winner, 'them', 'scissors vs rock');
+      is(roundResult('scissors', 'rock').why, 'rock beats scissors', 'the words, losing');
+      is(roundResult('paper', 'paper').winner, 'nobody', 'same move');
     });
 
     test('both players get the same answer from the same two moves', () => {
@@ -111,10 +104,10 @@
 
     test('anything that is not one of the three moves is not a move', () => {
       for (const move of MOVES) is(isMove(move), true, move);
-      for (const junk of ['strike', 'FIRE', '', null, 3, {}, ['fire']]) {
+      for (const junk of ['strike', 'lizard', 'ROCK', '', null, 3, {}, ['rock']]) {
         is(isMove(junk), false, JSON.stringify(junk));
       }
-      is(roundResult('fire', 'lava'), null, 'a made-up move gives no result');
+      is(roundResult('rock', 'lizard'), null, 'a made-up move gives no result');
     });
 
     test('the duel is over at three round wins, and not before', () => {

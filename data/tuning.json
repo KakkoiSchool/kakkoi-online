@@ -15,11 +15,9 @@
   "walkSpeed": 150,
   "saveEveryMs": 500,
 
-  "_unused": "Below are the numbers of the strike/block/charge duel that was designed and then dropped (design decision 52). No lesson teaches it, so the game does not play it. They stay because tests/rules.test.html still checks elementMultiplier against them.",
+  "_unused": "Below are the numbers of the strike/block/charge duel that was designed and then dropped (design decisions 52 and 53). No lesson teaches it, so the game does not play it: the duel is rock, paper, scissors and has no hit points. They stay only as a record of what was tried.",
   "hp": 30,
   "baseDamage": 4,
-  "elementAdvantage": 2.0,
-  "elementResist": 0.5,
   "punishMultiplier": 1.5,
   "chargeMultiplier": [1, 2, 3],
   "maxCharges": 2,

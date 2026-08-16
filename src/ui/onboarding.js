@@ -194,11 +194,10 @@ function askName(root, identity, next) {
 }
 
 function askMonster(root, identity, monsters, atlas, done) {
-  // No element under the animals, on purpose. A duel is decided entirely by the
-  // move you pick each round, so an animal's element changes nothing — printing
-  // "Fire" under the lion promises the choice matters when it does not. The
-  // field is still in `data/monsters.json` (it is flavour, and the v2 design
-  // uses it); it is simply not shown to anybody.
+  // Nothing is printed under the animals but their names. A duel is rock, paper,
+  // scissors and is decided entirely by the move you pick each round, so the
+  // animal you choose is a costume: it changes nothing at all in a fight, and
+  // any badge under it would promise otherwise.
   const card = panel(`Pick your monster, ${identity.name}`,
     'Pick whichever you like the look of.');
 
