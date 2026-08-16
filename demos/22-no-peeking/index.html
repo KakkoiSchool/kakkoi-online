@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A22 — no peeking</title>
+  <style>
+    body { font: 16px/1.6 system-ui, sans-serif; background: #12121a; color: #e8e8ef;
+           margin: 0; padding: 1.5rem; display: grid; place-items: center; align-content: center; min-height: 100vh; box-sizing: border-box; gap: 1rem; }
+    h1 { font-size: 1.2rem; margin: 0; opacity: 0.8; }
+    .row { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+    button { font: inherit; font-size: 1.05rem; min-width: 7rem; min-height: 3.5rem;
+             border: 2px solid #444; border-radius: 12px; background: #1b1b22;
+             color: #e8e8ef; cursor: pointer; touch-action: manipulation; }
+    button:disabled { opacity: 0.35; cursor: default; }
+    button:active { background: #2a2a36; }
+    #cheat { border-color: #a04040; }
+    #folded { font-family: ui-monospace, monospace; font-size: 0.85rem; opacity: 0.7;
+              text-align: center; white-space: pre-line; min-height: 3rem; }
+    #verdict { font-size: 1.4rem; font-weight: 700; margin: 0; text-align: center; }
+    #why { margin: 0; opacity: 0.8; text-align: center; max-width: 34rem; }
+  </style>
+</head>
+<body>
+  <h1>Write your move down, fold the paper, then both unfold at once.</h1>
+  <div class="row" id="moves">
+    <button data-move="fire">🔥 fire</button>
+    <button data-move="water">💧 water</button>
+    <button data-move="earth">🪨 earth</button>
+  </div>
+  <div id="folded">Nothing is folded yet.</div>
+  <div class="row">
+    <button id="reveal" disabled>Unfold both</button>
+    <button id="cheat" disabled>Try to cheat</button>
+  </div>
+  <p id="verdict">—</p>
+  <p id="why">Pick a move to start.</p>
+  <script src="main.js"></script>
+</body>
+</html>

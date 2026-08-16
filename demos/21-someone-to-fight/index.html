@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A21 — someone to fight</title>
+  <style>
+    body { font: 16px/1.6 system-ui, sans-serif; background: #12121a; color: #e8e8ef;
+           margin: 0; padding: 1.5rem; display: grid; place-items: center; align-content: center; min-height: 100vh; box-sizing: border-box; gap: 1.25rem; }
+    h1 { font-size: 1.2rem; margin: 0; opacity: 0.8; }
+    #moves { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+    button { font: inherit; font-size: 1.1rem; min-width: 7rem; min-height: 3.5rem;
+             border: 2px solid #444; border-radius: 12px; background: #1b1b22;
+             color: #e8e8ef; cursor: pointer; touch-action: manipulation; }
+    button:active { background: #2a2a36; }
+    label { display: flex; gap: 0.5rem; align-items: center; opacity: 0.85; }
+    #result { min-height: 4.5rem; text-align: center; }
+    #who { font-size: 1.5rem; font-weight: 700; margin: 0; }
+    #why { margin: 0.25rem 0 0; opacity: 0.75; }
+    #score { opacity: 0.6; }
+  </style>
+</head>
+<body>
+  <h1>Play a dozen rounds against each opponent. Notice the difference.</h1>
+  <label><input type="checkbox" id="smart"> opponent remembers you (off = pure random)</label>
+  <div id="moves">
+    <button data-move="fire">🔥 fire</button>
+    <button data-move="water">💧 water</button>
+    <button data-move="earth">🪨 earth</button>
+  </div>
+  <div id="result">
+    <p id="who">—</p>
+    <p id="why">water beats fire, fire beats earth, earth beats water</p>
+  </div>
+  <p id="score">won 0 · lost 0 · drew 0</p>
+  <script src="main.js"></script>
+</body>
+</html>

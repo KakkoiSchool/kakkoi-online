@@ -17,6 +17,41 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — the "try to cheat" button could cheat honestly, one time in three
+**Lesson:** A22 (no peeking)
+**What it produced:** the cheat button reveals a move the player never committed to — specifically the move
+that beats yours: `const swapped = MOVES.find((m) => BEATS[m] === you.move)`.
+**Why it was wrong:** the fake opponent commits to a *random* move. About one time in three, the move that
+beats yours is the move they actually committed to. In that case the cheat button reveals exactly what was
+committed, the hashes match, and the demo reports an honest round — the button whose whole job is to be
+caught quietly succeeds. The one visible feature of the demo would have failed on roughly a third of
+presses, and it would have looked like the checking code was broken rather than the test button.
+**How I caught it:** read it, before running it. Not by testing — a run has a two-in-three chance of looking
+perfect, which is exactly the kind of bug a quick manual test blesses.
+**The fix:** pick a different move when the "beats you" move is the one they committed to:
+`const swapped = better !== them.move ? better : MOVES.find((m) => m !== them.move)`. Then drove the button
+in the browser: committed `earth`, revealed `water`, `lastCheck` came back
+`{"youHonest":true,"theyHonest":false}` and the page showed "Caught cheating!".
+**Worth telling students:** a test that only fails sometimes is worse than one that always fails. If your
+"make it break" button is itself random, it is not a test, it is a coin toss.
+
+## 2026-08-16 — "SHA-256 will not work from a file, only from Live Server" turned out to be false
+**Lesson:** A22 (no peeking)
+**What it produced:** the plan for the lesson said flatly that `crypto.subtle.digest` needs a secure context,
+so opening `index.html` by double-clicking it would fail and only Live Server would work. It was going to be
+written into the lesson as a fact.
+**Why it was wrong:** modern Chrome treats a `file://` page as a secure context. Opening the demo straight
+off disk reported `window.isSecureContext === true`, `crypto.subtle` present, and the two hashes appeared on
+screen normally: `9f138de5d15f1920608a2ebadbdb68a3…`. The rule ("secure context required") is real; the
+consequence claimed for it was not, at least not in this browser.
+**How I caught it:** loaded the demo over `file://` on purpose to photograph the failure, and there was no
+failure to photograph.
+**The fix:** the lesson now states the rule that browsers actually follow — the page must be a secure
+context, and `http://localhost` from Live Server always is — instead of promising a breakage that does not
+happen. No invented bug goes in the lesson.
+**Worth telling students:** "this will not work unless…" is a claim, and claims get checked. Ours did not
+survive first contact with the browser.
+
 ## 2026-08-16 — the "clean console" check was reading an empty pipe
 **Lesson:** A11 (save the game)
 **What it produced:** a verification round that drained the browser event queue after loading the demo,
