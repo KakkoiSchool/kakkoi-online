@@ -67,12 +67,57 @@ code, comments included, because a student has to be able to hold all of it at o
 - `demos/10-player/` — a square you can move. **Notice / Decide / Draw**: held keys plus Pointer
   Events, movement multiplied by elapsed time, clear-and-fill on a canvas.
 
+## The game, as it actually stands (stage 1)
+
+`index.html` at the repo root **is** the game: a 640x480 canvas with the DOM interface on top of it.
+You are asked for a name, you pick one of six monsters, and then you are in the dungeon, walking.
+
+```
+index.html          canvas + DOM shell, imports src/main.js
+src/
+  main.js           boot and wiring only — loads, hands the modules to each other, runs the loop
+  loop.js           requestAnimationFrame, dt in seconds, clamped at 0.25
+  input.js          held keys + Pointer Events -> a direction
+  sprites.js        loadAtlas() / drawTile(ctx, atlas, index, x, y, scale)
+  world.js          the map, which tile numbers are solid, and per-axis collision
+  render.js         camera (clamped to the map), tiles, monsters, nameplates
+  save.js           localStorage, versioned, refuses anything it does not recognise
+  identity.js       a lasting random id, your name, your monster
+  ui/onboarding.js  the name panel and the monster picker, in DOM
+  net.js chat.js duel.js npc.js audio.js ui/chatbar.js ui/duel-screen.js
+                    empty on purpose — stages 2 and 3 fill these in, nothing moves
+  battle/rules.js   PURE. imports nothing. the element triangle lives here
+```
+
+**Scale.** 16px art at 2x, so a tile is 32 screen pixels and the canvas shows 20x15 of them.
+`ctx.imageSmoothingEnabled = false` plus `image-rendering: pixelated`, and the camera is rounded to
+whole pixels — without that the tile grid shimmers as you walk.
+
+**The map.** `data/maps/town.json`, hand-laid: 48x36 tiles = 1536x1152 pixels, which is 2.4 screens
+wide and 2.4 screens tall. Seven rooms — a tiled central plaza, two north halls, the west cells, a
+south camp, a vault, a closet — joined by two-tile corridors that form loops rather than a tree, so
+there is more than one way to get anywhere. Two layers of tile numbers (`ground`, `decor`) and one
+list of the numbers you cannot walk through; collision is "is the square I am moving into in that
+list", checked one axis at a time so sliding along a wall works.
+
+**The monsters.** Six cells picked out of `vendor/opengameart/tiny-creatures.png` and named for what
+they look like: Scorchwing and Emberhorn (fire), Brinescale and Frostguard (water), Mossgolem and
+Sporecap (earth). Your monster is your element.
+
+**A deliberate difference from A14.** Tiny Creatures has no walk frames — it is a 16px top-down set
+that matches the dungeon tiles exactly, which matters more here than legs. So a walking monster
+**bobs one art pixel up and down about seven times a second** instead of cycling frames. Motion
+without inventing art.
+
+**The save.** One key, `kakkoi-online`, stamped `version: 1`, written twice a second and once more on
+the way out. Anything unreadable, any other version number, any missing field, any monster this build
+does not have, any position inside a wall — all of them warn once and start fresh instead of crashing.
+
 ## Status at last commit
 
-- **Live:** https://online.kakkoi.dev (scaffold only: canvas + rAF loop)
+- **Live:** https://online.kakkoi.dev (stage 1: name, monster, and a dungeon to walk around)
 - **Deploy:** the repo is published verbatim as static files; no check job, no build
 - **Lessons written:** A09, A10 (in the `izumo-io` repo, live in EN/JA/PT)
-- **Blocked on a human:** the two Kenney atlases are browser downloads from kenney.nl and must be placed
-  in `vendor/` by hand. They gate the map and monster lessons (A15–A16), i.e. all of M0.
-- **Also not done:** trystero not yet vendored (needs a plain browser build dropped into `vendor/`),
-  no audio files yet.
+- **Not built yet:** stage 2 (other people: presence, positions, preset chat) and stage 3 (the duel:
+  challenge FSM, commit–reveal, the NPC). The module files exist and are empty.
+- **Also not done:** audio is present in `audio/` but nothing plays it yet.

@@ -17,6 +17,42 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — I could not corrupt the save, because the game kept repairing it
+**Lesson:** A11 (saving) / A16 (the game)
+**What it produced:** the check for "a broken save must not break the game". I wrote rubbish into
+`localStorage` from the console, reloaded, and the game came up perfectly happy with the *old* name,
+monster and position — which reads exactly like the save code silently ignoring bad input, or like the
+test doing nothing at all.
+**Why it was wrong:** the test, not the game. The running game writes its save twice a second, and writes
+once more on `pagehide` (which fires on reload). So between "console writes rubbish" and "page reloads"
+the game wrote a perfectly good save back over it. Twice over.
+**How I caught it:** read the save back after the reload and found the *original* uuid still in it — the
+one thing that could not have survived a genuinely fresh start.
+**The fix:** corrupt the save and disable the page's own writer in the same turn, then reload:
+`localStorage.setItem(KEY, rubbish); localStorage.setItem = () => {}; location.reload()`. With that, both
+cases behave: unparseable text and a `version: 0` object each log one warning and start fresh at the name
+prompt, with no exception.
+**Worth telling students:** a test that changes something the program is still actively writing is racing
+it, and losing quietly. If your setup can be undone by the thing you are testing, it is not a setup.
+
+## 2026-08-16 — the wall tests "passed" while nothing had moved
+**Lesson:** A15 (walls) / A16 (the game)
+**What it produced:** a batch of collision checks that walked into four walls and read the position back.
+Every reading came out exactly equal to the position I had set beforehand, which looks like "the wall
+stopped me" and is also what "the game never received a key" looks like.
+**Why it was wrong:** twice, for two different reasons. (1) A held pointer beats the keyboard, and my
+"click the canvas to focus it" click had left a pointer sitting on the monster's own feet — the monster was
+being told to walk to where it already was, so the keys were ignored. (2) After a `reload`, synthetic key
+events stopped reaching the page entirely: the debugger session has to be re-attached to the tab, exactly
+like the console channels do.
+**How I caught it:** planted a listener (`addEventListener('keydown', …)`) and read what the page had
+actually seen. It had seen nothing.
+**The fix:** re-attach after every navigation, and sample the input state mid-press — `{dx: 0, dy: -1}` —
+before believing any position readback. The real numbers then came out exact: walking north stops at
+y = 416 = 13 x 32, south at y = 690 = 22 x 32 - 14, west at x = 576 = 18 x 32, east at x = 940 = 30 x 32 - 20.
+**Worth telling students:** "nothing changed" is not a result. Before reading a number that proves
+something stopped, prove that it was moving in the first place.
+
 ## 2026-08-16 — two tabs, two different lies from my own test rig
 **Lesson:** A19 (challenge someone)
 **What it produced:** a two-tab check that reported the demo was fine when it was reading nothing at all.

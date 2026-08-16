@@ -14,5 +14,7 @@
   "targetRounds": [4, 12],
   "commitTimeoutMs": 10000,
   "posHz": 10,
-  "interpDelayMs": 150
+  "interpDelayMs": 150,
+  "walkSpeed": 150,
+  "saveEveryMs": 500
 }

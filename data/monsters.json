@@ -1,11 +1,12 @@
 {
-  "_comment": "Playable monsters. Choosing a monster chooses its element. rect = 16x16 cell in the Kenney Tiny Creatures atlas; values are placeholders until the atlas is vendored.",
+  "_comment": "The six playable monsters. Choosing a monster chooses its element. `cell` is the picture's number in vendor/opengameart/tiny-creatures.png — 16x16 cells, 10 across, 18 down, so cell n sits at x = (n % 10) * 16, y = floor(n / 10) * 16. Names describe what the sprite actually looks like.",
+  "atlas": { "id": "creatures", "src": "vendor/opengameart/tiny-creatures.png", "cell": 16, "cols": 10 },
   "monsters": [
-    { "id": 0, "nameKey": "monster.ember",  "element": "fire",  "atlas": "creatures", "rect": [0, 0] },
-    { "id": 1, "nameKey": "monster.cinder", "element": "fire",  "atlas": "creatures", "rect": [1, 0] },
-    { "id": 2, "nameKey": "monster.ripple", "element": "water", "atlas": "creatures", "rect": [2, 0] },
-    { "id": 3, "nameKey": "monster.brine",  "element": "water", "atlas": "creatures", "rect": [3, 0] },
-    { "id": 4, "nameKey": "monster.pebble", "element": "earth", "atlas": "creatures", "rect": [4, 0] },
-    { "id": 5, "nameKey": "monster.thorn",  "element": "earth", "atlas": "creatures", "rect": [5, 0] }
+    { "id": 0, "name": "Scorchwing", "nameKey": "monster.scorchwing", "element": "fire",  "atlas": "creatures", "cell": 33,  "look": "red winged dragon" },
+    { "id": 1, "name": "Emberhorn",  "nameKey": "monster.emberhorn",  "element": "fire",  "atlas": "creatures", "cell": 123, "look": "red horned brute with a heavy jaw" },
+    { "id": 2, "name": "Brinescale", "nameKey": "monster.brinescale", "element": "water", "atlas": "creatures", "cell": 26,  "look": "blue-scaled merfolk" },
+    { "id": 3, "name": "Frostguard", "nameKey": "monster.frostguard", "element": "water", "atlas": "creatures", "cell": 109, "look": "armoured figure in blue and white" },
+    { "id": 4, "name": "Mossgolem",  "nameKey": "monster.mossgolem",  "element": "earth", "atlas": "creatures", "cell": 42,  "look": "boulder overgrown with moss" },
+    { "id": 5, "name": "Sporecap",   "nameKey": "monster.sporecap",   "element": "earth", "atlas": "creatures", "cell": 13,  "look": "walking mushroom with a spotted red cap" }
   ]
 }

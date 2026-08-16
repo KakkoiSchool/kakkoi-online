@@ -3,20 +3,124 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100svh;
   display: grid;
   place-items: center;
-  background: #101015;
-  font-family: system-ui, sans-serif;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #17171f 0%, #0b0b10 70%);
+  color: #e8e8ef;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  overscroll-behavior: none;
 }
 
+#stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+}
+
+/* 640x480 of real pixels, blown up by whole-ish numbers and never smoothed.
+   `image-rendering: pixelated` is what keeps a 16px sprite looking like
+   pixel art instead of a smudge. */
 #world {
-  /* Pixel art scales by whole numbers and must never be blurred. */
+  display: block;
   image-rendering: pixelated;
-  width: min(100vw, 1280px);
-  height: auto;
+  width: min(96vw, calc((100svh - 5.5rem) * 4 / 3));
   aspect-ratio: 4 / 3;
-  background: #1b1b22;
+  background: #0c0c12;
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.06);
+  touch-action: none;      /* a finger steers the monster, it does not scroll */
+  cursor: crosshair;
 }
 
-#ui { position: fixed; top: 0.75rem; left: 0.75rem; }
+#hud {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+#hud .badge { backdrop-filter: blur(4px); }
+.hud-quiet { opacity: 0.75; font-weight: 400; }
+#hud .badge:empty { display: none; }
+
+#controls {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.6;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- overlay */
+
+#overlay[hidden] { display: none; }
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(6 6 10 / 0.82);
+  z-index: 10;
+}
+
+.onboarding-card {
+  width: min(30rem, 100%);
+  padding: 1.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.onboarding-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.onboarding-hint { min-height: 1.25rem; color: #ff9a9a; }
+.onboarding-confirm { margin-top: 0.5rem; width: 100%; }
+
+.monster-grid {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.monster-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  padding: 0.6rem 0.3rem;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0.6rem;
+  background: rgb(255 255 255 / 0.03);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.monster-card:hover { background: rgb(255 255 255 / 0.08); }
+.monster-card[aria-pressed="true"] {
+  border-color: #ffd76a;
+  background: rgb(255 215 106 / 0.12);
+}
+
+.monster-swatch { image-rendering: pixelated; width: 56px; height: 56px; }
+.monster-name { font-size: 0.85rem; font-weight: 600; }
+.monster-element { font-size: 0.7rem; }
+
+.element-fire .monster-element  { background: #b3401f; color: #ffe9d9; }
+.element-water .monster-element { background: #1f5fb3; color: #dbe9ff; }
+.element-earth .monster-element { background: #2f7a3d; color: #ddf5df; }
+
+@media (max-width: 26rem) {
+  .monster-grid { grid-template-columns: repeat(2, 1fr); }
+}

@@ -1,21 +1,31 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0c0c12">
   <title>Kakkoi Online</title>
   <link rel="stylesheet" href="./vendor/basecoat.min.css">
   <link rel="stylesheet" href="./src/ui/game.css">
 </head>
 <body>
-  <!-- The world. Everything drawn with canvas 2D. -->
-  <canvas id="world" width="640" height="480"></canvas>
+  <main id="stage">
+    <!-- The world. Everything in it is drawn with canvas 2D. -->
+    <canvas id="world" width="640" height="480"></canvas>
 
-  <!-- The UI. DOM + Basecoat on top of the canvas: text, buttons and dialogs
-       are miserable to build on a canvas and easy in HTML. -->
-  <div id="ui">
-    <div id="status" class="badge" aria-live="polite">starting…</div>
-  </div>
+    <!-- The UI. DOM + Basecoat on top of the canvas: text, buttons and dialogs
+         are miserable to build on a canvas and easy in HTML. -->
+    <div id="hud">
+      <span id="hud-name" class="badge"></span>
+      <span id="hud-place" class="badge hud-quiet"></span>
+      <span id="status" class="badge hud-quiet" aria-live="polite">starting…</span>
+    </div>
+
+    <p id="controls">Arrow keys or <kbd class="kbd">WASD</kbd> to walk — or touch the floor.</p>
+
+    <!-- First run only: name, then monster. Hidden the moment both are known. -->
+    <div id="overlay" hidden></div>
+  </main>
 
   <script type="module" src="./src/main.js"></script>
 </body>
