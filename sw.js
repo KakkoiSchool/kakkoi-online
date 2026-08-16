@@ -28,7 +28,7 @@
  * This never touches `localStorage`. Saved characters are not ours to clear.
  */
 
-const CACHE = 'kakkoi-online-v2';
+const CACHE = 'kakkoi-online-v4';
 
 /**
  * Every file the game loads, by hand. `./` and `./index.html` are both here on
@@ -62,6 +62,8 @@ const SHELL = [
   './src/ui/chatbar.js',
   './src/ui/duel-screen.js',
   './src/ui/paused.js',
+  './src/ui/settings.js',
+  './src/ui/help.js',
 
   // trystero, and only the files it actually pulls in.
   './vendor/trystero/nostr.js',

@@ -69,7 +69,8 @@ code, comments included, because a student has to be able to hold all of it at o
 
 ## The game, as it actually stands
 
-`index.html` at the repo root **is** the game: a 640x480 canvas with the DOM interface on top of it.
+`index.html` at the repo root **is** the game: a canvas that fills the screen, with the DOM interface
+floating on top of it.
 You are asked for a name, you pick one of six monsters, you read one short card about other people,
 and then you are in the dungeon — walking, sharing it with whoever else has it open, and duelling them
 (or Flint, who is always in the plaza) at rock, paper, scissors.
@@ -93,10 +94,13 @@ src/
   npc.js            Flint: answers exactly the questions a peer answers
   audio.js          six effects and a music loop, OFF until you say otherwise
   ui/duel-screen.js the challenge, three thumb-sized moves, and the two moves meeting
+  ui/settings.js    the ⚙: sound, music, start over and the way out to the lessons
+  ui/help.js        one line of instructions, in the words that match the device
   battle/rules.js   PURE. imports nothing. the rock-paper-scissors triangle lives here
 ```
 
-**Scale.** 16px art at 2x, so a tile is 32 screen pixels and the canvas shows 20x15 of them.
+**Scale.** 16px art at 2x, so a tile is 32 screen pixels; how many of them you can see depends on the
+size of the window, because the canvas is sized to fit it (see "The world fills the screen").
 `ctx.imageSmoothingEnabled = false` plus `image-rendering: pixelated`, and the camera is rounded to
 whole pixels — without that the tile grid shimmers as you walk.
 
@@ -298,15 +302,16 @@ the `pagehide` flush cannot write a stale save over the one it just chose.
 
 The only way to change your name or animal used to be clearing `localStorage` by hand, which no
 twelve-year-old is going to do — and students will want to try all six animals. So: a plain
-**"Start over"** button beside the sound controls, a DOM confirm panel in the same style as the
+**"Start over"** button in the settings panel behind the ⚙, a DOM confirm panel in the same style as the
 onboarding (never `confirm()`, which freezes the page and prefixes your words with "localhost:8840
 says:"), and on yes: leave the room properly, clear the save, reload into the real name-and-animal
 flow. Neither button is red; starting over is a reasonable thing to want.
 
 Two details that are not obvious:
 
-- **The safety card lives in its own key** (`kakkoi-online-safety`). It is about the person at the
-  computer, not about the character, so it survives a reset — a child trying all six animals must not
+- **The safety card lives in its own key** (`kakkoi-online-safety`), and so do the instructions the
+  player has outgrown (`kakkoi-online-learned`). They are about the person at the
+  computer, not about the character, so they survive a reset — a child trying all six animals must not
   read the same three paragraphs six times.
 - **A paused window cannot start over**: its card covers the whole viewport, buttons and all. Only
   the window that actually owns the game can reset it, which is how "two windows resetting the same
@@ -319,14 +324,68 @@ The "Challenge *name*" prompt appears and disappears constantly as you walk past
 placed in the canvas's own grid cell, which quietly pushed the canvas into the *next* row, so the
 entire page jumped down every time somebody came into reach and back up when they left.
 
-The rule now: **anything that appears and disappears during play is out of flow.** The canvas has its
-own positioned box, `#arena`, and the HUD badges and the challenge prompt are absolutely positioned
-inside it. Showing or hiding them cannot change the layout, and the prompt floating over the bottom
-of the world reads better than a bar underneath it. The duel screen, the onboarding overlay and the
-paused card are all `position: fixed` for the same reason.
+The rule now: **anything that appears and disappears during play is out of flow, and is positioned
+against the canvas's own box.** That box is `#screen`, which wraps the canvas and nothing else, so it is
+exactly the canvas's size at every window size. Everything else lives inside it — the HUD badges, the ⚙
+and its panel, the help line, the challenge prompt and the phrase row. `#arena` is the *space available*
+and can be bigger than the world; anything measured from it would eventually sit below the canvas or
+off the bottom of the screen, which is exactly what happened to the challenge prompt when it floated at
+a hand-tuned `bottom: 4.2rem` chosen to clear the phrase row. The prompt and the phrase row are now one
+bottom-anchored stack with no offset in it at all: hide the phrases and the prompt takes the bottom of
+the canvas. Showing or hiding
+any of them cannot change the layout. The duel screen, the onboarding overlay and the paused card are
+all `position: fixed` for the same reason.
 
-The canvas's bounding rect is identical with the prompt shown and hidden, at desktop width and at
-390x780. If you add a panel, that is the check.
+The canvas's bounding rect is identical with the prompt shown and hidden, with a bubble up, with the
+settings panel open and closed, and with the duel screen open and closed — at desktop width and at
+390x780, with the document height unchanged throughout. If you add a panel, that is the check.
+
+## The world fills the screen
+
+It used to be a fixed 640x480 canvas stretched by CSS with four stacked bands of furniture underneath
+it: the phrase row, a line of instructions, and four bare text toggles. On a 390px phone that left the
+world **36% of the screen height**, most of the game hidden behind dead space; on a desktop it was 72%.
+It is now **100% of both**: the canvas is the screen, and every control floats on top of it.
+
+- **Sized in whole art pixels.** `fitCanvas()` in `render.js` gives the canvas a drawing surface the
+  size of its box, one canvas pixel per CSS pixel, snapped down to a multiple of `world.scale`. So an
+  art pixel is exactly 2 CSS pixels and can never be resampled — the old fixed canvas showed 640 real
+  pixels across 374 of them, which is 1.17 screen pixels per art pixel, and pixel art resampled is
+  pixel art ruined. Resizing a canvas resets its 2D context, so `imageSmoothingEnabled` is set again on
+  every fit rather than once at boot. Bigger screens see more of the world, up to the size of the world
+  itself; past that the canvas stops growing and the background frames it.
+- **One settings control, and everything is in it.** Four bare toggles in a row is four decisions asked
+  of somebody who has not started playing yet, and it made the page look unfinished — so they are behind
+  a ⚙ in the corner (`src/ui/settings.js`). Because it is now the only door to anything that is not the
+  game, everything a player might want is behind it: **Sound**, **Music**, **How to play** (the same two
+  sentences the hint gives, in this device's words, for the player who forgot or the friend they handed
+  the phone to), **About other players** (reopens the safety card, which is otherwise shown once on the
+  first run and never again — a child who wants to re-read it, or a parent who wants to see it at all,
+  has to be able to), **Install**, **Start over**, and the link to the lessons. The ⚙ is a real
+  `<button>` with an accessible name, so it takes focus and answers Enter and Space; Escape closes the
+  panel and returns focus to it, and so does a click anywhere else.
+- **Install is only there when it is real.** The entry stays hidden until `beforeinstallprompt` actually
+  hands us a prompt, and hides again on `appinstalled` or when the game is already running standalone.
+  Only Chromium fires that event at all, so on Firefox and iOS there is simply no entry — which is
+  right. A button that cannot do the thing it names is worse than no button.
+- **The help line matches the device, and goes when it is no longer needed.** It named `WASD` and `F`
+  on phones, which have neither — a child reads that, looks for the key, and concludes the game is
+  broken. `src/ui/help.js` starts from `(pointer: coarse)` + `(hover: none)` and then corrects itself
+  from what actually happens: a real `keydown` means a keyboard, a real `pointerdown` with
+  `pointerType: 'touch'` means a finger, and the later of the two wins. Hybrids are real — a tablet
+  with a keyboard, a laptop with a touchscreen — and neither a user-agent string nor a width breakpoint
+  gets them right; a narrow window on a desktop is still a desktop.
+  It is **two hints, retired separately**, because they are learned at different moments: the movement
+  line goes once the player has actually travelled **three tiles** (far enough to be a journey across a
+  room, not a frame of drift, and measured in distance covered so that pushing against a wall teaches
+  nothing), and the challenge line goes the first time a challenge is actually started, by `F` or by
+  the button. Somebody who has walked the whole map without ever challenging anyone still sees the half
+  they have not used.
+  Both facts are remembered in their own key, `kakkoi-online-learned`, beside the safety flag and for
+  the same reason: knowing how to walk is a fact about the person, not about the character, so starting
+  a new character must not re-teach them.
+- **The phrase row never wraps.** `nowrap` and a font that shrinks with the viewport; at 390px all six
+  fit on one line, and the horizontal scroll is only a safety net for something narrower than a phone.
 
 ## There is no element, anywhere
 
@@ -406,9 +465,14 @@ look. It is deliberately not a banner or a call to action.
   the leftover action triangle, the round result, the agree-from-both-sides property the duel rests
   on, and the first-to-three ending
 - **Verified in two real browsers** (different origins, so two real players): a full duel end to end
-  with both sides agreeing on the score, both fingerprints on the table before either move, a tampered
-  reveal caught by the other side, refusing, timing out, a tab closed mid-duel, both challenging at
-  once, and a duel against Flint
-- **Verified offline** with the network cut at the browser: the game boots from the cache, the save
-  comes back, you can walk, and a full duel against Flint plays out — 2–3, both sides of the triangle
-  named in words
+  with both sides agreeing on the score (3–0 on one machine is 0–3 on the other), a move that arrives
+  before you have chosen held back until the reveal, refusing, giving up mid-duel, never answering, a
+  challenge sent to somebody who is already busy, and a duel against Flint
+- **Verified offline** with the local server stopped *and* the browser put offline: an uncached request
+  fails, the game boots from the cache, the save comes back, you can walk, and a full duel against
+  Flint plays out to 0–3 with every request still failing at the end
+- **Verified for layout**: the canvas is 100% of the viewport height at 390x780 and at 1280x800; the
+  canvas rect and the document height do not move as the challenge prompt, a chat bubble, the settings
+  panel or the duel screen appear and disappear; and the challenge prompt stays inside the canvas at
+  390x780, 390x600, 1440x813, 1440x420 and 1700x1300 (letterboxed), with the phrase row shown and
+  hidden

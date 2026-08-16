@@ -87,6 +87,53 @@ export function showSafetyCard({ root }) {
 }
 
 /**
+ * "How to play", from the ⚙ menu.
+ *
+ * The hints over the world retire themselves once the player has shown they do
+ * not need them, which is right — and it would leave somebody who forgets, or
+ * who hands the game to a friend, with no way to get them back. This is that way
+ * back. `words` comes from `src/ui/help.js`, so it names keys on a keyboard and
+ * a finger on a phone, exactly as the line over the world does.
+ */
+export function showHowToPlay({ root, words }) {
+  root.hidden = false;
+  return new Promise((resolve) => {
+    const card = panel('How to play', 'Three things, and that is the whole game.');
+    card.classList.add('safety-card');
+
+    const list = document.createElement('ul');
+    list.className = 'safety-list';
+    for (const [heading, body] of [
+      ['Walk around', words.move],
+      ['Pick a fight', `${words.challenge} A duel is rock, paper, scissors: you both choose, then both moves are shown. First to three rounds wins.`],
+      ['Say something', 'Six set phrases along the bottom of the screen. There is nowhere to type, so nobody can send you words they made up.'],
+    ]) {
+      const item = document.createElement('li');
+      const strong = document.createElement('strong');
+      strong.textContent = heading;
+      const p = document.createElement('p');
+      p.textContent = body;
+      item.append(strong, p);
+      list.append(item);
+    }
+
+    const ok = document.createElement('button');
+    ok.className = 'btn onboarding-confirm';
+    ok.type = 'button';
+    ok.textContent = 'Got it';
+    ok.addEventListener('click', () => {
+      root.hidden = true;
+      root.replaceChildren();
+      resolve();
+    });
+
+    card.append(list, ok);
+    root.replaceChildren(card);
+    ok.focus();
+  });
+}
+
+/**
  * "Start over": are you sure?
  *
  * One click must never throw a character away, so this is the step in between.

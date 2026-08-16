@@ -103,6 +103,10 @@ export function createDuel({ tuning = {} } = {}) {
   function lost(why) {
     if (state === 'fighting') return finish('gone', why);
     if (state === 'walking') return detach();      // a link we adopted and never used
+    // We asked, nobody answered, and we are giving up. Say so, or our challenge
+    // sits on their screen after we have walked away, and accepting it starts a
+    // duel with somebody who is no longer in one.
+    if (state === 'waiting' && link) link.send('quit', {});
     notice(`${why}.`);
     detach();
     state = 'walking';

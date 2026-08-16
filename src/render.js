@@ -8,6 +8,46 @@
  */
 import { drawTile } from './sprites.js';
 
+/**
+ * Make the canvas exactly as big as the space it has been given.
+ *
+ * It used to be a fixed 640x480 stretched by CSS to whatever width was left
+ * over, which cost twice: on a phone the world got about a third of the screen,
+ * and 640 real pixels shown across 374 of them meant one art pixel landed on
+ * 1.17 screen pixels — so the pixel art was quietly resampled, which is the one
+ * thing pixel art must never be.
+ *
+ * Now the drawing surface IS the box, one canvas pixel per CSS pixel, and the
+ * art inside it is drawn at a whole-number scale (`world.scale`, 2). Both
+ * dimensions are snapped down to a multiple of that scale so an art pixel can
+ * never straddle a boundary, and the size is set in real `px` on the element as
+ * well, so the browser is never asked to stretch anything either.
+ *
+ * The world is not endless: past its own size there is nothing to show, so the
+ * canvas stops growing there and the page's background frames it.
+ *
+ * Resizing a canvas resets its 2D context — including `imageSmoothingEnabled` —
+ * so that is set again here, every time, rather than once at boot.
+ */
+export function fitCanvas({ canvas, ctx, box, world }) {
+  const step = world.scale;
+  const fit = (available, limit) => {
+    const wanted = Math.min(Math.floor(available), limit);
+    return Math.max(step, wanted - (wanted % step));
+  };
+
+  const width = fit(box.clientWidth, world.width);
+  const height = fit(box.clientHeight, world.height);
+  if (canvas.width === width && canvas.height === height) return { width, height, changed: false };
+
+  canvas.width = width;
+  canvas.height = height;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  ctx.imageSmoothingEnabled = false;
+  return { width, height, changed: true };
+}
+
 export function createCamera(canvas, world) {
   const camera = {
     x: 0,

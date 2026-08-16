@@ -13,9 +13,9 @@ import { startLoop } from './loop.js';
 import { createInput } from './input.js';
 import { loadAtlas } from './sprites.js';
 import { loadWorld } from './world.js';
-import { createCamera, drawMap, drawActor, drawNameplate, drawBubble, drawMarker } from './render.js';
+import { createCamera, fitCanvas, drawMap, drawActor, drawNameplate, drawBubble, drawMarker } from './render.js';
 import { createIdentity, loadMonsters, persist } from './identity.js';
-import { askIdentity, showSafetyCard, confirmReset } from './ui/onboarding.js';
+import { askIdentity, showSafetyCard, showHowToPlay, confirmReset } from './ui/onboarding.js';
 import { joinRoom } from './net.js';
 import { createChat } from './chat.js';
 import { createChatBar } from './ui/chatbar.js';
@@ -25,6 +25,8 @@ import { createAudio } from './audio.js';
 import { createDuelScreen } from './ui/duel-screen.js';
 import { createSession } from './session.js';
 import { createPausedCard } from './ui/paused.js';
+import { createSettings } from './ui/settings.js';
+import { createHelp } from './ui/help.js';
 import { writeSave, clearSave, writeSafetySeen } from './save.js';
 
 const canvas = document.querySelector('#world');
@@ -33,6 +35,7 @@ const ctx = canvas.getContext('2d');
 if (!ctx) throw new Error('canvas 2d context unavailable');
 ctx.imageSmoothingEnabled = false;   // pixel art: never smooth it
 
+const arena = document.querySelector('#arena');
 const overlay = document.querySelector('#overlay');
 const hudName = document.querySelector('#hud-name');
 const hudPlace = document.querySelector('#hud-place');
@@ -106,8 +109,19 @@ async function boot() {
   }
 
   const player = spawn(world, identity);
+
+  // The canvas takes the whole arena, and the arena is the whole screen. Sized
+  // before the camera is made, because the camera centres on half the canvas.
+  const fit = () => fitCanvas({ canvas, ctx, box: arena, world });
+  fit();
+
   const camera = createCamera(canvas, world);
   camera.follow(player);
+
+  // A phone rotating, a window being dragged, the URL bar sliding away: all of
+  // them change the box, and all of them arrive here.
+  addEventListener('resize', () => { fit(); camera.follow(player); });
+  addEventListener('orientationchange', () => { fit(); camera.follow(player); });
 
   const input = createInput(canvas);
   const speed = Number(tuning.walkSpeed) || 150;
@@ -123,6 +137,27 @@ async function boot() {
 
   const chat = createChat({ net, self: player });
   createChatBar({ root: document.querySelector('#chatbar'), chat });
+
+  // ------------------------------------------------------ the small furniture
+  const settings = createSettings({
+    button: document.querySelector('#settingsBtn'),
+    panel: document.querySelector('#settings'),
+    install: document.querySelector('#installBtn'),
+  });
+  const help = createHelp({ root: document.querySelector('#controls'), world });
+
+  // The two cards the menu can bring back. Both close the menu first: a panel
+  // over the world with a menu still hanging open beside it reads as two things
+  // happening at once.
+  document.querySelector('#howBtn').addEventListener('click', () => {
+    settings.close();
+    showHowToPlay({ root: overlay, words: help.words });
+  });
+
+  document.querySelector('#safetyBtn').addEventListener('click', () => {
+    settings.close();
+    showSafetyCard({ root: overlay });
+  });
 
   // A lone player has to be able to tell an empty world from a broken one, so
   // this always says something — and says the lonely case kindly, because it
@@ -212,6 +247,7 @@ async function boot() {
 
   const startFight = () => {
     if (!near || duel.state !== 'walking') return;
+    help.challenged();          // they know how to do this now; stop saying it
     audio.play('ping');
     duel.challenge(near.link());
     hideNearby();
@@ -251,6 +287,9 @@ async function boot() {
       else if (wish.dx < 0) player.facing = -1;
 
       audio.walk(player.moving, dt * 1000);
+      // How far they actually went, not how long a key was held: a player pushed
+      // against a wall for ten seconds has not learned anything about walking.
+      help.update(moved);
 
       camera.follow(player);
 
@@ -388,7 +427,7 @@ async function boot() {
   // A handle for verification, and for the stages that come next.
   globalThis.game = {
     world, player, camera, identity, monsters, input, tuning, flush,
-    net, chat, duel, npc, audio, session, resume,
+    net, chat, duel, npc, audio, session, resume, settings, help, fit,
     get paused() { return !session.active; },
     /** Who the Challenge button is about right now, or null. */
     get near() { return near; },

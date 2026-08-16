@@ -1,160 +1,262 @@
 /* Layout only. Component styling comes from vendor/basecoat.min.css. */
 :root { color-scheme: dark; }
 
+/* The game is one screen. Nothing scrolls, nothing sits under the world, and
+   every piece of interface floats over the canvas — which is both how it reads
+   as one small app and why nothing appearing can ever move the world. */
 body {
   margin: 0;
-  min-height: 100svh;
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(120% 90% at 50% 0%, #17171f 0%, #0b0b10 70%);
+  height: 100svh;
+  overflow: hidden;
+  background: #08080c;
   color: #e8e8ef;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   overscroll-behavior: none;
 }
 
 #stage {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 0%, #17171f 0%, #0b0b10 70%);
 }
 
-/* The frame around the world, and the anchor for everything drawn on top of it.
-   `line-height: 0` because a canvas is an inline element and would otherwise sit
-   on a text baseline, leaving a few pixels of gap under it. */
+/* The space the world is allowed to take: the whole screen. `src/main.js`
+   measures THIS box and sizes the canvas to it in whole art pixels, stopping at
+   the size of the world itself and centring what is left over.
+
+   `position: absolute; inset: 0` rather than `width/height: 100%`: as a grid
+   item its width would have been resolved against a column sized by the canvas
+   inside it, so the box measured to size the canvas depended on the canvas —
+   and a 640px canvas kept a 390px phone reporting a 640px box, forever. */
 #arena {
-  position: relative;
+  position: absolute;
+  inset: 0;
   line-height: 0;
-  max-width: 100%;
+  display: grid;
+  place-items: center;
 }
 
-/* 640x480 of real pixels, blown up by whole-ish numbers and never smoothed.
-   `image-rendering: pixelated` is what keeps a 16px sprite looking like
-   pixel art instead of a smudge. */
+/* Exactly the canvas's box: it wraps the canvas and nothing else, so it is
+   whatever size `fitCanvas()` last made it. Everything on screen is positioned
+   against THIS, not against the arena — the arena is the whole window and can be
+   taller than the world, and an overlay measured from the window's bottom is an
+   overlay that will one day be below the canvas or off the screen. */
+#screen {
+  position: relative;
+  /* `line-height: 0` because a canvas is an inline element and would otherwise
+     sit on a text baseline, leaving a few pixels of gap under it — which would
+     make this box very slightly taller than the canvas it is meant to be. */
+  line-height: 0;
+}
+
+/* Never smoothed, and never stretched: `src/main.js` gives it a size in whole
+   pixels and `render.js` draws the art at a whole-number scale.
+   `image-rendering: pixelated` is the last line of defence that keeps a 16px
+   sprite looking like pixel art instead of a smudge. */
 #world {
   display: block;
   image-rendering: pixelated;
-  /* Leave room for the phrase bar, the hint line and the sound buttons. Stage 3
-     added a row and the canvas did not shrink to match, which pushed the sound
-     buttons off the bottom of the window where they could not be clicked. */
-  width: min(96vw, calc((100svh - 14rem) * 4 / 3));
-  aspect-ratio: 4 / 3;
   background: #0c0c12;
-  border-radius: 10px;
-  box-shadow: 0 18px 50px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.06);
   touch-action: none;      /* a finger steers the monster, it does not scroll */
   cursor: crosshair;
 }
 
-/* Over the top-left of the world, never in the flow — the badges change text
-   (and width) constantly as people arrive and leave, and none of that is
-   allowed to move the canvas by a pixel. */
+/* Over the top of the world, never in the flow — the badges change text (and
+   width) constantly as people arrive and leave, and none of that is allowed to
+   move the canvas by a pixel. */
 #hud {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
-  right: 1rem;
+  top: 0.6rem;
+  left: 0.6rem;
+  right: 0.6rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  line-height: normal;     /* #arena zeroes it for the canvas */
-  pointer-events: none;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding-right: 2.4rem;   /* the ⚙ sits in that corner; leave it alone */
+  line-height: normal;     /* #screen zeroes it for the canvas */
+  pointer-events: none;    /* the badges are text; the ⚙ turns this back on */
+  z-index: 4;
 }
 
 #hud .badge { backdrop-filter: blur(4px); }
 .hud-quiet { opacity: 0.75; font-weight: 400; }
 #hud .badge:empty { display: none; }
 
-#controls {
-  margin: 0;
-  font-size: 0.85rem;
-  opacity: 0.6;
-  text-align: center;
-}
+/* ------------------------------------------------------ settings, behind a ⚙ */
 
-/* ---------------------------------------------------------------- chat bar */
-
-/* Finger-sized on purpose: this is played on phones, and a phrase you cannot
-   hit is not a phrase. 44px is the smallest target a thumb reliably lands on. */
-#chatbar[hidden] { display: none; }
-
-#chatbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  justify-content: center;
-  width: min(96vw, 44rem);
-}
-
-.phrase-btn {
-  min-height: 44px;
-  padding: 0 0.9rem;
-  font-size: 0.95rem;
-  border-radius: 0.6rem;
+/* Pinned to the corner rather than laid out at the end of the badge row: the
+   badges change width all the time as people arrive, and a ⚙ that moves — or
+   wraps onto a second line on a phone — is a ⚙ you have to look for. */
+#settingsBtn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  pointer-events: auto;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  line-height: 1;
+  backdrop-filter: blur(4px);
   touch-action: manipulation;
 }
 
-/* ----------------------------------------------------------- sound + tools */
+#settingsBtn[aria-expanded="true"] { border-color: #ffd76a; color: #ffd76a; }
 
-#tools {
-  display: flex;
-  gap: 0.4rem;
-  justify-content: center;
+#settings[hidden] { display: none; }
+
+#settings {
+  position: absolute;
+  top: 3rem;
+  right: 0.6rem;
+  z-index: 6;
+  display: grid;
+  gap: 0.35rem;
+  width: max-content;
+  min-width: 10.5rem;
+  padding: 0.45rem;
+  line-height: normal;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0.7rem;
+  box-shadow: 0 14px 40px rgb(0 0 0 / 0.55);
 }
 
-/* The link to the lessons is styled exactly as the buttons beside it, and not
-   as a call to action: it is a way out for the curious, not an advert. `a` and
-   `button` are listed together so the row cannot drift apart later — the same
-   height keeps the row's height, and the page's, unchanged. */
-#tools button,
-#tools a {
-  min-height: 36px;
-  padding: 0 0.8rem;
-  font-size: 0.8rem;
+#settings button,
+#settings a {
+  min-height: 38px;
+  padding: 0 0.7rem;
+  font-size: 0.85rem;
   border-radius: 0.5rem;
-  opacity: 0.75;
+  text-align: left;
 }
 
-/* Basecoat's button styles centre their text with flex; an <a> is inline, so it
-   needs saying. Without this the label sits on the baseline and the link is a
-   pixel or two taller than the buttons next to it. */
-#tools a {
+/* Basecoat centres a button's label with flex; an <a> is inline, so it needs
+   saying, or the link sits a pixel or two off the buttons above it. */
+#settings a {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
   white-space: nowrap;
 }
 
-#tools button[aria-pressed="true"] { opacity: 1; border-color: #ffd76a; color: #ffd76a; }
+#settings button[aria-pressed="true"] { border-color: #ffd76a; color: #ffd76a; }
 
-/* ------------------------------------------------ the "challenge" affordance */
+/* ------------------------------------------------------------- the help line */
 
-/* Over the bottom of the canvas, so it turns up where you are already looking
-   when you walk into somebody — not in a menu somewhere else. */
-#nearby[hidden] { display: none; }
-
-/* Absolutely positioned INSIDE #arena, which is the canvas's own box. Two
-   earlier versions were wrong in opposite directions: the first was measured
-   from the bottom of the page and sat on top of the sound buttons; the second
-   was given the canvas's grid cell, which quietly pushed the canvas into the
-   next row, so the entire page jumped down every time you walked past somebody
-   and back up when you walked away. Out of flow is the only version that cannot
-   move anything: showing and hiding it now changes nothing but itself. Floating
-   over the bottom of the world also reads better than a bar underneath it, and
-   it is the same trick the HUD badges already use. */
-#nearby {
+/* Out of flow like everything else, so fading it away moves nothing. Two lines,
+   hidden one at a time: how to walk and how to pick a fight are learned at
+   different moments. See src/ui/help.js. */
+#controls {
   position: absolute;
-  bottom: 1.2rem;
+  top: 4.4rem;             /* under the badges, even when they wrap on a phone */
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  max-width: min(92%, 30rem);
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgb(8 8 14 / 0.62);
+  backdrop-filter: blur(4px);
+  font-size: 0.8rem;
+  line-height: normal;
+  text-align: center;
+  opacity: 0.78;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+  z-index: 3;
+}
+
+#controls.is-gone { opacity: 0; }
+.help-line[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) { #controls { transition: none; } }
+
+/* ---------------------------------------------------------------- chat bar */
+
+/* Along the bottom of the world, and ALWAYS one row. It used to wrap onto two
+   on a 390px phone, which moved everything under it and made the whole page
+   half an inch taller when the second row appeared. `nowrap` plus a font that
+   shrinks with the screen fits all six across a phone; the scroll is only a
+   safety net for something narrower than any phone we have. */
+#chatbar[hidden] { display: none; }
+
+#chatbar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  justify-content: center;
+  max-width: 100%;
+  pointer-events: auto;
+  line-height: normal;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+#chatbar::-webkit-scrollbar { display: none; }
+
+.phrase-btn {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 clamp(0.4rem, 1.8vw, 0.9rem);
+  font-size: clamp(0.68rem, 2.3vw, 0.95rem);
+  white-space: nowrap;
+  border-radius: 0.6rem;
+  backdrop-filter: blur(4px);
+  touch-action: manipulation;
+}
+
+/* --------------------------------------------- the bottom of the world */
+
+/* The challenge prompt and the phrase row are ONE stack, pinned to the bottom of
+   the canvas's own box.
+
+   Three earlier versions were wrong in three different ways: the first was
+   measured from the bottom of the page and sat on top of the sound buttons; the
+   second was given the canvas's grid cell, which pushed the canvas into the next
+   row so the whole page jumped every time somebody came into reach; the third
+   floated at a hand-tuned `bottom: 4.2rem`, picked to clear the phrase row —
+   which is only right while the phrase row is exactly that tall and actually
+   there. The owner found that one: alone in the world, with the phrases not
+   showing, the prompt was half off the bottom of the screen.
+
+   A stack has no such number in it. The prompt is above the phrases because it
+   comes before them; take the phrases away and the prompt takes the bottom of
+   the canvas. Nothing here is measured from the window, so it cannot leave the
+   world, and being out of flow it still moves nothing when it appears. */
+#bottom {
+  position: absolute;
   left: 0;
   right: 0;
-  margin-inline: auto;
-  width: max-content;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  /* Never taller or wider than the canvas it is pinned inside, whatever the
+     window is doing: the canvas is at most the viewport, so anything inside
+     this box is inside the screen by construction and not by arithmetic. */
+  max-width: 100%;
+  max-height: 100%;
+  padding: 0 0.4rem 0.55rem;
+  line-height: normal;     /* #screen zeroes it for the canvas */
+  pointer-events: none;    /* the gaps between the buttons are still the world */
+  z-index: 5;
+}
+
+#nearby[hidden] { display: none; }
+
+#nearby {
   max-width: 90%;
   min-height: 44px;
   padding: 0 1.1rem;
-  line-height: normal;     /* #arena zeroes it for the canvas */
+  pointer-events: auto;
   font-weight: 700;
   border-radius: 0.6rem;
   background: #ffd76a;
@@ -162,7 +264,6 @@ body {
   box-shadow: 0 6px 22px rgb(0 0 0 / 0.5);
   animation: nudge 1.6s ease-in-out infinite;
   touch-action: manipulation;
-  z-index: 5;
 }
 
 @keyframes nudge {

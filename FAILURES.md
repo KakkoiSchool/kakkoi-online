@@ -740,3 +740,82 @@ conversation and the next ask arrives as a new one.
 **Worth telling students:** a handler you attach for one moment and never remove is a decision you
 have made forever. If some code says "no" on your behalf, be sure you know what ends it — the bug it
 causes will not look like the code that caused it.
+
+## 2026-08-17 — the canvas measured its own box, and the box was sized by the canvas
+**Lesson:** A16 (drawing) / making the world fill the screen
+**What it produced:** the new `fitCanvas()` sized the canvas to the box it sits in. On a 390px phone
+it reported a 640px box and made a 640px canvas — the whole width of the old fixed canvas, on a screen
+that is not that wide, with the right-hand third of the world off the side of the phone.
+**Why it was wrong:** `#arena` was a grid *item* with `width: 100%`. A grid column is sized by the
+content in it, and the content was a canvas whose HTML `width="640"` attribute still gave it a 640px
+intrinsic size. So the column became 640px wide, `100%` of it was 640px, and the canvas was measured
+against a box that its own old size had created. The measurement was circular, and it happily agreed
+with itself.
+**How I caught it:** reading the numbers back rather than looking at the picture —
+`getBoundingClientRect()` said `w: 640` on a viewport that said `innerWidth: 390`, which is impossible
+for anything that fits.
+**The fix:** `#arena` is `position: absolute; inset: 0` inside the fixed stage, so its size comes from
+the screen and never from what is inside it.
+**Worth telling students:** if you measure a box to decide the size of the thing inside it, make sure
+the box is not being sized by that thing. The bug does not look like a loop; it looks like a number
+that is confidently wrong.
+
+## 2026-08-17 — my own edits were invisible because the game had cached itself
+**Lesson:** A10 (deploying) / PWA
+**What it produced:** the fix above, applied, saved, reloaded — and the page behaved exactly as it had
+before. Twice. `Network.setCacheDisabled` was on, so the browser's HTTP cache was not the culprit.
+**Why it was wrong:** the game now installs a service worker, and the worker serves the app shell
+**cache first**. `Network.setCacheDisabled` does not touch the Cache Storage the worker reads from, so
+every reload was served the stylesheet as it had been at install time. Unregistering the worker once
+at the start of the session is not enough either — the page registers a fresh one on every load, and it
+precaches whatever is on disk at that moment.
+**How I caught it:** the second failed reload. The evidence said the CSS had not changed, and the CSS
+on disk plainly had.
+**The fix:** before every check of an edit, unregister every worker *and* delete every cache, then
+reload — `navigator.serviceWorker.getRegistrations()` + `caches.keys()`, in that order.
+**Worth telling students:** a service worker makes your own site lie to you. Disabling the browser
+cache is not enough; you have to throw away the copy the worker is keeping, and you have to do it
+again after every reload, because the page puts the worker back.
+
+## 2026-08-17 — the challenge prompt was half off the bottom of the screen
+**Lesson:** A19 (the challenge affordance) / layout
+**What it produced:** the owner, playing the in-progress build: *"when alone in the world, the
+'Challenge Flint' prompt is half cut off at the bottom of the screen. I think it is because the chat UI
+is not visible."*
+**Why it was wrong:** the prompt floated at `bottom: 4.2rem` — a number picked by hand to clear the row
+of phrase buttons — and it was measured from `#arena`, which is the whole window rather than the
+canvas. Both halves of that are guesses. The offset is only right while the phrase row is exactly that
+tall and actually on screen, and the window is only the same box as the canvas while the world is
+bigger than the window; on a screen larger than the map the canvas stops growing and is centred, and
+anything measured from the window's bottom edge then sits below the world.
+**How I caught it:** the owner caught it. Measuring afterwards at six sizes with the phrase row shown
+and hidden is what showed *why*.
+**The fix:** the canvas got its own wrapper, `#screen`, which is exactly its size, and every overlay is
+positioned against that. The prompt and the phrase row became one bottom-anchored stack, so the prompt
+sits above the phrases because it comes before them — no offset at all. Hide the phrases and the prompt
+simply takes the bottom of the canvas. Checked at 390x780, 390x600, 1440x813, 1440x420 and 1700x1300
+(letterboxed), with the phrase row shown and hidden: always inside the canvas, always on screen, and
+the canvas rect and document height never move.
+**Worth telling students:** a hand-tuned offset is a guess that happens to be right at the sizes you
+tried. When you catch yourself picking a number to clear something else, ask whether the two things can
+just be stacked instead — a stack cannot be off by a number nobody will remember to change.
+
+## 2026-08-17 — a hint that leaves on a timer teaches the wrong half
+**Lesson:** A19 / teaching a player how to play
+**What it produced:** the first version of the help line said one thing and hid it after two and a half
+seconds of walking. The owner, on a phone-sized window: it still named keys, and the whole line
+vanished — including the half about challenging, which they had never done.
+**Why it was wrong:** two mistakes with one shape. The device test was made once at boot from a media
+query and never revisited, so a hybrid — or a desktop window narrowed to phone size — was labelled
+wrong and stayed wrong. And "how to walk" and "how to pick a fight" were treated as one fact learned at
+one moment, when they are plainly two, learned minutes apart.
+**How I caught it:** the owner caught it, playing the build.
+**The fix:** the device is a first guess from `(pointer: coarse)` + `(hover: none)`, corrected by the
+first real `keydown` or touch `pointerdown` — corrected by what the person *does*, which is the only
+evidence that cannot be wrong. The hints are two lines, retired one at a time: three tiles of actual
+distance covered retires the movement line, starting a challenge retires the other. Both are
+remembered in `kakkoi-online-learned`, beside the safety flag, so a new character does not re-teach the
+same person.
+**Worth telling students:** a timer is a guess about somebody else's understanding. If you can watch
+for the thing itself — they moved, they pressed it — watch for that instead, and dismiss exactly the
+one thing they have proved they know.

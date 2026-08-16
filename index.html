@@ -20,9 +20,19 @@
 </head>
 <body>
   <main id="stage">
-    <!-- Everything that sits ON the world lives inside #arena and is positioned
-         out of flow, so appearing and disappearing can never move the page. -->
+    <!-- The world fills the screen, and EVERY other thing on this page is
+         positioned out of flow on top of it. That is what makes it one small app
+         rather than a page with a canvas and some controls underneath — and it
+         is also the only way to guarantee that a bubble, a prompt or a panel
+         appearing can never move the canvas by a pixel. `src/main.js` sizes the
+         canvas to this box, in whole art pixels, whenever the window changes. -->
     <div id="arena">
+     <!-- #screen is exactly the canvas's box — it wraps the canvas and nothing
+          else, so it is the canvas's own size at every window size, letterboxed
+          or not. EVERY overlay below is positioned against this box rather than
+          against the arena, which is why nothing can end up outside the world or
+          off the bottom of the screen. -->
+     <div id="screen">
       <!-- The world. Everything in it is drawn with canvas 2D. -->
       <canvas id="world" width="640" height="480"></canvas>
 
@@ -33,32 +43,62 @@
         <span id="hud-place" class="badge hud-quiet"></span>
         <span id="hud-online" class="badge hud-quiet" aria-live="polite"></span>
         <span id="status" class="badge hud-quiet" aria-live="polite">starting…</span>
+
+        <!-- One control instead of four bare toggles in a row. See
+             src/ui/settings.js. -->
+        <button id="settingsBtn" class="btn-outline" type="button"
+                aria-expanded="false" aria-controls="settings" aria-label="Settings">⚙</button>
       </div>
 
-      <!-- Walk up to somebody and this appears. There is deliberately no
-           challenge button beside every name in a list: picking a fight should
-           mean going to find them. -->
-      <button id="nearby" class="btn" type="button" hidden></button>
-    </div>
+      <!-- What to do, in the words that match the device you are holding. It
+           fades out once you are clearly walking around. See src/ui/help.js. -->
+      <p id="controls" aria-live="polite"></p>
 
-    <!-- Talking: six set phrases, and no text box anywhere. See src/chat.js. -->
-    <div id="chatbar" aria-label="Say something" hidden></div>
+      <!-- The bottom of the world, as ONE stack. The challenge prompt sits above
+           the phrase row because it is the item before it, not because of a
+           hand-tuned offset: hide the phrase row and the prompt simply takes the
+           bottom of the canvas, and it cannot be pushed off the screen by
+           anything, because the stack is anchored to the canvas's own box. -->
+      <div id="bottom">
+        <!-- Walk up to somebody and this appears. There is deliberately no
+             challenge button beside every name in a list: picking a fight should
+             mean going to find them. -->
+        <button id="nearby" class="btn" type="button" hidden></button>
 
-    <p id="controls">Arrow keys or <kbd class="kbd">WASD</kbd> to walk — or touch the floor.
-      <kbd class="kbd">F</kbd> challenges whoever you are standing next to.</p>
+        <!-- Talking: six set phrases, and no text box anywhere. See src/chat.js.
+             It stays on screen whether or not anybody else is here: an empty
+             space where the phrases were reads as "chat is broken", and the HUD
+             already says "Just you here for now". -->
+        <div id="chatbar" aria-label="Say something" hidden></div>
+      </div>
 
-    <!-- Sound is OFF until one of these is pressed. See src/audio.js. -->
-    <div id="tools">
-      <button id="soundBtn" class="btn-outline" type="button" aria-pressed="false">Sound: off</button>
-      <button id="musicBtn" class="btn-outline" type="button" aria-pressed="false">Music: off</button>
-      <!-- A new name and a new animal. Asks first — see src/ui/onboarding.js. -->
-      <button id="resetBtn" class="btn-outline" type="button">Start over</button>
-      <!-- Somebody was sent this link by somebody. The whole reason the game
-           exists is that they could build one too, so the way to find that out
-           belongs on the screen and not in a README. Quiet on purpose: it sits
-           in the tools row at the same weight as the sound buttons. -->
-      <a id="learnLink" class="btn-outline" href="https://school.kakkoi.dev/ai-lessons.html"
-         target="_blank" rel="noopener">Learn to build this</a>
+      <!-- Everything that is not playing: sound, a new character, and the way
+           out to the lessons. Closed until the ⚙ is pressed. -->
+      <div id="settings" class="card" role="group" aria-label="Settings" hidden>
+        <!-- Sound is OFF until one of these is pressed. See src/audio.js. -->
+        <button id="soundBtn" class="btn-outline" type="button" aria-pressed="false">Sound: off</button>
+        <button id="musicBtn" class="btn-outline" type="button" aria-pressed="false">Music: off</button>
+        <!-- The hints over the world retire themselves once you have shown you
+             know. This is how you get them back — for yourself, or for the
+             friend you just handed the phone to. -->
+        <button id="howBtn" class="btn-outline" type="button">How to play</button>
+        <!-- The card everyone is shown once, on the first run. A child who wants
+             to read it again, or a parent who wants to see it at all, has to be
+             able to: it is the one piece of text here that really matters. -->
+        <button id="safetyBtn" class="btn-outline" type="button">About other players</button>
+        <!-- Only appears if the browser has actually offered us an install
+             prompt, and never once the game is already installed. A button that
+             cannot do the thing it names is worse than no button. -->
+        <button id="installBtn" class="btn-outline" type="button" hidden>Install</button>
+        <!-- A new name and a new animal. Asks first — see src/ui/onboarding.js. -->
+        <button id="resetBtn" class="btn-outline" type="button">Start over</button>
+        <!-- Somebody was sent this link by somebody. The whole reason the game
+             exists is that they could build one too, so the way to find that out
+             belongs on the screen and not in a README. Quiet on purpose: it is
+             the last row of a settings panel, not a call to action. -->
+        <a id="learnLink" class="btn-outline" href="https://school.kakkoi.dev/ai-lessons.html"
+           target="_blank" rel="noopener">Learn to build this</a>
+      </div>
     </div>
 
     <!-- The duel: the challenge, the three moves, and what just happened. -->

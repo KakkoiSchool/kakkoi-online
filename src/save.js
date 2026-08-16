@@ -23,6 +23,19 @@ export const VERSION = 1;
  */
 export const SAFETY_KEY = 'kakkoi-online-safety';
 
+/**
+ * Which instructions this person no longer needs, kept in its own key for
+ * exactly the same reason as the safety card: knowing how to walk, and knowing
+ * how to pick a fight, are facts about the person at the keyboard. Starting a
+ * new character must not re-teach somebody who already knows.
+ *
+ * Two independent facts — `move` and `challenge` — because they are learned at
+ * different moments: somebody can wander around the whole map without ever
+ * challenging anyone, and they should still be told how to do the half they
+ * have not done.
+ */
+export const LEARNED_KEY = 'kakkoi-online-learned';
+
 function fresh() { return null; }
 
 /** Read the save. Returns null when there is nothing usable. */
@@ -109,8 +122,33 @@ export function writeSafetySeen(seen) {
 }
 
 /**
- * Throw the character away. The safety key is left alone on purpose — see the
- * note on it above.
+ * Which hints have been learned. Anything unreadable means "learned nothing",
+ * which only costs somebody one more sight of a line they can already ignore.
+ */
+export function loadLearned() {
+  try {
+    const data = JSON.parse(localStorage.getItem(LEARNED_KEY) || '{}');
+    return { move: data.move === true, challenge: data.challenge === true };
+  } catch {
+    return { move: false, challenge: false };
+  }
+}
+
+export function writeLearned(learned) {
+  try {
+    localStorage.setItem(LEARNED_KEY, JSON.stringify({
+      move: learned.move === true,
+      challenge: learned.challenge === true,
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Throw the character away. The safety and learned keys are left alone on
+ * purpose — see the notes on them above.
  */
 export function clearSave() {
   try { localStorage.removeItem(KEY); } catch { /* nothing we can do */ }

@@ -27,8 +27,11 @@ in this repo are exactly the files the browser runs.
 That's the whole toolchain. From a terminal, `make dev` (`python3 -m http.server 8000`) does the
 same thing without the auto-reload.
 
-**Controls.** Arrow keys or WASD to walk, or touch the floor — the whole game works on a phone.
-`F` challenges whoever you are standing next to. Sound is **off** until you press the Sound button.
+**Controls.** Arrow keys or WASD to walk, or touch the floor — the whole game works on a phone, and
+the line on screen says whichever of those applies to the thing you are holding, never the other. `F`
+challenges whoever you are standing next to. Each half of that line disappears for good once you have
+done it — walked a few tiles, or started a fight — and stays gone on your next visit. Sound is **off**
+until you turn it on behind the **⚙** in the corner.
 
 `file://` will not work, on purpose — browsers refuse ES modules without a real origin (lesson A10).
 `http://localhost` is fine, and so is the live https site.
@@ -38,8 +41,10 @@ same thing without the auto-reload.
 they are the same character; the newest of them takes the game over and the older one pauses with a
 card explaining why. See "One window at a time" in `DESIGN.md`.
 
-**To change your name or your animal**, press **Start over** next to the sound buttons. It asks
-first, then puts you back at the name screen and the entrance.
+**Everything that is not the game is behind the ⚙** in the corner: sound, music, **How to play**,
+**About other players** (the safety card again, whenever you want it), **Install** when your browser
+offers it, **Start over** — a new name and a new animal, which asks first — and the link to the
+lessons.
 
 **Install it on your phone.** The live site is a proper PWA: open it and use your browser's "Add to
 Home Screen". It then opens like an app, with no browser bar, **and it works with no network** — the
