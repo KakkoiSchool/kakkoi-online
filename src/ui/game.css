@@ -239,25 +239,7 @@ body {
 .duel-move:disabled { opacity: 0.45; }
 .duel-move.is-picked { outline: 2px solid #ffd76a; outline-offset: 2px; }
 
-/* Both folded fingerprints, on screen, while neither move is known yet: that is
-   the whole idea of commit–reveal, and it is worth being able to watch. */
-.duel-folds {
-  display: grid;
-  gap: 0.15rem;
-  margin-top: 0.35rem;
-  font-size: 0.68rem;
-  opacity: 0.55;
-}
-
-.duel-folds[hidden] { display: none; }
 .duel-score[hidden] { display: none; }
-
-.duel-fold {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .duel-actions {
   display: flex;

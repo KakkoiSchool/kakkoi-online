@@ -32,7 +32,7 @@ and invented AI mistakes, and students notice immediately.
 | M0 | canvas, loop, map, collision, movement, monster pick, save | A12–A16 |
 | M1 | peers, presence, position sync, nameplates | A17–A20 |
 | M2 | preset chat, mute, validation, safety card | A18, A21 |
-| M3 | duel: FSM, commit–reveal, three actions, local AI | A22–A24 |
+| M3 | duel: FSM, three moves, local AI | A22–A24 |
 | M3.5 | NPCs: townsfolk, tutor, trainer ladder | A25–A26 |
 | M4 | audio, polish, "you're the only one here", NAT diagnostic | A27–A28 |
 
@@ -89,7 +89,7 @@ src/
   chat.js           six preset phrases; sends the index, checks every arrival
   ui/onboarding.js  the name panel, the monster picker and the card about other people
   ui/chatbar.js     one finger-sized button per phrase. no text box, anywhere
-  duel.js           the challenge state machine, the round loop, commit–reveal
+  duel.js           the challenge state machine and the round loop
   npc.js            Flint: answers exactly the questions a peer answers
   audio.js          six effects and a music loop, OFF until you say otherwise
   ui/duel-screen.js the challenge, three thumb-sized moves, and what happened
@@ -108,9 +108,10 @@ list of the numbers you cannot walk through; collision is "is the square I am mo
 list", checked one axis at a time so sliding along a wall works.
 
 **The monsters.** Six cells picked out of `vendor/opengameart/tiny-creatures.png` and named for what
-they look like: Sunmane the lion, Bristle the boar, Rumble the elephant, Bandit the raccoon, Fern the
-deer and Coco the ape. A monster carries no stat and no type — it is an animal you like the look of,
-and nothing else.
+they look like. **The list itself is `data/monsters.json`** — names, atlas cells and all — and it is not
+repeated here: this file said for weeks that the six were called something they had never been called,
+because a name written in two places is a name that will disagree with itself. A monster carries no
+stat and no type — it is an animal you like the look of, and nothing else.
 
 **A deliberate difference from A14.** Tiny Creatures has no walk frames — it is a 16px top-down set
 that matches the dungeon tiles exactly, which matters more here than legs. So a walking monster
@@ -188,23 +189,28 @@ name — finding your opponent is part of fighting them.
 case is one line in `src/duel.js` and every one of them ends back at `walking`: they refuse; they are
 already in a duel, so yours is politely declined; you both press Challenge in the same instant, and
 each side sees the other's ask while already waiting, so you simply start; they close the tab; they
-stop answering. Nothing waits forever — `commitTimeoutMs` (10s) is armed whenever we are waiting on the
+stop answering. Nothing waits forever — `answerTimeoutMs` (10s) is armed whenever we are waiting on the
 other side, and the one-sided endings tell the other player, because otherwise they sit looking at
 three buttons for somebody who has gone.
 
-**Nobody can peek.** Both sides send a SHA-256 fingerprint of `round:move:secret` first, and neither
-sends the move itself until the other fingerprint has arrived. When a move turns up it is fingerprinted
-again and checked against what that player folded; a mismatch ends the duel as **caught cheating**
-rather than being quietly counted. The round number is in the fingerprint so a commit cannot be
-replayed in a later round, and the random secret is in it because with only three moves anyone could
-fingerprint all three and see which matched. Both folded fingerprints are shown on the duel screen
-while both moves are still hidden, because that is the whole idea and it is worth being able to watch.
-`crypto.subtle` needs a secure context: `localhost` and the live https site both qualify, `file://`
-does not, and the failure says so in words.
+**The move is sent straight, and here is what that costs.** Each player picks; when both have picked,
+the round is shown. Until this was simplified, both sides sent a SHA-256 fingerprint of
+`round:move:secret` first and unfolded only once the other fingerprint had arrived, so that neither
+could wait and see; a tampered reveal really was caught, and the duel ended as *caught cheating*. It
+worked. It was also real cryptography guarding a game of rock, paper, scissors between about five
+people who know each other, and it was most of why the duel read as complicated to the child it is for.
+
+The honest consequence, written down rather than hidden: **whoever's move arrives first has shown their
+hand.** The game never displays a move that arrived before you chose — `view()` withholds it until the
+round resolves, so an honest player gains nothing by waiting — but somebody who edited the game's own
+code could read it off the wire and answer it. That is an accepted trade: there is no server, nothing
+is at stake, and a duel a nine-year-old can follow is worth more here than one that cannot be cheated.
+If this were ever a game between strangers, commit–reveal is the thing to put back, and
+`demos/22-no-peeking/` still teaches exactly how it works.
 
 **Flint.** A seventh character stands in the plaza and is challenged exactly the way a person is. He
 matters because this game will usually have one person in it. The point is the *shape*: he answers the
-same questions a peer answers, over the same little `link` object — ask, reply, commit, reveal — so
+same questions a peer answers, over the same little `link` object — ask, reply, move — so
 `src/duel.js` has no branch for him anywhere and the fight you practise is the fight you play. He does
 not roll a dice, either: he remembers your last five moves and leans against your favourite, rolling a
 dice about a third of the time so he never becomes predictable himself.

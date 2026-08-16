@@ -11,8 +11,8 @@
  * won, because a player who cannot see why they lost cannot get better. The
  * running score sits above the buttons the whole time.
  *
- * It knows nothing about the network, the NPC or crypto. It is handed a view of
- * the duel and draws it, and it calls back into `duel` when a finger lands.
+ * It knows nothing about the network or the NPC. It is handed a view of the duel
+ * and draws it, and it calls back into `duel` when a finger lands.
  */
 import { MOVES } from '../battle/rules.js';
 
@@ -51,20 +51,13 @@ export function createDuelScreen({ root, duel }) {
   });
   moves.append(...buttons);
 
-  // The two folded papers. Seeing both fingerprints sitting there while neither
-  // move is known is the entire idea of commit–reveal, so it is on the screen.
-  const folds = el('div', 'duel-folds');
-  const myFold = el('code', 'duel-fold');
-  const theirFold = el('code', 'duel-fold');
-  folds.append(myFold, theirFold);
-
   const actions = el('div', 'duel-actions');
   const yes = button('Fight!', 'btn duel-yes', () => duel.accept());
   const no = button('No thanks', 'btn-outline duel-no', () => duel.decline());
   const leave = button('Leave', 'btn-outline duel-leave', () => duel.close());
   actions.append(yes, no, leave);
 
-  card.append(title, sub, scoreRow, status, why, moves, folds, actions);
+  card.append(title, sub, scoreRow, status, why, moves, actions);
   root.append(card);
 
   // The link is let go the instant the duel ends, so remember who it was —
@@ -80,7 +73,6 @@ export function createDuelScreen({ root, duel }) {
 
     show(scoreRow, fighting);
     show(moves, fighting);
-    show(folds, fighting && v.phase !== 'over');
     show(yes, v.state === 'asked');
     show(no, v.state === 'asked');
     show(leave, v.state !== 'asked');
@@ -114,16 +106,10 @@ export function createDuelScreen({ root, duel }) {
       b.classList.toggle('is-picked', v.myMove === b.dataset.move);
     }
 
-    myFold.textContent = v.myCommit ? `your folded move  ${v.myCommit.slice(0, 12)}…` : 'your folded move  —';
-    theirFold.textContent = v.theirCommit ? `their folded move ${v.theirCommit.slice(0, 12)}…` : 'their folded move —';
-
     if (v.phase === 'over') {
-      const how = v.outcome?.how;
-      title.textContent = how === 'cheat' ? 'Caught cheating!' : `You  vs  ${them}`;
+      title.textContent = `You  vs  ${them}`;
       status.textContent = v.outcome?.text || '';
-      why.textContent = how === 'cheat'
-        ? `${v.last?.why || 'The fingerprints do not match'}, so the duel does not count.`
-        : `Final score ${v.outcome.score.you} — ${v.outcome.score.them}.`;
+      why.textContent = `Final score ${v.outcome.score.you} — ${v.outcome.score.them}.`;
       return;
     }
 
@@ -131,17 +117,12 @@ export function createDuelScreen({ root, duel }) {
       status.textContent = 'Pick a move.';
       why.textContent = v.last
         ? `Last round: you played ${v.last.mine}, they played ${v.last.theirs}. ${v.last.why}.`
-        : 'Neither of you can see the other’s move until you have both chosen.';
+        : 'Rock beats scissors, scissors beats paper, paper beats rock.';
       return;
     }
-    if (v.phase === 'folding' || v.phase === 'folded') {
-      status.textContent = 'Your move is folded up.';
-      why.textContent = v.theirCommit ? 'They have folded theirs too.' : `Waiting for ${them} to choose…`;
-      return;
-    }
-    if (v.phase === 'shown') {
-      status.textContent = 'Both folded. Unfolding…';
-      why.textContent = 'Each move is fingerprinted again and checked against the paper it was folded in.';
+    if (v.phase === 'waiting') {
+      status.textContent = `You played ${v.myMove}.`;
+      why.textContent = v.theyChose ? 'They have chosen too…' : `Waiting for ${them} to choose…`;
       return;
     }
     if (v.phase === 'resolved' && v.last) {

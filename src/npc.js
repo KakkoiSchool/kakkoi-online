@@ -7,9 +7,9 @@
  *
  * **The whole point is the shape.** Flint answers the same questions a peer
  * answers, in the same order, over the same little `link` object — ask, reply,
- * commit, reveal — so `src/duel.js` has no idea he is not a person and contains
- * no branch for him. Everything the fight knows how to do, it does with him: the
- * folded fingerprint, the ten-second timeout, the three round wins.
+ * move — so `src/duel.js` has no idea he is not a person and contains no branch
+ * for him. Everything the fight knows how to do, it does with him: the
+ * ten-second timeout, the three round wins.
  *
  * He does not roll a dice, either. He remembers your last few moves and leans
  * against your favourite, with a dice roll about a third of the time so he never
@@ -17,13 +17,12 @@
  * by hand, which is worse than random.
  */
 import { MOVES, beats } from './battle/rules.js';
-import { fold } from './duel.js';
 
 /** Short, because it goes in a nameplate over his head. */
 export const NAME = 'Flint';
 
-/** Which of the six he is, and where he stands, in tiles. */
-export const NPC_MONSTER = 1;          // Bristle, the boar
+/** Which of the six he is (an `id` in data/monsters.json), and where he stands. */
+export const NPC_MONSTER = 1;
 export const NPC_TILE = { col: 27, row: 20 };
 
 export function createNpc({ monsters, world, tuning = {}, box = { w: 20, h: 14 } }) {
@@ -74,8 +73,6 @@ export function createNpc({ monsters, world, tuning = {}, box = { w: 20, h: 14 }
   function link() {
     const handlers = [];
     let open = true;
-    let folded = null;      // what he folded this round
-    let round = 0;
     const pending = new Set();
 
     /** He answers after a beat, the way a person on the other end of a wire does. */
@@ -91,24 +88,20 @@ export function createNpc({ monsters, world, tuning = {}, box = { w: 20, h: 14 }
       name: NAME,
       monster: monster.id,
 
-      async send(kind, payload) {
+      send(kind, payload) {
         if (!open) return;
         if (kind === 'ask') return later(() => say('reply', { yes: true }));
 
-        if (kind === 'commit') {
-          // He picks BEFORE he can possibly know your move — all he has of yours
-          // is a fingerprint, which says nothing — and folds it the same way.
-          round = payload.round;
-          folded = await fold(round, chooseMove());
-          return later(() => say('commit', { round, hash: folded.hash }));
-        }
-
-        if (kind === 'reveal') {
-          // Your move is only learned here, after both papers were folded, which
-          // is the whole point of folding them. It counts towards next round.
+        if (kind === 'move') {
+          // Your move is in `payload`, and he is not allowed to look at it until
+          // he has chosen his own. Nothing but these two lines in this order
+          // enforces that — no cryptography, only code you can read. He is the
+          // one player here whose source is not in the other player's hands, so
+          // reading it is the whole guarantee. What you played is remembered
+          // afterwards, and leans his next choice.
+          const move = chooseMove();
           remember(payload.move);
-          const at = folded;
-          return later(() => say('reveal', { round, move: at.move, secret: at.secret }));
+          return later(() => say('move', { round: payload.round, move }));
         }
         // 'quit' — nothing to do; the duel closes the link straight after.
       },

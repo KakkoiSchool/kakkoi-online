@@ -719,3 +719,24 @@ version bumped so the broken worker cannot survive.
 **Worth telling students:** a service worker's scope is bigger than the page you were thinking about
 when you wrote it. Before shipping one, open a *different* page on the same site — the one you were
 not thinking about is the one it breaks, and it breaks it silently.
+
+## 2026-08-17 — say no once and that person can never challenge you again
+**Lesson:** A19 (the challenge state machine)
+**What it produced:** while removing commit–reveal, two browsers on two origins. Bo challenged Ayu
+while Ayu was still looking at a finished duel screen, so Ayu's machine politely refused — correct.
+Ayu then went back to the world, and from that moment on **every** challenge Bo sent was refused
+instantly, forever. `duel.challenge()` returned `true` and the state was back to `walking` before the
+next line of the test could read it.
+**Why it was wrong:** when a duel arrives while we are busy, `receive()` attaches a tiny
+refuse-everything handler to that conversation and returns without adopting it. Nothing ever takes
+that handler off. `net.js` announces a conversation to the duel only the *first* time it sees one, so
+the next ask from the same person went straight back into the stale handler instead of reaching the
+state machine that was, by then, perfectly free.
+**How I caught it:** the second peer duel of the session failed where the first had worked. Reading
+`game.duel.debug` immediately after `challenge()` showed `walking`, which is far too fast for a
+timeout and could only be an answer that had already been decided.
+**The fix:** the refusal now closes the link after sending it, so the transport forgets the
+conversation and the next ask arrives as a new one.
+**Worth telling students:** a handler you attach for one moment and never remove is a decision you
+have made forever. If some code says "no" on your behalf, be sure you know what ends it — the bug it
+causes will not look like the code that caused it.

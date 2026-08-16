@@ -1,7 +1,7 @@
 /**
- * The fight (lessons A19, A20, A22).
+ * The fight (lessons A19, A20).
  *
- * Three ideas, stacked:
+ * Two ideas, stacked:
  *
  *   1. A STATE MACHINE. The game is in exactly one state at a time — `walking`,
  *      `waiting`, `asked`, `fighting` — and every awkward case is one line in
@@ -9,18 +9,22 @@
  *      Refused, both-challenged-at-once, they-left-mid-duel and they-went-quiet
  *      all end the same way: back to `walking`, never stuck.
  *
- *   2. THREE MOVES. rock, paper, scissors. Who won a round is decided by
- *      `battle/rules.js`, which is pure, so both browsers compute the same
- *      answer from the same two moves. First to `winsNeeded` rounds takes the
- *      duel; a draw replays the round. No hit points, no charges. The monster
- *      you picked is a costume in a duel — it changes nothing.
+ *   2. THREE MOVES. rock, paper, scissors. Each player picks one; when both have
+ *      picked, the round is shown. Who won is decided by `battle/rules.js`, which
+ *      is pure, so both browsers compute the same answer from the same two moves.
+ *      First to `winsNeeded` rounds takes the duel; a draw replays the round. No
+ *      hit points, no charges. The monster you picked is a costume in a duel —
+ *      it changes nothing.
  *
- *   3. NO PEEKING. Neither side can wait to see the other's move. Each sends a
- *      fingerprint of its move first, and only sends the move itself once the
- *      other fingerprint has arrived. When a move turns up it is fingerprinted
- *      again and checked against what that player folded before either of us
- *      knew anything: if the two do not match, the move was swapped after the
- *      fact, and the duel ends as caught cheating instead of quietly counting.
+ * **Your move goes straight to the other player.** An earlier version folded it
+ * into a SHA-256 fingerprint first, swapped fingerprints, and only then swapped
+ * moves, so that neither side could wait and see. That is real cryptography, and
+ * it was most of why the duel read as complicated to the people actually playing
+ * it. The honest cost of sending the move directly is written down in `DESIGN.md`
+ * and repeated here because it belongs next to the code: whoever's move arrives
+ * first has shown their hand, so somebody who edited the game's own code could
+ * answer it. Between five friends that is a fine trade for a duel a child can
+ * follow. It is a game of rock, paper, scissors, not a bank.
  *
  * **How it talks.** This file has never heard of trystero, and cannot tell a
  * person from a computer. It is handed a `link`:
@@ -37,53 +41,18 @@ import { MOVES, isMove, roundResult, matchWinner } from './battle/rules.js';
 
 export { MOVES };
 
-/** A hex fingerprint of some text: same text in, same 64 characters out. */
-export async function fingerprint(text) {
-  if (!globalThis.crypto?.subtle) {
-    throw new Error('no crypto.subtle here — open the game over http://localhost or https, not file://');
-  }
-  const bytes = new TextEncoder().encode(text);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-export function randomSecret() {
-  const bytes = crypto.getRandomValues(new Uint8Array(8));
-  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * What actually gets fingerprinted. The round number is in there so a
- * fingerprint from round 1 cannot be replayed in round 2, and the secret is in
- * there because there are only three moves — without it anyone could fingerprint
- * rock, paper and scissors themselves and see which one matched.
- */
-export function foldedText(round, move, secret) {
-  return `${round}:${move}:${secret}`;
-}
-
-export async function fold(round, move) {
-  const secret = randomSecret();
-  return { move, secret, hash: await fingerprint(foldedText(round, move, secret)) };
-}
-
-const HASH = /^[0-9a-f]{64}$/;
-const SECRET = /^[0-9a-f]{1,64}$/;
-
 export function createDuel({ tuning = {} } = {}) {
   const needed = int(tuning.winsNeeded, 3);
-  const timeoutMs = int(tuning.commitTimeoutMs, 10000);
+  const timeoutMs = int(tuning.answerTimeoutMs, 10000);
   const gapMs = int(tuning.roundGapMs, 2200);
 
   let state = 'walking';          // walking | waiting | asked | fighting
   let link = null;                // who this conversation is with
   let score = { you: 0, them: 0 };
   let round = 0;
-  let phase = 'idle';             // choosing | folding | folded | shown | resolved | over
-  let mine = null;                // { move, secret, hash }
-  let theirCommit = null;         // their fingerprint, arriving before their move exists
-  let theirShown = null;          // { move, secret } once they unfold
-  let shown = false;              // have WE unfolded yet?
+  let phase = 'idle';             // choosing | waiting | resolved | over
+  let mine = null;                // the move we chose this round
+  let theirs = null;              // the move they chose, once it has arrived
   let last = null;                // the round just played, in words
   let outcome = null;             // how the whole duel ended
   let timer = null;
@@ -122,8 +91,8 @@ export function createDuel({ tuning = {} } = {}) {
 
   /**
    * Nobody waits forever. Armed the moment we are waiting on the other side for
-   * something, cleared the moment it turns up. `commitTimeoutMs` is the same ten
-   * seconds whether we are waiting for an answer, a fingerprint or a move.
+   * something, cleared the moment it turns up. `answerTimeoutMs` is the same ten
+   * seconds whether we are waiting for a yes, a no, or a move.
    */
   function waitOn(why) {
     if (timer) clearTimeout(timer);
@@ -162,7 +131,17 @@ export function createDuel({ tuning = {} } = {}) {
   function receive(offered) {
     if (!offered || (link && offered.id === link.id)) return;
     if (state !== 'walking') {
-      offered.onMessage((kind) => { if (kind === 'ask') offered.send('reply', { yes: false }); });
+      // Say no, then LET THE LINK GO. Leaving this little refuse-everything
+      // handler attached is how the same person becomes permanently unable to
+      // challenge us: the transport only announces a conversation it has never
+      // seen before, so their next ask would be answered by this handler again
+      // — for the rest of the session, long after the duel it was busy with had
+      // ended. Closing it means their next ask arrives as a new conversation.
+      offered.onMessage((kind) => {
+        if (kind !== 'ask') return;
+        offered.send('reply', { yes: false });
+        offered.close();
+      });
       return;
     }
     attach(offered);
@@ -215,8 +194,7 @@ export function createDuel({ tuning = {} } = {}) {
       return;
     }
     if (state !== 'fighting' || phase === 'over') return;
-    if (kind === 'commit') return theirFold(payload);
-    if (kind === 'reveal') return theirUnfold(payload);
+    if (kind === 'move') return theirMove(payload);
   }
 
   // ----------------------------------------------------------- 3. THE ROUNDS
@@ -234,96 +212,53 @@ export function createDuel({ tuning = {} } = {}) {
     round += 1;
     phase = 'choosing';
     mine = null;
-    theirCommit = null;
-    theirShown = null;
-    shown = false;
+    theirs = null;
     clearTimers();
     emit();
   }
 
-  /** Pick a move: fold it, then say only the fingerprint out loud. */
-  async function play(move) {
+  /** Pick a move: it is sent, and then we wait for theirs. */
+  function play(move) {
     if (state !== 'fighting' || phase !== 'choosing' || !isMove(move)) return false;
-    const at = round;
-    phase = 'folding';
-    emit();
-
-    let folded;
-    try {
-      folded = await fold(round, move);
-    } catch (err) {
-      phase = 'choosing';
-      notice(err.message);
-      emit();
-      return false;
-    }
-    if (state !== 'fighting' || round !== at || phase !== 'folding') return false;
-
-    mine = folded;
-    phase = 'folded';
-    link.send('commit', { round, hash: mine.hash });
+    mine = move;
+    phase = 'waiting';
+    link.send('move', { round, move });
     waitOn(`${who()} stopped answering`);
     emit();
-    maybeShow();
+    if (theirs) resolve();
     return true;
   }
 
-  function theirFold(payload) {
-    if (!payload || payload.round !== round || theirCommit) return;
-    if (typeof payload.hash !== 'string' || !HASH.test(payload.hash)) return;
-    theirCommit = payload.hash;
-    emit();
-    maybeShow();
-  }
-
-  /** Nobody unfolds until both folded papers are on the table. */
-  function maybeShow() {
-    if (shown || !mine || !theirCommit) return;
-    shown = true;
-    phase = 'shown';
-    link.send('reveal', { round, move: mine.move, secret: mine.secret });
-    waitOn(`${who()} stopped answering`);
-    emit();
-    if (theirShown) resolve();
-  }
-
-  function theirUnfold(payload) {
-    if (!payload || payload.round !== round || theirShown) return;
-    if (!isMove(payload.move)) return;
-    if (typeof payload.secret !== 'string' || !SECRET.test(payload.secret)) return;
-    theirShown = { move: payload.move, secret: payload.secret };
-    if (shown) resolve();
-  }
-
   /**
-   * Both moves are on the table. Check theirs against the fingerprint they
-   * folded, then ask the pure rules who won.
+   * Their move, off the wire. Everything about it is checked before it is
+   * believed: the right round, one of the three moves, and only once.
+   *
+   * It is held, not shown. `view()` keeps a move that arrived before ours was
+   * chosen out of sight until the round resolves — seeing it early would make
+   * the choice meaningless for the honest player as well.
    */
-  async function resolve() {
+  function theirMove(payload) {
+    if (!payload || payload.round !== round || theirs) return;
+    if (!isMove(payload.move)) return;
+    theirs = payload.move;
+    emit();                      // "they have chosen" — never *what* they chose
+    if (mine) resolve();
+  }
+
+  /** Both moves are in. Ask the pure rules who took the round. */
+  function resolve() {
     if (timer) { clearTimeout(timer); timer = null; }
-    const at = round;
 
-    const again = await fingerprint(foldedText(round, theirShown.move, theirShown.secret));
-    if (state !== 'fighting' || round !== at || phase === 'over') return;
-
-    if (again !== theirCommit) {
-      last = {
-        round,
-        mine: mine.move,
-        theirs: theirShown.move,
-        winner: 'nobody',
-        why: `${who()} showed ${theirShown.move}, but that is not the move that was folded`,
-      };
-      return finish('cheat', `${who()} was caught cheating`);
-    }
-
-    const result = roundResult(mine.move, theirShown.move);
+    const result = roundResult(mine, theirs);
     if (result.winner !== 'nobody') score[result.winner] += 1;
-    last = { round, mine: mine.move, theirs: theirShown.move, winner: result.winner, why: result.why };
+    last = { round, mine, theirs, winner: result.winner, why: result.why };
     phase = 'resolved';
     sound(result.winner === 'you' ? 'win' : result.winner === 'them' ? 'lose' : 'draw');
     emit();
 
+    // The result stays on screen on its own for a moment before the next round
+    // opens. A round that vanished the instant it was decided was the single
+    // biggest reason the duel was hard to follow.
     const done = matchWinner(score, needed);
     gap = setTimeout(() => {
       gap = null;
@@ -347,9 +282,9 @@ export function createDuel({ tuning = {} } = {}) {
     };
     // A duel that ends on its own — three round wins — ends on both machines at
     // the same moment, because both computed it from the same two moves. The
-    // other two endings are one-sided, so the other player is told: otherwise
-    // they sit looking at three buttons waiting for somebody who has gone.
-    if ((how === 'cheat' || how === 'gone') && link) link.send('quit', { why: how });
+    // other endings are one-sided, so the other player is told: otherwise they
+    // sit looking at three buttons waiting for somebody who has gone.
+    if (how === 'gone' && link) link.send('quit', { why: how });
     phase = 'over';
     sound(how === 'you' ? 'match' : how === 'them' ? 'lose' : 'ping');
     if (link) link.close();
@@ -366,15 +301,14 @@ export function createDuel({ tuning = {} } = {}) {
     phase = 'idle';
     score = { you: 0, them: 0 };
     mine = null;
-    theirCommit = null;
-    theirShown = null;
-    shown = false;
+    theirs = null;
     outcome = null;
     last = null;
     emit();
   }
 
   function view() {
+    const shown = phase === 'resolved' || phase === 'over';
     return {
       state,
       phase,
@@ -382,11 +316,10 @@ export function createDuel({ tuning = {} } = {}) {
       needed,
       score: { ...score },
       them: link ? { id: link.id, name: link.name } : null,
-      /** Our own fingerprint is visible from the first moment. Our move is not. */
-      myCommit: mine ? mine.hash : null,
-      myMove: phase === 'shown' || phase === 'resolved' || phase === 'over' ? mine?.move ?? null : null,
-      theirCommit,
-      theirMove: theirShown ? theirShown.move : null,
+      myMove: mine,
+      /** That they have chosen is public; what they chose waits for the reveal. */
+      theyChose: theirs !== null,
+      theirMove: shown ? theirs : null,
       last,
       outcome,
     };
@@ -409,11 +342,10 @@ export function createDuel({ tuning = {} } = {}) {
     /** For checking from the console: the whole machine, in one object. */
     get debug() {
       return {
-        state, phase, round, shown, outcome,
+        state, phase, round, outcome,
         score: { ...score },
-        mine: mine ? { ...mine } : null,
-        theirCommit,
-        theirShown: theirShown ? { ...theirShown } : null,
+        mine,
+        theirs,
         them: link ? link.id : null,
       };
     },

@@ -9,9 +9,8 @@ the other players' browsers. Hosting is a static page, so it costs nothing to ru
 You pick a name and one of six monsters, and you are in a dungeon. You walk around it, you see anyone
 else who has the page open walking around it too, and you talk to them in six set phrases. Walk up to
 one of them and a **Challenge** button appears: a duel is **rock, paper, scissors**, first to three
-rounds. Rock beats scissors, scissors beats paper, paper beats rock. Neither player can peek — both sides
-send a fingerprint of their move before either sends the move, and a move that does not match its
-fingerprint is caught and the duel ends there.
+rounds. Rock beats scissors, scissors beats paper, paper beats rock. Each player picks; when both have
+picked, the two moves are shown side by side and the round is scored.
 
 Nobody else online? **Flint** is always standing in the plaza, and he fights exactly the way a person
 does — he even remembers what you like playing and leans against it.
@@ -31,9 +30,8 @@ same thing without the auto-reload.
 **Controls.** Arrow keys or WASD to walk, or touch the floor — the whole game works on a phone.
 `F` challenges whoever you are standing next to. Sound is **off** until you press the Sound button.
 
-`file://` will not work, on purpose — browsers refuse modules and `crypto.subtle` without a real
-origin (lesson A10), and the duel needs `crypto.subtle`. `http://localhost` is fine, and so is the
-live https site.
+`file://` will not work, on purpose — browsers refuse ES modules without a real origin (lesson A10).
+`http://localhost` is fine, and so is the live https site.
 
 **To be two players on one machine**, open the page on **two different origins** — say
 `localhost:8000` and `127.0.0.1:8001`. Two tabs on the *same* origin share one `localStorage`, so
@@ -61,7 +59,7 @@ icons/              the home-screen icons, made from the game's own lion sprite
 src/main.js         boot and wiring only — everything else is one idea per file
 src/loop.js         the requestAnimationFrame loop
 src/net.js          the only file that knows trystero exists
-src/duel.js         the challenge state machine, the rounds, and commit–reveal
+src/duel.js         the challenge state machine and the rounds
 src/npc.js          Flint — answers the same questions a peer does, so duel.js cannot tell
 src/battle/rules.js PURE rules: the rock-paper-scissors triangle — imports nothing, fully testable
 tests/*.test.html   tests you open in a browser
@@ -83,9 +81,11 @@ Three rules that shape the codebase:
 
 ## No server means
 
-- **Nobody is in charge.** Positions and stats are self-reported, so cheating them is easy and we
-  don't mind. What *is* protected is the duel: both players commit a hash of their move before either
-  reveals, so neither can peek and change their mind.
+- **Nobody is in charge.** Positions, moves and everything else are self-reported, so cheating them is
+  easy and we don't mind. In a duel each move is sent as soon as it is chosen: the game never shows you
+  a move that arrived before you picked, but a player who edited the code could read one off the wire.
+  For five friends playing rock, paper, scissors that is a fair trade for a duel a child can follow —
+  see "The move is sent straight" in `DESIGN.md`.
 - **No moderation is possible** — no bans, no logs, no reports. So chat is **preset phrases only**.
   Abuse is designed out rather than policed.
 - **Nothing is stored anywhere.** Your character lives in your own browser, in `localStorage`. Clear

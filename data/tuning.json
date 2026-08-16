@@ -1,6 +1,6 @@
 {
   "winsNeeded": 3,
-  "commitTimeoutMs": 10000,
+  "answerTimeoutMs": 10000,
   "roundGapMs": 2200,
   "challengeReachPx": 64,
   "npcThinkMs": [450, 900],
