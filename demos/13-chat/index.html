@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A13 — talking, safely</title>
+  <style>
+    body { font: 16px/1.6 system-ui, sans-serif; background: #12121a; color: #e8e8ef;
+           display: grid; place-items: center; gap: 1rem; height: 100vh; margin: 0; }
+    canvas { background: #1b1b22; border-radius: 8px; touch-action: none; }
+    #phrases { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; max-width: 480px; }
+    button { font: inherit; padding: 0.3rem 0.8rem; border-radius: 6px; border: 1px solid #444;
+             background: #23232e; color: #e8e8ef; cursor: pointer; }
+    p { margin: 0; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <canvas id="world" width="480" height="320"></canvas>
+  <div id="phrases"></div>
+  <p>Arrow keys or WASD to move. Only these phrases can be said.</p>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

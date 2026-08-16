@@ -17,6 +17,41 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — "the console is clean" was said about a console that was full of warnings
+**Lesson:** A12 / A13 (other people, talking safely)
+**What it produced:** both peer-to-peer demos were checked, twice, and reported as having a clean console.
+The drained event queue came back with nothing in it.
+**Why it was wrong:** the queue had never been switched on. Re-running the same check after
+`await cdp('Runtime.enable')` — and after proving the checker could see a deliberate `console.warn('probe-warning')`
+— produced a steady stream of real warnings from the library: `Trystero: relay failure from
+wss://relay.nostromo.social/ - blocked: not on white-list` and `Trystero: relay failure from
+wss://nostr.grooveix.com/ - blocked: only certain pubkeys are allowed to post`, repeating every few seconds
+in both demos. Two of the library's default noticeboards refuse the notes we post. Peers still connect,
+because the other noticeboards accept them — so the demo looked perfect while shouting into the console.
+**How I caught it:** another agent's entry in this same file said `Runtime.enable` is required before draining.
+Then the honest version of the check: print a warning I know is there, and confirm the checker sees it.
+**The fix:** named the noticeboards explicitly instead of taking the defaults —
+`joinRoom({appId, relayUrls: ['wss://relay.snort.social', 'wss://nostr.sathoarder.com',
+'wss://eu.purplerelay.com', 'wss://nostr.vulpem.com']}, 'demo')`. An intermediate attempt that kept six
+relays still warned, from a *different* one: `relay.nostraddress.com - auth-required: authenticate to
+publish events`. With the four above, two tabs connected and both consoles drained completely empty.
+**Worth telling students:** "no errors" is only worth something if you have seen the thing that reports
+errors report one. And a library warning is still your problem, because it is your user's console.
+
+## 2026-08-16 — a player who never said goodbye stayed on screen for minutes
+**Lesson:** A12 (other people)
+**What it produced:** with the demo open in two tabs, `others` in one tab contained three peers, not one:
+`{"6pht…":{"x":411.7,"y":288},"VYsHeP…":{"x":100,"y":100},"kouGv2…":{"x":100,"y":100}}`. Two of them were
+tabs from an earlier round that had been shut down by the test tooling.
+**Why it was wrong:** `onPeerLeave` fires when a peer disconnects politely. A tab that is killed outright
+never sends anything, so the square stands at its last known position — here, the starting position
+`{x: 100, y: 100}` — until the connection eventually times out. One ghost was still there 25 seconds later.
+**How I caught it:** the screenshot had more squares in it than there were tabs open.
+**The fix:** none in the demo — this is honest behaviour and it is now the lesson's "Your turn" exercise
+(remember when each message arrived, hide anyone silent for three seconds). The screenshot was retaken.
+**Worth telling students:** "they left" and "we stopped hearing from them" are different facts, and a
+network can only ever tell you the second one directly.
+
 ## 2026-08-16 — the "try to cheat" button could cheat honestly, one time in three
 **Lesson:** A22 (no peeking)
 **What it produced:** the cheat button reveals a move the player never committed to — specifically the move
