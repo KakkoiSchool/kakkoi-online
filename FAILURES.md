@@ -17,6 +17,40 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — a commit swept up two scratch files belonging to somebody else
+**Lesson:** none directly — a working habit
+**What it produced:** commit `a69e6db` ("Swap a dead relay in the peer-to-peer demos") contains
+`_tileview.html` and `_makeframes.html`, two throwaway tools I had written in the repo root minutes earlier
+to draw the sprite sheets at 4x and to test making my own walk frames. They have nothing to do with that
+commit, and one of them tests an idea that was abandoned.
+**Why it was wrong:** the commit was made with `git add -A` (or `git commit -a`), which stages *everything*
+in the folder, including files somebody else is in the middle of writing. In a repository that only one
+person is touching this is harmless. In a shared one it puts other people's unfinished work into your commit
+message's history under your name.
+**How I caught it:** deleting my own scratch files afterwards, and seeing git report them as `D` (tracked and
+deleted) rather than simply vanishing. Untracked files do not show up like that.
+**The fix:** deleted both in my own commit, and stage by name from now on — `git add demos/14-monster` — not
+by "everything that changed".
+
+## 2026-08-16 — two pictures that differ by 30 pixels, and none of them are the legs
+**Lesson:** A14 (your monster)
+**What it produced:** hunting for a walk cycle inside `tiny-dungeon.png`, I stopped trusting my eyes and
+diffed every pair of the 20 character cells pixel by pixel. The two closest pairs looked like a jackpot:
+cells 85 and 98 differ in only 30 pixels out of 256, **all of them in the bottom six rows**, with a
+pixel-identical head. Cells 85 and 88 differ in 31 pixels, mostly around the arms. On the numbers, that is
+exactly the shape of a walk frame: head still, legs moved.
+**Why it was wrong:** I printed both cells as text, one character per pixel, and the shapes were identical —
+only the **colours** had changed. 85 is a villager with bare hands and brown legs; 98 is the same villager
+drawn in armour, with blue-grey hands and blue-grey legs. Nothing has moved. Alternating them at 8 pictures a
+second would not be a monster walking, it would be a monster changing clothes.
+**How I caught it:** looked at the actual pixels instead of the difference count. A pixel diff tells you
+*how many* pixels changed and *where*; it cannot tell you whether the shape moved or the paint changed.
+**The fix:** used `pixel-platformer-characters.png` cells 0 and 1, where the legs really are in two
+different places — I checked those as text too before writing a line of the demo. Cell 0's legs sit under the
+body on rows 20-23; cell 1's are spread wide and the whole body is one pixel higher.
+**Worth telling students:** I nearly spent an hour drawing my own second frame because I trusted a number
+over a picture. When you are working on something you can *see*, look at it.
+
 ## 2026-08-16 — the planning docs promised a Kenney pack that does not exist, and a walk cycle that is not there
 **Lesson:** A14 (your monster), A16 (the world)
 **What it produced:** `planning/kakkoi-online-sources.md` listed **"Kenney — Tiny Creatures"** as one of the
