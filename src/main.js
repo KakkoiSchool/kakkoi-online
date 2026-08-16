@@ -175,17 +175,18 @@ async function boot() {
   // ------------------------------------------------------------------ sound
   // Off until one of these two buttons is pressed, and the press is also the
   // interaction the browser was waiting for.
+  // The two switches are independent. Wanting a soundtrack and wanting a
+  // footstep every four hundred milliseconds are different wishes, and either
+  // press is the interaction the browser was waiting for.
   soundBtn.addEventListener('click', () => {
     const on = audio.toggle();
     soundBtn.textContent = `Sound: ${on ? 'on' : 'off'}`;
     soundBtn.setAttribute('aria-pressed', String(on));
-    if (!on) { musicBtn.textContent = 'Music: off'; musicBtn.setAttribute('aria-pressed', 'false'); }
-    else audio.play('ping');
+    if (on) audio.play('ping');
     soundBtn.blur();
   });
 
   musicBtn.addEventListener('click', () => {
-    if (!audio.on) return say('Turn the sound on first.');
     const playing = audio.toggleMusic();
     musicBtn.textContent = `Music: ${playing ? 'on' : 'off'}`;
     musicBtn.setAttribute('aria-pressed', String(playing));

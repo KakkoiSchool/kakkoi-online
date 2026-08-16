@@ -91,23 +91,24 @@ export function createAudio({ tuning = {} } = {}) {
           .catch((err) => { state.firstPlayError = `${err.name}: ${err.message}`; });
   }
 
+  /**
+   * Effects on or off. This says nothing about the music: the two switches are
+   * independent, because wanting a soundtrack and wanting a footstep every four
+   * hundred milliseconds are different wishes. Turning effects off used to stop
+   * the music too, and music could not be started at all while effects were off.
+   */
   function enable(next = !on) {
     on = !!next;
-    if (!on) {
-      if (music) music.pause();
-      return on;
-    }
+    if (!on) return on;
     // The click that turned the sound on is the interaction the browser wanted,
     // so this is the moment to warm the short effects up.
     for (const name of Object.keys(SFX)) clip(name);
-    if (wantMusic) playMusic(true);
     return on;
   }
 
   function playMusic(next = !wantMusic) {
     wantMusic = !!next;
     if (!wantMusic) { if (music) music.pause(); return false; }
-    if (!on) { state.lastError = 'music: sound is off'; return false; }
     if (!music) {
       // 637 kB, fetched only when somebody actually asks for music.
       music = new Audio(MUSIC);
