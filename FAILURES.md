@@ -17,6 +17,109 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — the "clean console" check was reading an empty pipe
+**Lesson:** A11 (save the game)
+**What it produced:** a verification round that drained the browser event queue after loading the demo,
+found no console entries and no exceptions, and reported the console clean.
+**Why it was wrong:** the queue never contained console messages at all. The demo had definitely printed
+a warning — the corrupt-save path calls `console.warn` — and the drain came back `[]`. Proving that a
+check works when there is nothing to find is impossible; proving it *fails to find something that is
+definitely there* is easy. A probe of `console.warn('probe-warning'); console.error('probe-error')`
+drained as `[]` too, and the only event kind ever seen was `Target.attachedToTarget`.
+**How I caught it:** deliberately printing a message I knew was there and watching the checker miss it.
+**The fix:** `await cdp('Runtime.enable')` before draining. The very next drain returned the whole
+backlog, including the real one: `["save is not readable, starting fresh:", "Expected property name or
+'}' in JSON at position 1 (line 1 column 2)"]` and `["save is version", 1, "and we speak", 2, "-
+starting fresh"]`. Runtime.enable has to be re-issued after each navigation.
+**Worth telling students:** a test that always says "fine" is not a test. Before you trust a checker,
+break something on purpose and make sure it notices.
+
+## 2026-08-16 — the square would not move, and the code was right
+**Lesson:** A11 (save the game)
+**What it produced:** a check that typed the name `Mika` into the name box, then held ArrowRight for
+0.7 s and ArrowDown for 0.35 s. Position before: `{"x":100,"y":100}`. Position after: `{"x":100,"y":100}`.
+Nothing moved. The keyboard block looked broken.
+**Why it was wrong:** the keyboard was fine and so was the demo. Typing the name had left the keyboard
+focus **in the input box**, and the demo deliberately ignores keys aimed at that box
+(`if (e.target !== nameBox)`). The arrows were going into a text field, exactly as designed.
+**How I caught it:** printed `document.activeElement.id` — it said `name`.
+**The fix:** `click('#world')` first (activeElement then read `BODY`), and the same key holds gave
+`{"x":253.98,"y":177}`. That click is now step 2 of the lesson's "See it work", because a student will
+hit this the moment they type their name.
+**Worth telling students:** "it does not respond to the keyboard" and "the keyboard is going somewhere
+else" look identical from the outside. Ask the page which thing currently has the keyboard.
+
+## 2026-08-16 — a browser rendering 2 frames a second made a working demo look broken
+**Lesson:** A15 (walls)
+**What it produced:** the slide test — hold Right into a rock plus Down — reported no movement at all
+after a 0.5 s hold: `{"x":128,"y":60}` before, `{"x":128,"y":60}` after. Holding Down alone for a full
+second moved the square 55 pixels, when it travels 220 pixels per second.
+**Why it was wrong:** 55 is exactly `220 × 0.25`, and `0.25` is the demo's `dt` clamp. The page had
+rendered **one single frame** in that whole second. A frame counter confirmed it: `frames in ~1s: 2`.
+The automated browser window was not being painted at anything like 60 Hz, so `requestAnimationFrame`
+barely ran. `document.visibilityState` still said `visible`, which is why this was not obvious.
+**How I caught it:** the number 55. It was too round. Dividing it by the speed gave 0.25 — a constant
+that appears exactly once in the file, in the `dt` clamp — so the loop must have run once.
+**The fix:** stopped fighting it and held the keys long enough for the few frames available: 4 s into the
+wall gave `{"x":128,"y":60}` (the wall's edge, exactly `160 - 32`), then 3 s of Right+Down gave
+`{"x":128,"y":225}` — sideways pinned, downwards free. The slide had worked the entire time.
+**Worth telling students:** before believing a game is broken, check that it is actually running. "It did
+not move" can mean "it was never asked to move". The clamp that protects you from a giant `dt` is also
+the fingerprint that tells you how many frames really happened.
+
+## 2026-08-16 — two browser-driving helpers that do not exist
+**Lesson:** A11 / A15 (verifying in a real browser)
+**What it produced:** a verification script calling `pressKey('ArrowRight', { duration: 0.6 })`.
+**Why it was wrong — verbatim errors:** `Error: Invalid parameters` with no hint of which parameter, and
+then, when asked for its documentation, `Unknown helper: pressKey` — the helper was listed in the
+tooling notes but is not actually present in this runtime. `help()` with no argument printed nothing.
+**How I caught it:** the script exited with code 1 before a single key was pressed.
+**The fix:** dropped to the raw browser protocol and held keys by hand —
+`cdp('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code })`, wait, then `type: 'keyUp'`. This is
+also the only way to *hold* a key rather than tap it, which both demos need.
+**Worth telling students:** a documented function and an existing function are not the same thing. When
+a tool says "invalid parameters", check that the tool exists at all before you start guessing at
+parameters.
+
+## 2026-08-16 — the vendored library's file list was one file short, and nothing said so
+**Lesson:** A12 (other people)
+**What it produced:** a plan to vendor trystero as exactly five files: `nostr.js`, three files under `src/`,
+and `node-crypto.js`. All five downloaded fine.
+**Why it was wrong:** the very first line of `node-crypto.js` is `import"./chunk-ETRHX7GZ.mjs";` — a sixth
+file nobody had listed. It imports nothing *from* it, so it is easy to miss when you skim for
+`import {x} from "y"`. Left alone, the browser would have asked the server for a file that does not exist.
+**How I caught it:** instead of reading the imports, I listed every `".../*.mjs"` string in all five files
+with `grep -oE '"[^"]*\.mjs"'` and counted them. Six paths came back, not five.
+**The fix:** fetched `https://esm.sh/node/chunk-ETRHX7GZ.mjs` as `node-chunk.js` and rewrote the specifier
+with the others. The server log then showed six requests, all `200`, and no `404` except the browser's
+automatic ask for `favicon.ico`.
+**Worth telling students:** when you copy a library into your own project by hand, "the set is closed" is a
+claim you have to *check*, not a thing you hope. The check is boring: list every path the files mention,
+and make sure every one of them is a file you have.
+
+## 2026-08-16 — the screenshot kept timing out, and the demo was innocent
+**Lesson:** A13 (talking, safely)
+**What it produced:** `Error: CDP request timed out: Page.captureScreenshot`, twice in a row, on a page
+that was otherwise responding to every command.
+**Why it was wrong:** nothing was wrong with the page. `pageInfo()` reported the visible area as
+`w: 360, h: 204` — the browser window had ended up smaller than the 480×320 canvas inside it.
+**How I caught it:** asked the page how big it thought it was before assuming the demo had hung.
+**The fix:** set the size explicitly (`Emulation.setDeviceMetricsOverride`, 720×560) and the screenshot came
+back immediately.
+**Also, in the same session:** the first successful screenshot was useless — both players were still at their
+starting position `{x: 100, y: 100}`, so the two squares sat on top of each other and their name labels
+overlapped into unreadable mush. Moved one player before taking the picture again.
+
+## 2026-08-16 — closing the last tab deleted the workspace out from under the next command
+**Lesson:** A13 (talking, safely)
+**What it produced:** `Error: listTabs: Task space not found: 1` on a browser session that had been working
+for twenty minutes.
+**Why it was wrong:** the previous command had closed both open tabs to tidy up before the next demo.
+Closing every tab in a browser workspace closes the workspace itself.
+**How I caught it:** the error names the thing that vanished, which is the good kind of error message.
+**The fix:** opened a fresh workspace. No lasting damage — but it is a reminder that tidying up is an action
+with consequences, and worth doing at the end rather than the middle.
+
 ## 2026-08-16 — the browser test "clicked to focus" and polluted the keyboard test
 **Lesson:** A10 (a square you can move)
 **What it produced:** the first automated check of the demo did `click('#world')` "to give the page focus",
