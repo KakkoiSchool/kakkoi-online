@@ -219,9 +219,102 @@ Six short effects and one music loop, plain `Audio` elements, no Web Audio graph
 and somebody may be listening to something else. A browser refuses to play before the page has been
 touched, so every `play()` ends in a `.catch` that records the refusal and forgets it — a refused sound
 never breaks the frame it happened in. `audio.firstPlayError` holds what the browser said the first
-time, deliberately, because "it was refused" is a fact worth being able to see. Footsteps every 26
-pixels walked, a sound on each round result, a fanfare on winning a duel; the 637 kB music file is only
-fetched if somebody actually asks for music.
+time, deliberately, because "it was refused" is a fact worth being able to see. A sound on each round
+result, a fanfare on winning a duel; the 637 kB music file is only fetched if somebody actually asks
+for music.
+
+**The footstep is not like the other effects, and must not be tuned like them.** It fires the entire
+time you are walking, and the first version — an 8-bit blip at full effect volume, every 26 pixels,
+which is nearly six times a second — was genuinely unpleasant. A sound you hear two hundred times a
+minute needs its own two numbers: `stepVolume` (0.22, against 0.6 for everything else) and
+`stepIntervalMs` (400). It is timed rather than measured in pixels, because a footstep is a leg
+moving and legs move at a pace. The sample itself is a recorded, muted dirt step from Kenney's CC0
+RPG Audio pack — see `audio/README.md` for the licence trail and the one-line conversion.
+
+## Which way a monster is looking
+
+Every creature in `tiny-creatures.png` is drawn looking right, and several of the six are strict
+profiles — the boar's tusk, the elephant's trunk, the deer's head. A monster walking left while
+facing right is obviously broken, so:
+
+- Every body carries **`facing`**, either `+1` or `-1`. Never `0`.
+- `render.js` mirrors a `-1` body: translate to the middle of the sprite, `ctx.scale(-1, 1)`, draw
+  half a sprite left of the new origin. `imageSmoothingEnabled = false` is set **again** inside that
+  transform, or the mirrored pixels come out fuzzy.
+- **Standing still keeps the last facing.** `facing` is a memory, not a wish; snapping back to right
+  when you let go of the key looks like a bug.
+- Your own monster takes its facing from what you *asked* for, so pushing west against a wall still
+  turns you west. A **peer's facing is worked out from the direction they are sliding**, in
+  `net.update()`, rather than sent. It is free, it needs no new field in a `move` packet and no new
+  version of the protocol, and "walking left" is exactly "x going down". Flint never walks, so he
+  keeps the atlas's own direction.
+
+## One window at a time
+
+Open the game twice in the same browser and both tabs read the same save, so both are honestly you —
+same name, same monster — and the world sees two of you. The rule is **the newest window owns the
+game** (`src/session.js`, over a `BroadcastChannel`):
+
+1. Every tab makes a random session id at boot and broadcasts a **claim**.
+2. A tab already playing hears it, **saves its live state**, replies with a **handover** carrying
+   that state, and only then goes inactive: loop stopped, **`net.leave()`**, calm card on screen.
+3. The claimer waits 400 ms for a handover. If it comes, it adopts that state — the save on disk is
+   up to half a second old, the handover is the position at the instant of the knock. If it does not
+   come, `localStorage` is used exactly as before.
+4. The card says what happened in plain words and has one button, which re-claims and reloads.
+
+**Leaving the room is the part that matters.** Stopping the loop alone would leave a second copy of
+you standing in the world for as long as the old tab was open, which is the whole bug.
+
+`BroadcastChannel` is same-origin, and that is exactly the scope of this problem. Two browsers, or
+`localhost` and `127.0.0.1`, are genuinely two players and must stay that way.
+
+Taking the game back — and starting over — both **reload**. Rebuilding the room, the loop, the camera
+and the peer list by hand would be three chances to leave half the old one behind; the boot path
+already does all of it correctly. Anything that deliberately leaves sets a `leaving` flag first, so
+the `pagehide` flush cannot write a stale save over the one it just chose.
+
+## Start over
+
+The only way to change your name or animal used to be clearing `localStorage` by hand, which no
+twelve-year-old is going to do — and students will want to try all six animals. So: a plain
+**"Start over"** button beside the sound controls, a DOM confirm panel in the same style as the
+onboarding (never `confirm()`, which freezes the page and prefixes your words with "localhost:8840
+says:"), and on yes: leave the room properly, clear the save, reload into the real name-and-animal
+flow. Neither button is red; starting over is a reasonable thing to want.
+
+Two details that are not obvious:
+
+- **The safety card lives in its own key** (`kakkoi-online-safety`). It is about the person at the
+  computer, not about the character, so it survives a reset — a child trying all six animals must not
+  read the same three paragraphs six times.
+- **A paused window cannot start over**: its card covers the whole viewport, buttons and all. Only
+  the window that actually owns the game can reset it, which is how "two windows resetting the same
+  save at once" stops being a state that exists. A paused window that is later resumed reloads, so it
+  comes back as whatever character now exists — never as the one that was deleted.
+
+## Nothing on this page is allowed to move the world
+
+The "Challenge *name*" prompt appears and disappears constantly as you walk past people. It was
+placed in the canvas's own grid cell, which quietly pushed the canvas into the *next* row, so the
+entire page jumped down every time somebody came into reach and back up when they left.
+
+The rule now: **anything that appears and disappears during play is out of flow.** The canvas has its
+own positioned box, `#arena`, and the HUD badges and the challenge prompt are absolutely positioned
+inside it. Showing or hiding them cannot change the layout, and the prompt floating over the bottom
+of the world reads better than a bar underneath it. The duel screen, the onboarding overlay and the
+paused card are all `position: fixed` for the same reason.
+
+The canvas's bounding rect is identical with the prompt shown and hidden, at desktop width and at
+390x780. If you add a panel, that is the check.
+
+## The element is not shown anywhere
+
+Each animal has an `element` in `data/monsters.json`, and it does nothing: a duel is decided entirely
+by the move you pick each round. It used to be printed under every animal in the picker, which reads
+as a promise that your choice matters. The label is gone. The field stays in the data — it is
+flavour, it is documented as such, and the v2 design uses it — but nothing on screen mentions it. The
+fire/water/earth on the duel screen is the *move* you choose, which is real.
 
 ## Status at last commit
 

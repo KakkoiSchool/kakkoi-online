@@ -14,10 +14,17 @@
  * 3. **Small.** Six short effects and one music loop, plain `Audio` elements.
  *    No Web Audio graph, no library, no synthesis. The music is 637 kB and is
  *    only fetched if somebody actually asks for music.
+ *
+ * **The footstep is the exception to "all effects sound the same".** It fires
+ * the whole time you are walking, and a sound you hear two hundred times a
+ * minute has to be quieter and rarer than one you hear when you win a round.
+ * So it has its own volume (`stepVolume`) and its own clock (`stepIntervalMs`),
+ * both in `data/tuning.json`. It is timed, not measured in pixels: a footstep
+ * is a leg moving, and legs move at a pace, not at a distance.
  */
 
 const SFX = {
-  step: './audio/step.wav',
+  step: './audio/step-soft.wav',
   ping: './audio/ping.wav',
   win: './audio/strike.wav',        // you took the round
   lose: './audio/block.wav',        // they took the round
@@ -28,14 +35,21 @@ const SFX = {
 const MUSIC = './audio/music-loop.mp3';
 
 export function createAudio({ tuning = {} } = {}) {
-  const stepEvery = num(tuning.stepEveryPx, 26);
+  const stepInterval = num(tuning.stepIntervalMs, 400);
   const sfxVolume = clamp01(num(tuning.sfxVolume, 0.6));
+  const stepVolume = clamp01(num(tuning.stepVolume, 0.22));
   const musicVolume = clamp01(num(tuning.musicVolume, 0.35));
+
+  /** One effect is quieter than the rest, because you hear it constantly. */
+  const volumeFor = (name) => (name === 'step' ? stepVolume : sfxVolume);
 
   let on = false;
   let music = null;
   let wantMusic = false;
-  let walked = 0;
+  /** Milliseconds of walking since the last footstep landed. */
+  let sinceStep = stepInterval;
+  /** How many footsteps have actually been played. Only used for checking. */
+  let steps = 0;
 
   const state = {
     /** What the browser said the first time we asked to play with nothing clicked. */
@@ -48,7 +62,7 @@ export function createAudio({ tuning = {} } = {}) {
   function clip(name) {
     if (clips.has(name)) return clips.get(name);
     const el = new Audio(SFX[name]);
-    el.volume = sfxVolume;
+    el.volume = volumeFor(name);
     el.addEventListener('error', () => { state.lastError = `${name}: file did not load`; });
     clips.set(name, el);
     return el;
@@ -115,12 +129,19 @@ export function createAudio({ tuning = {} } = {}) {
       return true;
     },
 
-    /** A footstep every `stepEveryPx` pixels walked. Called from the loop. */
-    walk(distance) {
-      if (!on || !(distance > 0)) { if (!(distance > 0)) walked = 0; return false; }
-      walked += distance;
-      if (walked < stepEvery) return false;
-      walked = 0;
+    /**
+     * A footstep every `stepIntervalMs` of walking. Called once a frame.
+     *
+     * Standing still resets the clock to "due", so the first step lands the
+     * instant you set off rather than up to four hundred milliseconds later.
+     */
+    walk(moving, dtMs) {
+      if (!moving) { sinceStep = stepInterval; return false; }
+      if (!on) return false;
+      sinceStep += Math.max(0, Number(dtMs) || 0);
+      if (sinceStep < stepInterval) return false;
+      sinceStep = 0;
+      steps++;
       return this.play('step');
     },
 
@@ -136,6 +157,11 @@ export function createAudio({ tuning = {} } = {}) {
     get firstPlayError() { return state.firstPlayError; },
     get lastError() { return state.lastError; },
     get loaded() { return [...clips.keys()]; },
+    /** The numbers this was built with, so a check can read them back. */
+    get settings() { return { stepInterval, stepVolume, sfxVolume, musicVolume }; },
+    get steps() { return steps; },
+    /** The live volume of a clip, once it exists. For verification. */
+    volumeOf(name) { return clips.has(name) ? clips.get(name).volume : null; },
   };
 }
 

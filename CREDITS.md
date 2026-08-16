@@ -8,6 +8,7 @@ CC0 requires no attribution. We credit anyway, because that is the habit worth c
   https://opengameart.org/content/tiny-creatures
 
 ## Audio
+- **Kenney** — RPG Audio (CC0) — https://kenney.nl/assets/rpg-audio — the footstep
 - **Juhani Junkala** (SubspaceAudio) — 512 Sound Effects, 8-bit style (CC0) —
   https://opengameart.org/content/512-sound-effects-8-bit-style
 - **TinyWorlds** — Happy Adventure (Loop) (CC0) —

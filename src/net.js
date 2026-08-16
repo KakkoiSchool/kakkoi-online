@@ -106,7 +106,7 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
       x: null,
       y: null,
       /** Where we actually draw them: `interpDelayMs` behind, slid smooth. */
-      body: { x: 0, y: 0, w: 20, h: 14, cell: fallback.cell, moving: false, walked: 0 },
+      body: { x: 0, y: 0, w: 20, h: 14, cell: fallback.cell, moving: false, walked: 0, facing: 1 },
       /** The last preset phrase they picked, and when it stops showing. */
       said: '',
       saidIndex: -1,
@@ -297,7 +297,16 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     for (const peer of peers.values()) {
       const at = sampleAt(peer.history, when);
       if (!at) continue;
-      const moved = Math.hypot(at.x - peer.body.x, at.y - peer.body.y);
+      const stepX = at.x - peer.body.x;
+      const moved = Math.hypot(stepX, at.y - peer.body.y);
+      // Which way a peer is looking is WORKED OUT here, from the direction they
+      // are sliding, rather than sent over the wire. It costs nothing, needs no
+      // new field in a `move` packet and no new version of the protocol, and a
+      // peer walking left is exactly a peer whose x is going down. The threshold
+      // keeps interpolation jitter from flipping them back and forth on the
+      // spot, and a peer standing still keeps the way they were last facing.
+      if (stepX > 0.05) peer.body.facing = 1;
+      else if (stepX < -0.05) peer.body.facing = -1;
       peer.body.x = at.x;
       peer.body.y = at.y;
       peer.body.moving = moved > 0.35;

@@ -17,6 +17,69 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — fixing the Challenge button's position made the whole page jump
+**Lesson:** A19 (challenging someone) / A16 (drawing)
+**What it produced:** `#nearby { grid-row: 1; grid-column: 1; align-self: end; }` — the challenge
+prompt given the canvas's own grid cell, to stop it sitting on the sound buttons (see the entry
+further down; this was that fix).
+**Why it was wrong:** an item with an explicit grid position is placed *first*. The canvas is
+auto-placed, found cell (1,1) already taken, and went into row 2 instead — so the moment the prompt
+appeared the canvas and everything under it slid 36 px down, and slid back up when you walked away.
+It happens every time you pass another player, which is constantly. The owner reported "the whole
+screen shifts", and he was right.
+**How I caught it:** the owner played it. Then `getBoundingClientRect()` on the canvas with the
+prompt shown and hidden: `y: 47.36` against `y: 83.75`.
+**The fix:** a positioned box round the canvas, `#arena`, with the prompt and the HUD absolutely
+positioned inside it. Out of flow cannot move anything. Re-checked at 390x780 as well, and the sound
+buttons still hit-test as themselves.
+**Worth telling students:** two bugs in a row in the same three lines, both from trying to place a
+floating thing *in* the layout. If something appears and disappears while the game runs, take it out
+of the flow — do not find it a cell.
+
+## 2026-08-16 — measured the layout fix against a page that never loaded it
+**Lesson:** A10 (deploying) / verification
+**What it produced:** a check that read the canvas rect before and after the prompt appeared and
+reported it still moving, after the CSS fix was already on disk.
+**Why it was wrong:** `openOrReuseTab` on a URL that is already open *reuses* the tab. It does not
+reload it. The page under test was the copy the browser parsed twenty minutes earlier, without
+`#arena` in it at all — the check was honest about a build that no longer existed.
+**How I caught it:** the reported `nearbyBox` was at `y: 9`, the top of the page, which the new CSS
+makes impossible. `document.querySelector('#arena')` returned null.
+**The fix:** `Page.reload {ignoreCache: true}` before measuring, and re-issuing `Runtime.enable`
+afterwards. Same rule GAME.md already gives about `setCacheDisabled`, one level up: it is not enough
+to disable the cache if you never navigate.
+**Worth telling students:** "I tested it and it still fails" is a claim about the code *and* about
+what the browser was running. Check the second one first — it is one line and it is wrong more often
+than you would like.
+
+## 2026-08-16 — deleting the old footstep would have broken a lesson demo
+**Lesson:** A17 (sound)
+**What it produced:** `rm audio/step.wav` after replacing it with the softer `step-soft.wav`.
+**Why it was wrong:** `demos/17-sound/main.js` loads `../../audio/step.wav` by name, and the demos
+are lesson material that must not be edited. The demo would have gone from "step.wav loaded." to
+"step.wav did NOT load." — a broken lesson, live, to fix a sound in the game.
+**How I caught it:** grepping the whole repo for the old filename before committing, rather than
+trusting that only the game used it.
+**The fix:** `git checkout -- audio/step.wav`; the game points at the new file, the demo keeps the
+old one, and `audio/README.md` says which is which and why.
+**Worth telling students:** shared files have more than one reader. "Nothing else uses this" is a
+thing to check with `grep`, not a thing to remember.
+
+## 2026-08-16 — the save-on-the-way-out would have undone the handover
+**Lesson:** A11 (saving)
+**What it produced:** `const flush = () => persist(identity, player);` on `pagehide` and
+`visibilitychange`, kept unchanged while adding the one-window-at-a-time rule.
+**Why it was wrong:** a window that has just handed the game over still has the old position in
+memory. Closing it — or the reload that "take the game back" and "start over" both end in — would
+fire `flush` and write that stale position straight over the state the new window is actually
+playing from. The takeover would look right for a second and then quietly rot on the next reload.
+**How I caught it:** reading the new deactivate path against the old lifecycle handlers, before
+testing. It would have been invisible in a two-tab test that never closed a tab.
+**The fix:** `flush` writes only while this window still owns the game and is not deliberately
+leaving. Both exit paths set `leaving = true` before they write the save they want.
+**Worth telling students:** when you add a way for something to stop, go and read every line that
+already runs at the end. "Save on the way out" is only right if you still have the truth.
+
 ## 2026-08-16 — the keyboard stopped working, and it was not the game
 **Lesson:** A19 (challenging someone)
 **What it produced:** `F` challenges whoever you are standing next to. Driving it from the browser

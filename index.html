@@ -10,22 +10,26 @@
 </head>
 <body>
   <main id="stage">
-    <!-- The world. Everything in it is drawn with canvas 2D. -->
-    <canvas id="world" width="640" height="480"></canvas>
+    <!-- Everything that sits ON the world lives inside #arena and is positioned
+         out of flow, so appearing and disappearing can never move the page. -->
+    <div id="arena">
+      <!-- The world. Everything in it is drawn with canvas 2D. -->
+      <canvas id="world" width="640" height="480"></canvas>
 
-    <!-- The UI. DOM + Basecoat on top of the canvas: text, buttons and dialogs
-         are miserable to build on a canvas and easy in HTML. -->
-    <div id="hud">
-      <span id="hud-name" class="badge"></span>
-      <span id="hud-place" class="badge hud-quiet"></span>
-      <span id="hud-online" class="badge hud-quiet" aria-live="polite"></span>
-      <span id="status" class="badge hud-quiet" aria-live="polite">starting…</span>
+      <!-- The UI. DOM + Basecoat on top of the canvas: text, buttons and dialogs
+           are miserable to build on a canvas and easy in HTML. -->
+      <div id="hud">
+        <span id="hud-name" class="badge"></span>
+        <span id="hud-place" class="badge hud-quiet"></span>
+        <span id="hud-online" class="badge hud-quiet" aria-live="polite"></span>
+        <span id="status" class="badge hud-quiet" aria-live="polite">starting…</span>
+      </div>
+
+      <!-- Walk up to somebody and this appears. There is deliberately no
+           challenge button beside every name in a list: picking a fight should
+           mean going to find them. -->
+      <button id="nearby" class="btn" type="button" hidden></button>
     </div>
-
-    <!-- Walk up to somebody and this appears. There is deliberately no
-         challenge button beside every name in a list: picking a fight should
-         mean going to find them. -->
-    <button id="nearby" class="btn" type="button" hidden></button>
 
     <!-- Talking: six set phrases, and no text box anywhere. See src/chat.js. -->
     <div id="chatbar" aria-label="Say something" hidden></div>
@@ -37,6 +41,8 @@
     <div id="tools">
       <button id="soundBtn" class="btn-outline" type="button" aria-pressed="false">Sound: off</button>
       <button id="musicBtn" class="btn-outline" type="button" aria-pressed="false">Music: off</button>
+      <!-- A new name and a new animal. Asks first — see src/ui/onboarding.js. -->
+      <button id="resetBtn" class="btn-outline" type="button">Start over</button>
     </div>
 
     <!-- The duel: the challenge, the three moves, and what just happened. -->
@@ -44,6 +50,10 @@
 
     <!-- First run only: name, then monster. Hidden the moment both are known. -->
     <div id="overlay" hidden></div>
+
+    <!-- Shown only when a newer window of the same browser has taken the game
+         over. See src/session.js. -->
+    <div id="paused" hidden></div>
   </main>
 
   <script type="module" src="./src/main.js"></script>

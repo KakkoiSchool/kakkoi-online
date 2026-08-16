@@ -8,8 +8,6 @@
 import { drawTile } from '../sprites.js';
 import { cleanName, MAX_NAME } from '../identity.js';
 
-const ELEMENT_LABEL = { fire: 'Fire', water: 'Water', earth: 'Earth' };
-
 /**
  * Runs the two panels in order and resolves once the player has a name and a
  * monster. If they already have both (a returning player) it resolves at once.
@@ -88,6 +86,55 @@ export function showSafetyCard({ root }) {
   });
 }
 
+/**
+ * "Start over": are you sure?
+ *
+ * One click must never throw a character away, so this is the step in between.
+ * It is a DOM panel, the same one the other two screens use, and not the
+ * browser's own `confirm()` — a native dialog freezes the page, cannot be
+ * styled, and says "localhost:8840 says:" above whatever you wrote, which is
+ * both ugly and slightly frightening.
+ *
+ * It is also not styled as a danger: starting over is a completely reasonable
+ * thing to want, and a red button with a warning sign would suggest otherwise.
+ *
+ * Resolves true if they meant it.
+ */
+export function confirmReset({ root }) {
+  root.hidden = false;
+  return new Promise((resolve) => {
+    const card = panel('Start over?',
+      'You will pick a new name and a new animal, and you will begin again at the entrance. ' +
+      'Everyone else stays where they are.');
+
+    const finish = (answer) => {
+      root.hidden = true;
+      root.replaceChildren();
+      resolve(answer);
+    };
+
+    const yes = document.createElement('button');
+    yes.className = 'btn reset-yes';
+    yes.type = 'button';
+    yes.textContent = 'Yes, start over';
+    yes.addEventListener('click', () => finish(true));
+
+    const no = document.createElement('button');
+    no.className = 'btn-outline reset-no';
+    no.type = 'button';
+    no.textContent = 'No, keep playing';
+    no.addEventListener('click', () => finish(false));
+
+    const row = document.createElement('div');
+    row.className = 'reset-actions';
+    row.append(yes, no);
+
+    card.append(row);
+    root.replaceChildren(card);
+    no.focus();          // the safe answer is the one under your finger
+  });
+}
+
 function panel(title, description) {
   const card = document.createElement('section');
   card.className = 'card onboarding-card';
@@ -147,8 +194,13 @@ function askName(root, identity, next) {
 }
 
 function askMonster(root, identity, monsters, atlas, done) {
+  // No element under the animals, on purpose. A duel is decided entirely by the
+  // move you pick each round, so an animal's element changes nothing — printing
+  // "Fire" under the lion promises the choice matters when it does not. The
+  // field is still in `data/monsters.json` (it is flavour, and the v2 design
+  // uses it); it is simply not shown to anybody.
   const card = panel(`Pick your monster, ${identity.name}`,
-    'Pick whichever you like the look of. In a duel you choose fire, water or earth yourself, each round — your monster does not choose for you.');
+    'Pick whichever you like the look of.');
 
   const grid = document.createElement('div');
   grid.className = 'monster-grid';
@@ -166,7 +218,7 @@ function askMonster(root, identity, monsters, atlas, done) {
   for (const monster of monsters) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `monster-card element-${monster.element}`;
+    button.className = 'monster-card';
     button.dataset.monsterId = String(monster.id);
 
     const swatch = document.createElement('canvas');
@@ -181,11 +233,7 @@ function askMonster(root, identity, monsters, atlas, done) {
     name.className = 'monster-name';
     name.textContent = monster.name;
 
-    const element = document.createElement('span');
-    element.className = 'badge monster-element';
-    element.textContent = ELEMENT_LABEL[monster.element] || monster.element;
-
-    button.append(swatch, name, element);
+    button.append(swatch, name);
     button.addEventListener('click', () => select(monster.id));
     button.addEventListener('dblclick', () => { select(monster.id); finish(); });
     buttons.set(monster.id, button);

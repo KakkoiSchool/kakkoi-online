@@ -39,6 +39,8 @@ export function createNpc({ monsters, world, tuning = {}, box = { w: 20, h: 14 }
     cell: monster.cell,
     moving: false,
     walked: 0,
+    /** He never walks, so he never turns. He is drawn looking right, like the art. */
+    facing: 1,
   };
 
   const memory = int(tuning.npcMemory, 5);

@@ -12,6 +12,17 @@
 export const KEY = 'kakkoi-online';
 export const VERSION = 1;
 
+/**
+ * Whether this person has read the card about other people, kept in its own key.
+ *
+ * It is deliberately NOT part of the character. "Start over" throws the whole
+ * character away, and a child trying all six animals must not be handed the same
+ * three paragraphs about safety six times — it is the same person, at the same
+ * computer, who has already read them. What the card is about is the person, so
+ * that is where it is stored.
+ */
+export const SAFETY_KEY = 'kakkoi-online-safety';
+
 function fresh() { return null; }
 
 /** Read the save. Returns null when there is nothing usable. */
@@ -79,6 +90,7 @@ export function writeSave(state) {
   };
   try {
     localStorage.setItem(KEY, JSON.stringify(data));
+    if (data.safety) writeSafetySeen(true);
     return true;
   } catch (err) {
     console.warn('save: could not write —', err.message);
@@ -86,6 +98,20 @@ export function writeSave(state) {
   }
 }
 
+/** Has this person read the card about other people? Survives "Start over". */
+export function loadSafetySeen() {
+  try { return localStorage.getItem(SAFETY_KEY) === '1'; } catch { return false; }
+}
+
+export function writeSafetySeen(seen) {
+  try { localStorage.setItem(SAFETY_KEY, seen ? '1' : '0'); return true; }
+  catch { return false; }
+}
+
+/**
+ * Throw the character away. The safety key is left alone on purpose — see the
+ * note on it above.
+ */
 export function clearSave() {
   try { localStorage.removeItem(KEY); } catch { /* nothing we can do */ }
 }

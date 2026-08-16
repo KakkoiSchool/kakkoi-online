@@ -37,7 +37,11 @@ live https site.
 
 **To be two players on one machine**, open the page on **two different origins** — say
 `localhost:8000` and `127.0.0.1:8001`. Two tabs on the *same* origin share one `localStorage`, so
-they are the same character and overwrite each other's save.
+they are the same character; the newest of them takes the game over and the older one pauses with a
+card explaining why. See "One window at a time" in `DESIGN.md`.
+
+**To change your name or your animal**, press **Start over** next to the sound buttons. It asks
+first, then puts you back at the name screen and the entrance.
 
 **Tests** are a web page: open `tests/rules.test.html` through the same server and read the
 PASS/FAIL rows. No test runner, no npm.

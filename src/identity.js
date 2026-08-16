@@ -6,7 +6,7 @@
  * two, two tabs of the same game are two different players — and so a peer can
  * tell "the same person moved" from "someone new appeared".
  */
-import { loadSave, writeSave } from './save.js';
+import { loadSave, writeSave, loadSafetySeen } from './save.js';
 
 export const MAX_NAME = 12;
 
@@ -53,8 +53,12 @@ export function createIdentity(monsters) {
     monster: known ? saved.monster : -1,
     /** Where the save says we were, or null for "put me at the spawn". */
     position: saved && known ? { x: saved.x, y: saved.y } : null,
-    /** Has this player read the card about other people? Shown once, then never. */
-    safetySeen: saved?.safety === true,
+    /**
+     * Has this player read the card about other people? Shown once, then never.
+     * It is kept in its own key so that "Start over" does not bring it back;
+     * an older save that has it inside still counts.
+     */
+    safetySeen: loadSafetySeen() || saved?.safety === true,
 
     get chosen() { return identity.monster >= 0 && identity.name.length > 0; },
     get creature() { return monsters.find((m) => m.id === identity.monster) || monsters[0]; },

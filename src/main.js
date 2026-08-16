@@ -15,7 +15,7 @@ import { loadAtlas } from './sprites.js';
 import { loadWorld } from './world.js';
 import { createCamera, drawMap, drawActor, drawNameplate, drawBubble, drawMarker } from './render.js';
 import { createIdentity, loadMonsters, persist } from './identity.js';
-import { askIdentity, showSafetyCard } from './ui/onboarding.js';
+import { askIdentity, showSafetyCard, confirmReset } from './ui/onboarding.js';
 import { joinRoom } from './net.js';
 import { createChat } from './chat.js';
 import { createChatBar } from './ui/chatbar.js';
@@ -23,6 +23,9 @@ import { createDuel } from './duel.js';
 import { createNpc } from './npc.js';
 import { createAudio } from './audio.js';
 import { createDuelScreen } from './ui/duel-screen.js';
+import { createSession } from './session.js';
+import { createPausedCard } from './ui/paused.js';
+import { writeSave, clearSave, writeSafetySeen } from './save.js';
 
 const canvas = document.querySelector('#world');
 if (!canvas) throw new Error('no #world canvas in index.html');
@@ -38,6 +41,7 @@ const statusEl = document.querySelector('#status');
 const nearbyBtn = document.querySelector('#nearby');
 const soundBtn = document.querySelector('#soundBtn');
 const musicBtn = document.querySelector('#musicBtn');
+const resetBtn = document.querySelector('#resetBtn');
 
 const say = (text) => { if (statusEl) statusEl.textContent = text; };
 
@@ -55,6 +59,13 @@ async function loadJSON(url) {
 async function boot() {
   say('loading…');
 
+  // The very first thing this window does is claim the game from any older
+  // window of the same browser. It is fired here, before the atlases, because
+  // the answer only takes a few hundred milliseconds and loading takes longer —
+  // by the time the map is parsed the handover has already landed or timed out.
+  const session = createSession();
+  const handover = session.claim();
+
   const dungeon = loadAtlas('./vendor/kenney/tiny-dungeon.png', { cell: 16, cols: 12 });
   const creatures = loadAtlas('./vendor/opengameart/tiny-creatures.png', { cell: 16, cols: 10 });
 
@@ -67,6 +78,12 @@ async function boot() {
   ]);
 
   const identity = createIdentity(monsters);
+
+  // If an older window answered, what it sent is newer than anything on disk:
+  // it was standing somewhere at the moment we knocked, and the save is written
+  // only twice a second. Adopt it over what `localStorage` said.
+  const taken = await handover;
+  if (taken) adopt(identity, monsters, taken);
 
   // Sound, before anything has been clicked. `probe()` asks to play at once and
   // writes down the refusal: it is the browser's rule that a page may not make
@@ -85,6 +102,7 @@ async function boot() {
   if (!identity.safetySeen) {
     await showSafetyCard({ root: overlay });
     identity.safetySeen = true;
+    writeSafetySeen(true);      // at once, so "Start over" cannot resurrect it
   }
 
   const player = spawn(world, identity);
@@ -210,7 +228,7 @@ async function boot() {
 
   let sinceSave = 0;
 
-  startLoop({
+  const stopLoop = startLoop({
     update(dt) {
       // In a duel you are not also walking around. A19's state machine again:
       // one state at a time, and the keys that do nothing here do nothing.
@@ -224,7 +242,15 @@ async function boot() {
       const moved = Math.hypot(player.x - before.x, player.y - before.y);
       player.moving = moved > 0.01;
       player.walked = player.moving ? player.walked + dt : 0;
-      audio.walk(moved);
+
+      // Which way we are looking. Taken from what was ASKED for, not from what
+      // the walls allowed: pushing west against a wall should still turn the
+      // monster west. A zero never gets written, so letting go of the key keeps
+      // the last facing instead of snapping back to the right.
+      if (wish.dx > 0) player.facing = 1;
+      else if (wish.dx < 0) player.facing = -1;
+
+      audio.walk(player.moving, dt * 1000);
 
       camera.follow(player);
 
@@ -273,17 +299,120 @@ async function boot() {
   });
 
   // A tab can be closed or hidden at any moment; write once more on the way out.
-  const flush = () => persist(identity, player);
+  // Only while we still own the game, though: a paused window writing its old
+  // position on the way out would overwrite the live window's save.
+  // Set while this window is deliberately on its way out (starting over, or
+  // taking the game back). Both of those write the save they want and then
+  // reload, and the flush below must not undo that with a stale copy.
+  let leaving = false;
+
+  const flush = () => (session.active && !leaving ? persist(identity, player) : false);
   addEventListener('pagehide', flush);
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+
+  // ------------------------------------------------------- one window at a time
+  const paused = createPausedCard({ root: document.querySelector('#paused'), onResume: resume });
+
+  session.attach({
+    /** Write the live state down, and hand the same thing to the new window. */
+    snapshot() {
+      persist(identity, player);
+      return {
+        id: identity.id,
+        name: identity.name,
+        monster: identity.monster,
+        x: player.x,
+        y: player.y,
+        safety: identity.safetySeen,
+      };
+    },
+
+    /**
+     * Stop being in the world. Leaving the room is the part that matters: if we
+     * only stopped drawing, everybody else would still see a second copy of us
+     * standing there for as long as the tab was open.
+     */
+    deactivate() {
+      stopLoop();
+      net.leave();
+      audio.music(false);
+      hideNearby();
+      say('paused — playing in another window');
+      paused.show();
+    },
+  });
+
+  /**
+   * Take the game back. Claim it (which pauses the other window and collects
+   * whatever it was doing), write that down, and start this window again from
+   * the top. Reloading is the honest way to restart: joining a new room, a new
+   * loop and a new set of peers by hand would be three chances to leave half of
+   * the old one behind.
+   */
+  async function resume() {
+    const state = await session.claim();
+    leaving = true;                 // whatever happens now, do not write our own
+    if (state) writeSave(state);    // no answer means the other window has gone,
+    location.reload();              // and what it left on disk is the truth
+  }
+
+  // ------------------------------------------------------------- start over
+  //
+  // The only way to change your name or your animal used to be to clear
+  // `localStorage` by hand, which nobody twelve years old is ever going to do.
+  //
+  // It is a reload, like taking the game back, and for the same reason: the
+  // onboarding is the boot path. Clearing the save and reloading runs the real
+  // name-and-animal flow rather than a second copy of it, and every part of the
+  // game — the room, the loop, the camera, the peers — starts genuinely fresh
+  // instead of being unpicked by hand.
+  //
+  // A paused window cannot get here: its card covers the whole screen, buttons
+  // and all, so only the window that actually owns the game can start over.
+  // That is on purpose — two windows resetting the same save at once is exactly
+  // the half-state worth not having.
+  resetBtn.addEventListener('click', async () => {
+    resetBtn.blur();
+    if (duel.busy) return say('Finish the fight first.');
+    if (!session.active) return;
+
+    const sure = await confirmReset({ root: overlay });
+    if (!sure) return;
+
+    leaving = true;
+    net.leave();          // walk out properly, so nobody is left staring at a ghost
+    clearSave();          // the character goes; the safety card stays read
+    location.reload();
+  });
 
   // A handle for verification, and for the stages that come next.
   globalThis.game = {
     world, player, camera, identity, monsters, input, tuning, flush,
-    net, chat, duel, npc, audio,
+    net, chat, duel, npc, audio, session, resume,
+    get paused() { return !session.active; },
     /** Who the Challenge button is about right now, or null. */
     get near() { return near; },
   };
+}
+
+/**
+ * Take on the state an older window handed us.
+ *
+ * It is the same shape as the save, and it goes through the same doors: the
+ * name is cleaned, a monster this build does not have is ignored, and the
+ * position is only trusted if the monster was. `spawn()` still checks that the
+ * spot is a real place, so a handover cannot put anybody inside a wall.
+ */
+function adopt(identity, monsters, state) {
+  if (state.id) identity.id = state.id;
+  if (state.name) identity.setName(state.name);
+  if (state.safety) identity.safetySeen = true;
+
+  const known = monsters.some((m) => m.id === state.monster);
+  if (!known) return console.warn('session: handover named a monster this build has not got');
+  identity.setMonster(state.monster);
+  identity.position = { x: state.x, y: state.y };
+  console.info('session: carried on from the window that had the game');
 }
 
 /** Where the monster starts: where the save says, if that is still a real place. */
@@ -297,6 +426,8 @@ function spawn(world, identity) {
     cell: identity.creature.cell,
     moving: false,
     walked: 0,
+    /** +1 looking right, -1 looking left. Never 0: it is a memory, not a wish. */
+    facing: 1,
     // The preset phrase above our own head, and when it should stop showing.
     said: '',
     saidIndex: -1,

@@ -58,6 +58,16 @@ export function drawMap(ctx, world, atlas, camera) {
  * up and down about seven times a second instead. That is motion without
  * inventing art — and it is a deliberate difference from the A14 demo, which
  * had a sheet with legs in it.
+ *
+ * **Facing.** Every creature on the sheet is drawn looking right, so walking
+ * left is drawn by mirroring the sprite: slide the origin to the middle of it,
+ * flip the x axis with `scale(-1, 1)`, and draw half a sprite to the left of
+ * the new origin. `actor.facing` is +1 or -1 and is never zero — standing still
+ * keeps whichever way you were last going, because a monster that snaps back to
+ * facing right the moment you let go of the key looks broken.
+ *
+ * The flip is a transform, not a different picture, so smoothing has to be off
+ * on the far side of it as well or the mirrored pixels come out fuzzy.
  */
 export const BOB_HZ = 7;
 
@@ -66,6 +76,7 @@ export function drawActor(ctx, atlas, actor, camera, scale) {
   const bob = actor.moving && Math.floor(actor.walked * BOB_HZ) % 2 === 1 ? -scale : 0;
   const x = actor.x + actor.w / 2 - sprite / 2 - camera.x;
   const y = actor.y + actor.h - sprite - camera.y + bob;
+  const flipped = actor.facing === -1;
 
   // A soft shadow so the monster stands on the floor instead of hovering.
   ctx.save();
@@ -78,8 +89,21 @@ export function drawActor(ctx, atlas, actor, camera, scale) {
   ctx.fill();
   ctx.restore();
 
-  drawTile(ctx, atlas, actor.cell, x, y, scale);
-  return { x, y, sprite };
+  if (flipped) {
+    const middle = Math.round(x + sprite / 2);
+    ctx.save();
+    ctx.translate(middle, 0);
+    ctx.scale(-1, 1);
+    ctx.imageSmoothingEnabled = false;   // still off on the other side of the flip
+    drawTile(ctx, atlas, actor.cell, -sprite / 2, y, scale);
+    ctx.restore();
+  } else {
+    drawTile(ctx, atlas, actor.cell, x, y, scale);
+  }
+
+  // The nameplate and the bubble are text: they are placed from these numbers
+  // and are never mirrored, whichever way the monster is looking.
+  return { x, y, sprite, flipped };
 }
 
 /**
