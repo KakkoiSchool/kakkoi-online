@@ -66,7 +66,7 @@ function showResult(yourShown, theirShown, youHonest, theyHonest) {
   const why = document.querySelector('#why');
   if (!youHonest || !theyHonest) {
     verdict.textContent = 'Caught cheating!';
-    why.textContent = 'They showed ' + theirShown.move + ', but the paper they folded was not '
+    why.textContent = 'They showed ' + theirShown.move + ', but the note they folded was not '
       + theirShown.move + '. The fingerprints do not match, so the round does not count.';
     document.body.dataset.state = 'caught';
     return;
@@ -84,8 +84,8 @@ for (const button of document.querySelectorAll('#moves button')) {
     you = await fold(button.dataset.move);
     them = await fold(MOVES[Math.floor(Math.random() * MOVES.length)]);
     document.querySelector('#folded').textContent =
-      'your folded paper:  ' + you.folded.slice(0, 32) + '…\n'
-      + 'their folded paper: ' + them.folded.slice(0, 32) + '…';
+      'your folded note:  ' + you.folded.slice(0, 32) + '…\n'
+      + 'their folded note: ' + them.folded.slice(0, 32) + '…';
     document.querySelector('#verdict').textContent = 'Both folded.';
     document.querySelector('#why').textContent = 'Neither move can be read from those. Now unfold.';
     document.querySelector('#reveal').disabled = false;
