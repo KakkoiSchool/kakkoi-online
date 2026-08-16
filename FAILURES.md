@@ -819,3 +819,26 @@ same person.
 **Worth telling students:** a timer is a guess about somebody else's understanding. If you can watch
 for the thing itself — they moved, they pressed it — watch for that instead, and dismiss exactly the
 one thing they have proved they know.
+
+## 2026-08-17 — two panels that ran out of room and clipped the part you needed
+**Lesson:** A19 / layout on real windows
+**What it produced:** a sweep across sixteen window shapes found two. In a **short window (1440x300)**
+the ⚙ menu was drawn 320px tall inside a 300px screen with `overflow: hidden`, so "Learn to build this"
+was off the bottom **with no way to scroll to it** — and since that menu is now the only route to every
+control that is not the game, the control had effectively ceased to exist. In the **duel**, at 1440x300
+all three move buttons were below the fold, and on a **landscape phone (740x360)** "Give up" was. The
+duel overlay does scroll, so nothing was permanently unreachable — but a player will not scroll for
+buttons they cannot see, and 740x360 is what you get by turning a phone sideways to play a game.
+**Why it was wrong:** both panels were laid out as though the window were tall enough. Neither had a
+height bounded by the viewport, and neither said which of its parts matter — so when space ran short,
+what got cut was whatever happened to be last in the markup, which in both cases was the part you
+actually need.
+**How I caught it:** I did not — a sweep across window shapes did, run by somebody else. My own
+checks had covered ten shapes and every one of them was tall enough to hide it.
+**The fix:** the menu is bounded by the box it hangs in and scrolls inside it. The duel card is bounded
+by the window and states its priorities: the three moves and the button that leaves never shrink and
+are never below the fold; everything above them compresses first, drops what the score row already says
+on very short screens, and only then scrolls — with the buttons still sitting underneath, on screen.
+**Worth telling students:** a panel needs to know what to sacrifice before it runs out of room, or it
+will sacrifice the last thing in the file. And test the shape you did not think of: a phone turned
+sideways is 360 pixels tall, which is shorter than almost anything you will try by accident.

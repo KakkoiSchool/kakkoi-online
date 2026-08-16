@@ -78,7 +78,15 @@ export function createDuelScreen({ root, duel }) {
   const leave = button('Leave', 'btn-outline duel-leave', () => duel.close());
   actions.append(yes, no, leave);
 
-  card.append(title, sub, scoreRow, face, banner, why, moves, actions);
+  // Everything above the buttons is one block, and it is the block that gives
+  // way. On a short window — a phone held sideways, a browser window dragged
+  // short — the three moves and the button that leaves must be on screen without
+  // scrolling, because they are how you play. The score, the face-off and the
+  // sentence compress first and, at the very end, scroll inside this box.
+  const top = el('div', 'duel-top');
+  top.append(title, sub, scoreRow, face, banner, why);
+
+  card.append(top, moves, actions);
   root.append(card);
 
   // The link is let go the instant the duel ends, so remember who it was —

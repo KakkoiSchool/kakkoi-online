@@ -113,7 +113,8 @@ body {
   top: 3rem;
   right: 0.6rem;
   z-index: 6;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.35rem;
   width: max-content;
   min-width: 10.5rem;
@@ -122,10 +123,21 @@ body {
   border: 1px solid rgb(255 255 255 / 0.12);
   border-radius: 0.7rem;
   box-shadow: 0 14px 40px rgb(0 0 0 / 0.55);
+  /* This menu is the only route to every control that is not the game, so an
+     entry that cannot be reached is a control that has ceased to exist. On a
+     short window the panel was simply clipped and the last row — the link out to
+     the lessons — was gone, with no way to scroll to it. It is now bounded by
+     the box it hangs in (the canvas, which is never taller than the screen) and
+     scrolls inside that. Making the rows smaller would have been a fix that
+     lasts exactly until the next entry is added. */
+  max-height: calc(100% - 3.6rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 #settings button,
 #settings a {
+  flex: 0 0 auto;          /* a scrolling column must not squash its own rows */
   min-height: 38px;
   padding: 0 0.7rem;
   font-size: 0.85rem;
@@ -282,19 +294,47 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 1rem;
+  padding: 0.6rem;
   background: rgb(6 6 10 / 0.86);
   overflow-y: auto;
   z-index: 9;
 }
 
+/**
+ * The card never grows past the window, and what it spends its space on is in
+ * priority order: the three moves and the button that leaves are how you play,
+ * so they are never allowed to shrink and never end up below the fold. It was
+ * possible before to hold a phone sideways and have "Give up" off the bottom,
+ * and to drag a window short and lose all three moves — an overlay that scrolls
+ * is not an answer, because nobody scrolls a thing they cannot see.
+ */
 .duel-card {
   width: min(30rem, 100%);
-  padding: 1.25rem;
-  display: grid;
+  max-height: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
   text-align: center;
+  overflow: hidden;
 }
+
+/* Everything above the buttons. This is the part that gives way: it shrinks
+   first, and only when there is genuinely nothing left to give does it scroll
+   inside itself — with the moves still sitting under it, on screen. */
+.duel-top {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.duel-moves,
+.duel-actions { flex: 0 0 auto; }
 
 .duel-title { margin: 0; font-size: 1.15rem; }
 .duel-sub { margin: 0; font-size: 0.8rem; opacity: 0.7; }
@@ -470,6 +510,42 @@ body {
   .duel-move { min-height: 62px; }
   .duel-side-box { min-height: 104px; }
   .duel-face-icon { font-size: 2.2rem; }
+}
+
+/* A phone held sideways, or a window dragged short. Everything above the moves
+   gets smaller so that scrolling stays a last resort rather than the way the
+   card normally works — the moves themselves stay a size a thumb can hit. */
+@media (max-height: 560px) {
+  .duel-card { padding: 0.6rem; gap: 0.35rem; }
+  .duel-top { gap: 0.3rem; }
+  .duel-title { font-size: 1rem; }
+  .duel-sub { font-size: 0.72rem; }
+  .duel-num { font-size: 1.5rem; }
+  .duel-banner { font-size: 0.95rem; min-height: 0; }
+  .duel-why { font-size: 0.78rem; min-height: 0; }
+  .duel-side-box { min-height: 66px; padding: 0.3rem 0.2rem; }
+  .duel-face-icon { font-size: 1.7rem; }
+  .duel-face-move { font-size: 0.8rem; }
+  .duel-move { min-height: 54px; }
+  .duel-move-icon { font-size: 1.3rem; }
+  .duel-actions { margin-top: 0.2rem; }
+  .duel-actions button { min-height: 40px; }
+}
+
+/* Shorter still. The face-off goes ONLY while you are choosing, where both
+   sides are a question mark and it is saying nothing you cannot see in the
+   buttons below it. The moment there is a move on it — yours while you wait, or
+   both at the reveal — it comes back, because that is the whole panel. */
+@media (max-height: 400px) {
+  .duel-card[data-phase="choosing"] .duel-face { display: none; }
+  /* The round number and the running score both live on the score row above, so
+     the small print under the sentence is repeating itself. It is the cheapest
+     thing to drop, and dropping it is what keeps this from scrolling at all. */
+  .duel-sub,
+  .duel-why { display: none; }
+  .duel-side-box { min-height: 52px; }
+  .duel-face-icon { font-size: 1.4rem; }
+  .duel-face-win { font-size: 0.6rem; }
 }
 
 /* ---------------------------------------------------------------- overlay */

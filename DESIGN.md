@@ -224,6 +224,14 @@ player who has to read the panel to know whose turn it is is playing a slower ga
 wrote. The score carries both names (`You 2 — 1 Bristle`); a bare `2 — 1` is the numbers without the
 one thing you wanted them for.
 
+**The duel card knows what to sacrifice.** It is never taller than the window, and it spends its space
+in priority order: the three moves and the button that leaves never shrink and are never below the
+fold, because they are how you play. Everything above them compresses first, drops the small print the
+score row already says once the window is under 400px tall, and only then scrolls — with the buttons
+still on screen underneath it. Before that rule existed, a phone turned sideways (740x360) put "Give
+up" off the bottom and a short desktop window (1440x300) put all three moves off it, and an overlay
+that scrolls is no answer at all: nobody scrolls for a thing they cannot see.
+
 **Flint.** A seventh character stands in the plaza and is challenged exactly the way a person is. He
 matters because this game will usually have one person in it. The point is the *shape*: he answers the
 same questions a peer answers, over the same little `link` object — ask, reply, move — so
@@ -471,8 +479,11 @@ look. It is deliberately not a banner or a call to action.
 - **Verified offline** with the local server stopped *and* the browser put offline: an uncached request
   fails, the game boots from the cache, the save comes back, you can walk, and a full duel against
   Flint plays out to 0–3 with every request still failing at the end
-- **Verified for layout**: the canvas is 100% of the viewport height at 390x780 and at 1280x800; the
-  canvas rect and the document height do not move as the challenge prompt, a chat bubble, the settings
-  panel or the duel screen appear and disappear; and the challenge prompt stays inside the canvas at
-  390x780, 390x600, 1440x813, 1440x420 and 1700x1300 (letterboxed), with the phrase row shown and
-  hidden
+- **Verified for layout**: the canvas is 100% of the viewport height at 390x780 and at 1280x800 (88.6%
+  at 1700x1300, where the world itself runs out); the canvas rect and the document height do not move as
+  the challenge prompt, a chat bubble, the settings panel or the duel screen appear and disappear; the
+  challenge prompt and the phrase row stay inside the canvas and inside the viewport at 320x568,
+  360x1200, 390x700, 390x780, 740x360, 820x1180, 1280x720, 1440x400, 1440x813 and 1700x1300; the ⚙
+  menu's last row is reachable at 1440x300; and in a duel, all three moves and the leave button are on
+  screen without scrolling at 1440x300, 740x360, 667x375, 320x480, 390x780, 1024x768, 1280x720, 280x600
+  and 1920x1080, in every phase
