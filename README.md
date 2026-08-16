@@ -12,31 +12,40 @@ earth beats water.
 
 ## Run it
 
-```bash
-curl -fsSL https://bun.com/install | bash   # once
-make dev        # bun ./index.html — TypeScript runs as-is, hot reload
-make check      # bunx tsc --noEmit  ← Bun strips types WITHOUT checking them, so this is the gate
-make test       # bun test
-make build      # production bundle into dist/
-```
+**Plain JavaScript, no build step.** There is nothing to install and nothing to compile — the files
+in this repo are exactly the files the browser runs.
 
-Open `http://localhost:3000` **twice** to be two players. `file://` will not work, on purpose —
-browsers refuse modules and crypto without a real origin (lesson A10).
+1. Open this folder in your editor.
+2. Install the **Live Server** extension.
+3. Right-click `index.html` → *Open with Live Server*.
+
+That's the whole toolchain. From a terminal, `make dev` (`python3 -m http.server 8000`) does the
+same thing without the auto-reload.
+
+Open the page **twice** to be two players. `file://` will not work, on purpose — browsers refuse
+modules and crypto without a real origin (lesson A10).
+
+**Tests** are a web page: open `tests/rules.test.html` through the same server and read the
+PASS/FAIL rows. No test runner, no npm.
 
 ## How it fits together
 
 ```
-index.html          canvas + Basecoat UI shell (Bun's entrypoint)
-src/loop.ts         fixed-timestep game loop
-src/battle/rules.ts PURE rules: element chart, action triangle — imports nothing, fully testable
+index.html          canvas + Basecoat UI shell
+src/loop.js         the requestAnimationFrame loop
+src/battle/rules.js PURE rules: element chart, action triangle — imports nothing, fully testable
+tests/*.test.html   tests you open in a browser
+demos/NN-name/      one standalone demo per lesson: open its index.html and look at it
 data/*.json         every balance number, the type chart, the monsters, the map
 vendor/             pinned third-party files (see vendor/README.md)
 audio/              CC0 sound (see audio/README.md)
 ```
 
-Two rules that shape the codebase:
+Three rules that shape the codebase:
 
-- **`src/battle/rules.ts` imports nothing.** Both players in a duel must compute identical results
+- **No build step, ever.** What is in git is what runs in the browser. If you cannot open a file
+  and read what actually executes, it does not belong here.
+- **`src/battle/rules.js` imports nothing.** Both players in a duel must compute identical results
   from it, and it must be testable without a network.
 - **Numbers live in `data/`, not in code.** Balancing is an edit, never a rewrite.
 

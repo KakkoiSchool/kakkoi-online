@@ -4,10 +4,10 @@
  * Scaffold only: opens a canvas and runs the loop. Everything else arrives
  * milestone by milestone (see the planning docs listed in DESIGN.md).
  */
-import { startLoop } from './loop.ts';
+import { startLoop } from './loop.js';
 
-const canvas = document.querySelector<HTMLCanvasElement>('#world');
-const status = document.querySelector<HTMLElement>('#status');
+const canvas = document.querySelector('#world');
+const status = document.querySelector('#status');
 if (!canvas) throw new Error('no #world canvas in index.html');
 
 const ctx = canvas.getContext('2d');
@@ -21,8 +21,9 @@ let fps = 0;
 let fpsClock = 0;
 
 startLoop({
-  // Fixed-step simulation. dt is always the same number, which is the point:
-  // movement must not depend on how fast the computer is (lesson A12).
+  // dt is how many seconds the last frame took. Anything that moves must be
+  // multiplied by it, or the game runs at a different speed on every screen
+  // (lesson A12).
   update(dt) {
     fpsClock += dt;
     if (fpsClock >= 1) {

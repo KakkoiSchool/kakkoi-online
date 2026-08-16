@@ -1,9 +1,8 @@
-name: check & deploy
+name: deploy
 
 on:
   push:
     branches: [main]
-  pull_request:
 
 permissions:
   contents: read
@@ -15,36 +14,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile || bun install
-      # Bun strips types without checking them, so this is what actually
-      # enforces TypeScript. A red check must never reach the live site.
-      - run: bunx tsc --noEmit
-      - run: bun test
-
   deploy:
-    needs: check
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile || bun install
-      - run: bun build ./index.html --minify --outdir=dist --sourcemap
-      # Static assets Bun does not bundle. NOTE: the CNAME file is inert for
-      # workflow-based Pages - the custom domain is set in the Pages config
-      # (gh api -X PUT .../pages -f cname=...). Kept only for branch-based fallback.
-      - run: cp -r vendor audio data CNAME dist/ 2>/dev/null || true
+      # No build step. The repo *is* the site: plain HTML and plain JavaScript,
+      # published exactly as written. What runs in the browser is what is in git.
+      # NOTE: the CNAME file is inert for workflow-based Pages — the custom domain
+      # is set in the Pages config (gh api -X PUT .../pages -f cname=...).
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: .
       - id: deployment
         uses: actions/deploy-pages@v4

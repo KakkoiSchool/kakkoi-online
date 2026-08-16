@@ -38,13 +38,41 @@ and invented AI mistakes, and students notice immediately.
 
 A10 deploys to the live URL **before M0**, so every milestone lands in public.
 
+## The toolchain (settled)
+
+**A code editor and the Live Server extension. That is all of it.**
+
+Plain JavaScript, plain HTML, no TypeScript, no npm, no Bun, no bundler, no build step. Every file in
+this repo is a file the browser loads directly, and the deploy workflow publishes the repo as-is.
+
+The reason is the lesson track, not taste. A student in week one has to be able to open a folder,
+right-click `index.html`, and see the thing run. Every tool between "the file I edited" and "the
+thing that runs" is a tool that can break in a way the student cannot yet debug — and it hides the
+one fact the whole course rests on: **the browser runs the file you wrote**.
+
+Consequences, all deliberate:
+
+- Tests are web pages (`tests/*.test.html`) that print PASS/FAIL rows. No runner.
+- Third-party code is *vendored* into `vendor/` as a plain file, never installed.
+- CI does not check types or run tests before deploying — there is no compiler to run. Verification
+  is opening the page and reading the console.
+
+## Demos
+
+Each lesson ships one standalone demo in `demos/NN-name/`, showing one feature, cut into 2–4 named
+blocks. A demo runs by opening its `index.html` on a static server. It stays around one screen of
+code, comments included, because a student has to be able to hold all of it at once.
+
+- `demos/09-hello/` — editor + Live Server + a `<script>` all working: write a name into the page.
+- `demos/10-player/` — a square you can move. **Notice / Decide / Draw**: held keys plus Pointer
+  Events, movement multiplied by elapsed time, clear-and-fill on a canvas.
+
 ## Status at last commit
 
-- **Live:** https://online.kakkoi.dev (scaffold only: canvas + fixed-timestep loop, ~888 B of JS)
-- **CI green:** `tsc --noEmit` + `bun test` gate the Pages deploy
+- **Live:** https://online.kakkoi.dev (scaffold only: canvas + rAF loop)
+- **Deploy:** the repo is published verbatim as static files; no check job, no build
 - **Lessons written:** A09, A10 (in the `izumo-io` repo, live in EN/JA/PT)
 - **Blocked on a human:** the two Kenney atlases are browser downloads from kenney.nl and must be placed
   in `vendor/` by hand. They gate the map and monster lessons (A15–A16), i.e. all of M0.
-- **Also not done:** trystero not yet vendored (`bun build --target=browser`), no audio files yet.
-- **Bun was never installed on the original machine**, so this scaffold has only been typechecked locally
-  and built by CI. Run `bun ./index.html` and `bun test` before trusting it.
+- **Also not done:** trystero not yet vendored (needs a plain browser build dropped into `vendor/`),
+  no audio files yet.

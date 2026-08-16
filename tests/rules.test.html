@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakkoi Online — rules tests</title>
+  <style>
+    body { font: 14px/1.6 system-ui, sans-serif; margin: 2rem; background: #1b1b22; color: #e8e8ef; }
+    h1 { font-size: 1.2rem; }
+    #summary { font-weight: 700; margin-bottom: 1rem; }
+    .row { font-family: ui-monospace, monospace; }
+    .pass { color: #7ee081; }
+    .fail { color: #ff7b72; }
+  </style>
+</head>
+<body>
+  <h1>battle rules</h1>
+  <p>Open this file through Live Server (not <code>file://</code>) — it loads a module.</p>
+  <div id="summary">running…</div>
+  <div id="rows"></div>
+
+  <!-- No test runner, no npm. A test is a function that throws when it is unhappy;
+       everything below is just enough scaffolding to print the results. -->
+  <script type="module">
+    import { actionWinner, elementMultiplier } from '../src/battle/rules.js';
+
+    const rows = document.querySelector('#rows');
+    let passed = 0;
+    let failed = 0;
+
+    function test(name, body) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      try {
+        body();
+        passed++;
+        row.classList.add('pass');
+        row.textContent = `PASS  ${name}`;
+      } catch (err) {
+        failed++;
+        row.classList.add('fail');
+        row.textContent = `FAIL  ${name} — ${err.message}`;
+      }
+      rows.append(row);
+    }
+
+    function is(actual, expected, what) {
+      if (actual !== expected) {
+        throw new Error(`${what}: expected ${expected}, got ${actual}`);
+      }
+    }
+
+    const ELEMENTS = ['fire', 'water', 'earth'];
+    const ACTIONS = ['strike', 'block', 'charge'];
+
+    test('the element cycle has no ties and no dominant element', () => {
+      is(elementMultiplier('water', 'fire'), 2, 'water vs fire');
+      is(elementMultiplier('fire', 'earth'), 2, 'fire vs earth');
+      is(elementMultiplier('earth', 'water'), 2, 'earth vs water');
+
+      is(elementMultiplier('fire', 'water'), 0.5, 'fire vs water');
+      is(elementMultiplier('earth', 'fire'), 0.5, 'earth vs fire');
+      is(elementMultiplier('water', 'earth'), 0.5, 'water vs earth');
+
+      for (const e of ELEMENTS) is(elementMultiplier(e, e), 1, `${e} vs itself`);
+    });
+
+    test('the action triangle is a proper cycle', () => {
+      is(actionWinner('strike', 'charge'), 1, 'strike vs charge');
+      is(actionWinner('charge', 'block'), 1, 'charge vs block');
+      is(actionWinner('block', 'strike'), 1, 'block vs strike');
+    });
+
+    test('the action triangle is antisymmetric, and mirrors tie', () => {
+      for (const a of ACTIONS) {
+        for (const b of ACTIONS) {
+          if (a === b) is(actionWinner(a, b), 0, `${a} vs ${b}`);
+          else is(actionWinner(a, b), -actionWinner(b, a), `${a} vs ${b}`);
+        }
+      }
+    });
+
+    const summary = document.querySelector('#summary');
+    summary.className = failed ? 'fail' : 'pass';
+    summary.textContent = `${passed} passed, ${failed} failed`;
+  </script>
+</body>
+</html>
