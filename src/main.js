@@ -265,7 +265,7 @@ async function boot() {
 
   let sinceSave = 0;
 
-  const stopLoop = startLoop({
+  const loop = startLoop({
     update(dt) {
       // In a duel you are not also walking around. A19's state machine again:
       // one state at a time, and the keys that do nothing here do nothing.
@@ -348,7 +348,15 @@ async function boot() {
 
   const flush = () => (session.active && !leaving ? persist(identity, player) : false);
   addEventListener('pagehide', flush);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+  // A hidden tab should cost nothing. Saves are flushed, the position broadcast
+  // stops, and the loop stops asking for frames — a phone in a pocket was
+  // redrawing the world and sending its position ten times a second, which is
+  // how a game makes a phone hot for no reason at all. We do NOT leave the room:
+  // glancing at another app should not make you vanish for everybody else.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { flush(); net.sleep(); loop.pause(); }
+    else { loop.resume(); net.wake(); }
+  });
 
   // ------------------------------------------------------- one window at a time
   const paused = createPausedCard({ root: document.querySelector('#paused'), onResume: resume });
@@ -373,7 +381,7 @@ async function boot() {
      * standing there for as long as the tab was open.
      */
     deactivate() {
-      stopLoop();
+      loop.stop();
       net.leave();
       audio.music(false);
       hideNearby();

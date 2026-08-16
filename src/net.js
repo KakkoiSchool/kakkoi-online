@@ -285,6 +285,26 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     sendPosition(box);
   }
 
+  /**
+   * Stop and restart the position broadcast without leaving the room.
+   *
+   * A backgrounded tab still ran this ten times a second — a phone with the
+   * screen off was sending its position into a WebRTC mesh forever, which is
+   * both pointless and hot. `main.js` calls these on `visibilitychange`.
+   * Leaving the room instead would make you vanish and reappear for everybody
+   * else each time you glanced at another app.
+   */
+  function sleep() {
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  function wake() {
+    if (!timer && lastBox) {
+      timer = setInterval(() => sendPosition(lastBox), posEvery);
+      sendPosition(lastBox);
+    }
+  }
+
   function send(kind, payload, to) {
     return action(kind).send(payload, to);
   }
@@ -329,6 +349,8 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
   }
 
   return {
+    sleep,
+    wake,
     selfId,
     roomId,
     room,

@@ -25,5 +25,18 @@ export function startLoop(handlers) {
   }
 
   requestAnimationFrame(frame);
-  return () => { running = false; };
+
+  return {
+    /** Stop for good. */
+    stop() { running = false; },
+    /** Stop asking for frames while the tab is hidden. */
+    pause() { running = false; },
+    /** Start again, without advancing the world by however long we were away. */
+    resume() {
+      if (running) return;
+      running = true;
+      previous = performance.now();
+      requestAnimationFrame(frame);
+    },
+  };
 }
