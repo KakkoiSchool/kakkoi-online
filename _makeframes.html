@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>make walk frames</title></head><body>
+<canvas id="out" width="192" height="192"></canvas>
+<script>
+// One-off tool. Kenney's Tiny Dungeon has ONE picture per character and no walk
+// frames. This copies the sheet into a 12x12 sheet and adds row 11 (tiles
+// 132,133,134): the villager from tile 85, standing and with each leg swung out.
+const c = document.getElementById('out'), ctx = c.getContext('2d');
+const img = new Image();
+img.src = '/vendor/kenney/tiny-dungeon.png';
+img.onload = () => {
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, 0, 0);
+  // source tile 85 -> paste three copies into the new bottom row
+  const SX = (85 % 12) * 16, SY = Math.floor(85 / 12) * 16;
+  for (let i = 0; i < 3; i++) ctx.drawImage(img, SX, SY, 16, 16, i * 16, 176, 16, 16);
+
+  const d = ctx.getImageData(0, 176, 48, 16);
+  const px = (x, y) => { const i = (y * 48 + x) * 4; return [d.data[i], d.data[i+1], d.data[i+2], d.data[i+3]]; };
+  const set = (x, y, v) => { const i = (y * 48 + x) * 4; d.data[i]=v[0]; d.data[i+1]=v[1]; d.data[i+2]=v[2]; d.data[i+3]=v[3]; };
+  const LEG = px(5, 14), DARK = px(7, 14);
+  // frame at tile 133 (x offset 16): swing the left leg out to columns 3-4
+  const move = (base, fromCols, toCols) => {
+    for (const y of [14, 15]) {
+      for (const cx of fromCols) set(base + cx, y, DARK);
+      for (const cx of toCols) set(base + cx, y, LEG);
+    }
+  };
+  move(16, [5, 6], [3, 4]);
+  move(32, [9, 10], [11, 12]);
+  ctx.putImageData(d, 0, 176);
+  window.result = c.toDataURL('image/png');
+  document.title = 'done';
+};
+</script>
+</body></html>

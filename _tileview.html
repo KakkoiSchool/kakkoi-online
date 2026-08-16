@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>tile viewer</title>
+<style>body{background:#222;color:#eee;font:12px monospace;margin:0}canvas{display:block}</style>
+</head><body>
+<canvas id="c" width="1200" height="1120"></canvas>
+<script>
+const params = new URLSearchParams(location.search);
+const file = params.get('f') || 'tiny-dungeon';
+const S = 16, COLS = 12, Z = +(params.get('z') || 4), CELL = S*Z + 20;
+const FROM = +(params.get('from') || 0), TO = +(params.get('to') || 131);
+const ROWS = Math.ceil((TO - FROM + 1) / COLS);
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+c.width = COLS*CELL; c.height = ROWS*CELL;
+const img = new Image();
+img.src = '/vendor/kenney/' + file + '.png';
+img.onload = () => {
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#303040'; ctx.fillRect(0,0,c.width,c.height);
+  for (let n = FROM; n <= TO; n++) {
+    const i = n - FROM;
+    const cx = (i % COLS) * CELL, cy = Math.floor(i / COLS) * CELL;
+    ctx.fillStyle = '#000'; ctx.fillRect(cx+2, cy+2, S*Z, S*Z);
+    ctx.drawImage(img, (n % COLS)*S, Math.floor(n/COLS)*S, S, S, cx+2, cy+2, S*Z, S*Z);
+    ctx.fillStyle = '#ffe'; ctx.font = '11px monospace';
+    ctx.fillText(String(n), cx+2, cy+S*Z+14);
+  }
+  window.ready = true;
+};
+</script>
+</body></html>

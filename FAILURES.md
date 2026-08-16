@@ -17,6 +17,55 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — the planning docs promised a Kenney pack that does not exist, and a walk cycle that is not there
+**Lesson:** A14 (your monster), A16 (the world)
+**What it produced:** `planning/kakkoi-online-sources.md` listed **"Kenney — Tiny Creatures"** as one of the
+two art packs, and the whole art plan assumed Tiny Dungeon would supply an animated character.
+**Why it was wrong:** two separate errors.
+(1) Kenney publishes no pack called Tiny Creatures. His Tiny series is farm, town, battle, ski, dungeon.
+*Tiny Creatures* is real and is CC0, but it is by **Clint Bellanger** on OpenGameArt, built as an expansion of
+Kenney's sets "made with Kenney's permission". Crediting the wrong author on a public children's site is the
+kind of mistake that is embarrassing rather than illegal, but it is still a mistake, and it was written down
+as fact in a document whose entire job is provenance.
+(2) Tiny Dungeon's 20 characters are **one pose each** — there is no second frame, so nothing in the pack can
+walk. Tiny Creatures' 180 monsters are also one pose each.
+**How I caught it:** loaded every atlas in a real browser, drew each one at 4x with a red 16 px grid and the
+cell index printed in every cell, and looked at the picture. Cells 84-88, 96-100, 108-112 and 120-124 of
+`tiny-dungeon.png` are twenty different people, not one person twenty times.
+**The fix:** vendored **Kenney Pixel Platformer's** character sheet as well — 216x72, 24 px cells, characters
+laid out as adjacent pairs (legs together, legs apart), which is a real two-frame walk. Different art style
+from the 16 px dungeon set; A14 has to say so rather than pretend. Both corrections are now written into
+`vendor/README.md` and `planning/kakkoi-online-sources.md`.
+
+## 2026-08-16 — a guessed download URL 404'd, and the conclusion drawn was "the site blocks downloads"
+**Lesson:** A14 / A16 / A17 (art and sound)
+**What it produced:** `curl https://kenney.nl/media/.../kenney_tiny-dungeon.zip` returned 404, and that was
+read as "kenney.nl only serves downloads to a browser", which blocked three lessons.
+**Why it was wrong:** the URL had been guessed. Kenney's zip URLs contain a content hash that changes every
+time he re-uploads a pack, so no zip URL can be guessed — but every asset page prints the current one in its
+HTML, behind the "Continue without donating" link. Plain `curl` fetches it with no headers, no cookies and no
+browser:
+`curl -sL https://kenney.nl/assets/tiny-dungeon | grep -o "href='[^']*\.zip'"`
+then curl that. Six Kenney packs were downloaded this way in about a minute.
+**How I caught it:** read the asset page's HTML instead of assuming what was in it.
+**The fix:** the real URLs are recorded in `vendor/README.md` and `planning/kakkoi-online-sources.md`, next to
+the one-line command that regenerates them when they rot.
+
+## 2026-08-16 — the audio format the plan chose is the one format that is not safe
+**Lesson:** A17 (sound)
+**What it produced:** the plan said "ship `.ogg` with an `.mp3` fallback", using Kenney's CC0 audio packs.
+**Why it was wrong:** Kenney's audio packs contain `.ogg` **only** — there is no mp3 to fall back to. And this
+machine has no `ffmpeg`, no `sox` and no `oggenc`, so nothing can convert one into the other. Ogg Vorbis is
+also the one common audio format with patchy Safari support, so shipping ogg alone would have meant sound
+that silently does nothing on a lot of the machines children actually use.
+**How I caught it:** unzipped the packs and looked at the file extensions, then checked for an encoder before
+planning around one.
+**The fix:** picked sources that already ship the formats we need — Juhani Junkala's CC0 512-sound pack is
+WAV (each effect here is under 0.3 s, so a WAV is 4-24 kB) and the music loop is a CC0 MP3. WAV and MP3 play
+everywhere. All seven files were then played in a real browser, not just loaded: the six effects ran through
+to `ended`, and the music was still playing when the check stopped it.
+
+
 ## 2026-08-16 — "the console is clean" was said about a console that was full of warnings
 **Lesson:** A12 / A13 (other people, talking safely)
 **What it produced:** both peer-to-peer demos were checked, twice, and reported as having a clean console.

@@ -3,11 +3,15 @@
 CC0 requires no attribution. We credit anyway, because that is the habit worth copying.
 
 ## Art
-- **Kenney** — Tiny Dungeon, Tiny Creatures (CC0) — https://kenney.nl
+- **Kenney** — Tiny Dungeon, Tiny Town, Pixel Platformer (CC0) — https://kenney.nl
+- **Clint Bellanger** — Tiny Creatures (CC0), an expansion of Kenney's Tiny sets —
+  https://opengameart.org/content/tiny-creatures
 
 ## Audio
-- **Kenney** — RPG Audio, UI Audio, Music Jingles (CC0) — https://kenney.nl
-- **Juhani Junkala** — 5 Chiptunes (Action) (CC0) — https://opengameart.org/content/5-chiptunes-action
+- **Juhani Junkala** (SubspaceAudio) — 512 Sound Effects, 8-bit style (CC0) —
+  https://opengameart.org/content/512-sound-effects-8-bit-style
+- **TinyWorlds** — Happy Adventure (Loop) (CC0) —
+  https://opengameart.org/content/happy-adventure-loop
 
 ## Code
 - **trystero** by Dan Motzenbecker (MIT) — https://github.com/dmotz/trystero
