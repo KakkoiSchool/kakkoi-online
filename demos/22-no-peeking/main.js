@@ -44,16 +44,12 @@ async function check(shown, folded) {
 let you = null;
 let them = null;
 
-async function reveal(cheating) {
+async function reveal() {
   const yourShown = { move: you.move, secret: you.secret };
-  // Cheating means showing a move you never folded — the one that beats yours,
-  // unless they happened to fold that one already, in which case any other.
-  const better = MOVES.find((m) => BEATS[m] === you.move);
-  const swapped = better !== them.move ? better : MOVES.find((m) => m !== them.move);
-  const theirShown = cheating
-    ? { move: swapped, secret: them.secret }
-    : { move: them.move, secret: them.secret };
+  const theirShown = { move: them.move, secret: them.secret };
 
+  // Both sides are checked every time, even though both are honest here.
+  // window.lastCheck lets you try it yourself from the console — see the lesson.
   const youHonest = await check(yourShown, you.folded);
   const theyHonest = await check(theirShown, them.folded);
   window.lastCheck = { youHonest, theyHonest, yourShown, theirShown };
@@ -66,8 +62,8 @@ function showResult(yourShown, theirShown, youHonest, theyHonest) {
   const why = document.querySelector('#why');
   if (!youHonest || !theyHonest) {
     verdict.textContent = 'Caught cheating!';
-    why.textContent = 'They showed ' + theirShown.move + ', but the note they folded was not '
-      + theirShown.move + '. The fingerprints do not match, so the round does not count.';
+    why.textContent = 'Somebody showed a move they never folded. The fingerprints do not match, '
+      + 'so the round does not count.';
     document.body.dataset.state = 'caught';
     return;
   }
@@ -89,9 +85,7 @@ for (const button of document.querySelectorAll('#moves button')) {
     document.querySelector('#verdict').textContent = 'Both folded.';
     document.querySelector('#why').textContent = 'Neither move can be read from those. Now unfold.';
     document.querySelector('#reveal').disabled = false;
-    document.querySelector('#cheat').disabled = false;
   });
 }
 
-document.querySelector('#reveal').addEventListener('click', () => reveal(false));
-document.querySelector('#cheat').addEventListener('click', () => reveal(true));
+document.querySelector('#reveal').addEventListener('click', reveal);
