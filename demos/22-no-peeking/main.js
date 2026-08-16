@@ -2,8 +2,8 @@
 // HIDE your move · SHOW both at once · CHECK that nobody swapped theirs.
 // Both players are on this one page so you can watch the whole thing.
 
-const MOVES = ['fire', 'water', 'earth'];
-const BEATS = { water: 'fire', fire: 'earth', earth: 'water' };
+const MOVES = ['rock', 'paper', 'scissors'];
+const BEATS = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
 
 // --------------------------------------------------------------------- 1. HIDE
 // A fingerprint of your move. crypto.subtle.digest turns any text into 64
@@ -11,7 +11,7 @@ const BEATS = { water: 'fire', fire: 'earth', earth: 'water' };
 // can read backwards. That is the folded piece of paper.
 //
 // The secret word matters. There are only three moves, so without it anyone
-// could fingerprint fire, water and earth themselves and see which one matches.
+// could fingerprint rock, paper and scissors themselves and see which one matches.
 // With a random secret mixed in, there is nothing left to try.
 async function fingerprint(text) {
   const bytes = new TextEncoder().encode(text);

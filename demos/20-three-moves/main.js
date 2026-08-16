@@ -1,4 +1,4 @@
-// Three moves: fire, water, earth. Pick one, see who won and why.
+// Three moves: rock, paper, scissors. Pick one, see who won and why.
 // CHOOSE a move (both sides) · COMPARE the two choices · SHOW the result.
 
 // ----------------------------------------------------------------- 2. COMPARE
@@ -7,8 +7,8 @@
 // moves in, same answer out, every single time. That is what makes it the
 // only part of the fight you can check is right without playing the game.
 
-// water beats fire, fire beats earth, earth beats water.
-const BEATS = { water: 'fire', fire: 'earth', earth: 'water' };
+// rock beats scissors, scissors beats paper, paper beats rock.
+const BEATS = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
 
 function compare(mine, theirs) {
   if (mine === theirs) return { winner: 'nobody', why: mine + ' does not beat ' + theirs };
@@ -17,15 +17,15 @@ function compare(mine, theirs) {
 }
 
 // A check you can run in your head, or in the console. No screen needed.
-console.assert(compare('water', 'fire').winner === 'you', 'water should beat fire');
-console.assert(compare('fire', 'water').winner === 'them', 'fire should lose to water');
-console.assert(compare('earth', 'earth').winner === 'nobody', 'same move is a draw');
+console.assert(compare('rock', 'scissors').winner === 'you', 'rock should beat scissors');
+console.assert(compare('scissors', 'rock').winner === 'them', 'scissors should lose to rock');
+console.assert(compare('paper', 'paper').winner === 'nobody', 'same move is a draw');
 
 // ------------------------------------------------------------------ 1. CHOOSE
 // Two choices have to arrive before anything can be compared. Yours comes from
 // a button. Theirs, here, comes from a dice roll — in the real game it comes
 // over the network, and nothing below this block has to know the difference.
-const MOVES = ['fire', 'water', 'earth'];
+const MOVES = ['rock', 'paper', 'scissors'];
 
 function theirChoice() {
   return MOVES[Math.floor(Math.random() * MOVES.length)];

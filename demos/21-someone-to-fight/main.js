@@ -1,8 +1,8 @@
 // A computer opponent, so you can fight when nobody else is online.
 // GIVE IT A WAY TO CHOOSE · MAKE THE FIGHT CODE NOT CARE WHO IT IS FIGHTING.
 
-const MOVES = ['fire', 'water', 'earth'];
-const BEATS = { water: 'fire', fire: 'earth', earth: 'water' };
+const MOVES = ['rock', 'paper', 'scissors'];
+const BEATS = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
 
 // --------------------------------------------- UNCHANGED FROM A20 (pure)
 // Not one character of this had to change to add a computer player.
