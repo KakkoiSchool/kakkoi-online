@@ -82,6 +82,41 @@ export function drawActor(ctx, atlas, actor, camera, scale) {
   return { x, y, sprite };
 }
 
+/**
+ * A preset phrase, above the nameplate, for a few seconds.
+ *
+ * The text is looked up from our own PHRASES list by the number that arrived,
+ * so what is drawn here is always one of ours — there is no path from the
+ * network to a string on this screen.
+ */
+export function drawBubble(ctx, text, centerX, bottomY) {
+  if (!text) return;
+  ctx.save();
+  ctx.font = 'bold 11px ui-monospace, "SF Mono", Menlo, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const width = Math.ceil(ctx.measureText(text).width) + 12;
+  const height = 16;
+  const x = Math.round(centerX - width / 2);
+  const y = Math.round(bottomY - height);
+
+  ctx.fillStyle = 'rgba(244, 244, 252, 0.94)';
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, height, 5);
+  ctx.fill();
+  // The little tail that points at whoever said it.
+  ctx.beginPath();
+  ctx.moveTo(Math.round(centerX) - 3, y + height);
+  ctx.lineTo(Math.round(centerX) + 3, y + height);
+  ctx.lineTo(Math.round(centerX), y + height + 4);
+  ctx.fill();
+
+  ctx.fillStyle = '#14141c';
+  ctx.fillText(text, Math.round(centerX), y + height / 2 + 0.5);
+  ctx.restore();
+}
+
 /** The name above your head. Chunky on purpose: it is a pixel game. */
 export function drawNameplate(ctx, text, centerX, baselineY, { self = false } = {}) {
   if (!text) return;

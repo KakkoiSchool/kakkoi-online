@@ -57,6 +57,28 @@ body {
   text-align: center;
 }
 
+/* ---------------------------------------------------------------- chat bar */
+
+/* Finger-sized on purpose: this is played on phones, and a phrase you cannot
+   hit is not a phrase. 44px is the smallest target a thumb reliably lands on. */
+#chatbar[hidden] { display: none; }
+
+#chatbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  width: min(96vw, 44rem);
+}
+
+.phrase-btn {
+  min-height: 44px;
+  padding: 0 0.9rem;
+  font-size: 0.95rem;
+  border-radius: 0.6rem;
+  touch-action: manipulation;
+}
+
 /* ---------------------------------------------------------------- overlay */
 
 #overlay[hidden] { display: none; }
@@ -68,6 +90,7 @@ body {
   place-items: center;
   padding: 1rem;
   background: rgb(6 6 10 / 0.82);
+  overflow-y: auto;      /* the safety card is taller than a short phone screen */
   z-index: 10;
 }
 
@@ -86,6 +109,27 @@ body {
 
 .onboarding-hint { min-height: 1.25rem; color: #ff9a9a; }
 .onboarding-confirm { margin-top: 0.5rem; width: 100%; }
+
+/* The card about other people. Calm, not alarming: no red, no warning icon. */
+.safety-card { width: min(34rem, 100%); }
+
+.safety-list {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.safety-list li {
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.6rem;
+  background: rgb(255 255 255 / 0.04);
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.safety-list strong { display: block; font-size: 0.95rem; }
+.safety-list p { margin: 0.2rem 0 0; font-size: 0.85rem; opacity: 0.78; line-height: 1.5; }
 
 .monster-grid {
   margin-top: 0.75rem;

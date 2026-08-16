@@ -29,6 +29,65 @@ export function askIdentity({ root, identity, monsters, atlas }) {
   });
 }
 
+/**
+ * The card about other people, shown once — on the first run, straight after
+ * the monster picker and before the world appears.
+ *
+ * On the first run rather than "the first time somebody else is here", because
+ * the first time somebody else is here is exactly the moment a player is least
+ * likely to read anything. This game will often have one person in it, and a
+ * child should already know the three facts below when the second person walks
+ * in, not be handed them at the same instant.
+ *
+ * Plain and calm on purpose. It is not a warning, it is a description of how
+ * the place works, and being frightening would be both unkind and useless.
+ */
+export function showSafetyCard({ root }) {
+  root.hidden = false;
+  return new Promise((resolve) => {
+    const card = panel('Before you go in',
+      'Kakkoi Online has no owner watching it. Here is what that means.');
+    card.classList.add('safety-card');
+
+    const list = document.createElement('ul');
+    list.className = 'safety-list';
+    for (const [heading, body] of [
+      ['Other players can see three things',
+       'The name you chose, the monster you picked, and where you are standing. That is all. Not your real name, not where you live, and nothing at all from your computer.'],
+      ['Nobody is in charge here',
+       'The game has no server and no moderators. The browsers talk straight to each other, so there is no one who can see what happens or step in.'],
+      ['If someone is unkind, leave',
+       'Close the tab. Nothing follows you out. Then tell an adult you trust — that is the part that actually helps.'],
+    ]) {
+      const item = document.createElement('li');
+      const strong = document.createElement('strong');
+      strong.textContent = heading;
+      const p = document.createElement('p');
+      p.textContent = body;
+      item.append(strong, p);
+      list.append(item);
+    }
+
+    const note = document.createElement('p');
+    note.className = 'card-description';
+    note.textContent = 'You can only say six set phrases in here. There is nowhere to type, so nobody can send you words they made up.';
+
+    const ok = document.createElement('button');
+    ok.className = 'btn onboarding-confirm';
+    ok.type = 'button';
+    ok.textContent = 'Got it';
+    ok.addEventListener('click', () => {
+      root.hidden = true;
+      root.replaceChildren();
+      resolve();
+    });
+
+    card.append(list, note, ok);
+    root.replaceChildren(card);
+    ok.focus();
+  });
+}
+
 function panel(title, description) {
   const card = document.createElement('section');
   card.className = 'card onboarding-card';

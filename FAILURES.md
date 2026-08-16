@@ -17,6 +17,38 @@ Format:
 
 <!-- entries below, newest first -->
 
+## 2026-08-16 — two tabs of the game were the same player, and I nearly tested nothing
+**Lesson:** A17–A18 (other people) / A11 (saving)
+**What it produced:** the two-tab check for stage 2. Open the game in a second tab, walk in one, watch the
+other. Both tabs were on `http://localhost:8821/`.
+**Why it was wrong:** `localStorage` belongs to the *origin*, not the tab. The second tab read the first
+tab's save, so it came up with the same name and the same monster, and the two tabs then wrote their
+positions over each other in the same key. The peer half of the test would still have passed — trystero's
+`selfId` is made fresh per tab, so they really are two peers — while proving almost nothing: I could not
+have told "tab B is drawing the monster tab A chose" from "both tabs happen to be Scorchwing".
+**How I caught it:** the second tab skipped the name panel and walked straight into the dungeon. A player
+the game has never met should be asked two questions.
+**The fix:** give each tab its own origin. `http://localhost:8821` and `http://127.0.0.1:8821` are the same
+files on the same server and two different origins, so two different saves; for a third player, a second
+`python3 -m http.server` on port 8822, because the port is part of the origin too.
+**Worth telling students:** "open it in two tabs" is the standard way to test a game with other people in
+it, and it quietly hands you one player wearing two hats. Anything *saved* is shared between those tabs.
+Make the two players genuinely different — different names, different monsters — or the test cannot fail.
+
+## 2026-08-16 — 127.0.0.2 was a reasonable idea that simply did not exist
+**Lesson:** A17 (other people)
+**What it produced:** a third player opened at `http://127.0.0.2:8821/`, on the theory that the whole
+`127.x` range is loopback and the server was listening on all addresses.
+**Why it was wrong:** the server was listening on `0.0.0.0`, but macOS only configures `127.0.0.1` on the
+loopback interface by default. There was nothing at `127.0.0.2` to answer.
+**How I caught it:** the tab sat on `about:blank`, and the failure surfaced as "element not found:
+`#name-input`". The error pointed at the form; the fault was one layer below the page existing at all.
+**The fix:** a second server on port 8822. A different port is a different origin, which was the only
+thing actually wanted.
+**Worth telling students:** when an element is "not found", check the page loaded before hunting the
+selector. Asking the browser what URL it is actually on answers in one line what ten minutes of staring
+at a selector will not.
+
 ## 2026-08-16 — I could not corrupt the save, because the game kept repairing it
 **Lesson:** A11 (saving) / A16 (the game)
 **What it produced:** the check for "a broken save must not break the game". I wrote rubbish into

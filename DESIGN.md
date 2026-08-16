@@ -67,10 +67,11 @@ code, comments included, because a student has to be able to hold all of it at o
 - `demos/10-player/` — a square you can move. **Notice / Decide / Draw**: held keys plus Pointer
   Events, movement multiplied by elapsed time, clear-and-fill on a canvas.
 
-## The game, as it actually stands (stage 1)
+## The game, as it actually stands (stage 2)
 
 `index.html` at the repo root **is** the game: a 640x480 canvas with the DOM interface on top of it.
-You are asked for a name, you pick one of six monsters, and then you are in the dungeon, walking.
+You are asked for a name, you pick one of six monsters, you read one short card about other people,
+and then you are in the dungeon — walking, and sharing it with whoever else has it open.
 
 ```
 index.html          canvas + DOM shell, imports src/main.js
@@ -80,12 +81,15 @@ src/
   input.js          held keys + Pointer Events -> a direction
   sprites.js        loadAtlas() / drawTile(ctx, atlas, index, x, y, scale)
   world.js          the map, which tile numbers are solid, and per-axis collision
-  render.js         camera (clamped to the map), tiles, monsters, nameplates
+  render.js         camera (clamped to the map), tiles, monsters, nameplates, speech bubbles
   save.js           localStorage, versioned, refuses anything it does not recognise
   identity.js       a lasting random id, your name, your monster
-  ui/onboarding.js  the name panel and the monster picker, in DOM
-  net.js chat.js duel.js npc.js audio.js ui/chatbar.js ui/duel-screen.js
-                    empty on purpose — stages 2 and 3 fill these in, nothing moves
+  net.js            the ONLY module that knows trystero exists: room, presence, positions
+  chat.js           six preset phrases; sends the index, checks every arrival
+  ui/onboarding.js  the name panel, the monster picker and the card about other people
+  ui/chatbar.js     one finger-sized button per phrase. no text box, anywhere
+  duel.js npc.js audio.js ui/duel-screen.js
+                    empty on purpose — stage 3 fills these in, nothing moves
   battle/rules.js   PURE. imports nothing. the element triangle lives here
 ```
 
@@ -112,12 +116,52 @@ without inventing art.
 **The save.** One key, `kakkoi-online`, stamped `version: 1`, written twice a second and once more on
 the way out. Anything unreadable, any other version number, any missing field, any monster this build
 does not have, any position inside a wall — all of them warn once and start fresh instead of crashing.
+Stage 2 added one field, `safety`, for "this player has read the card". A field that is allowed to be
+missing does not need a new version number: absent means `false`, which is exactly right.
+
+## Other people (stage 2)
+
+**Finding each other.** `src/net.js` is the only file that has ever heard of trystero. It joins one
+stable room — appId `kakkoi-online`, room `town` — through the same four nostr relays the A12 demo
+uses, because relays die and that list is the one currently known to work. There is no server: the
+relays are only a noticeboard where two browsers leave a note, and once they have found each other
+they talk directly.
+
+**Positions.** Ten times a second (`posHz` in `data/tuning.json`), never per frame. Each packet is
+`{x, y, m}` — whole pixels and the sender's monster id, so a peer whose greeting we missed is still
+drawn as the creature they chose. A `hello` carries the name.
+
+**Smooth, not teleporting.** Ten updates a second drawn at sixty would jump about fifteen pixels at a
+time. Every peer keeps a short history of the positions it has sent, and is drawn where it was
+`interpDelayMs` (150ms) ago, sliding between the two samples either side of that instant. Being an
+eyeblink behind is invisible; teleporting is not. The bob is driven by whether that interpolated
+position is still changing, so a remote monster walks the same way yours does.
+
+**Doubting everything.** Every field that arrives is checked before it becomes game state, and what
+does not fit is counted in `net.dropped` and thrown away: a position that is not a finite number or is
+off the map, a monster id that is not a whole number pointing at a real monster, a phrase index outside
+the list. Nothing from the wire is ever drawn as text.
+
+**Chat.** Six preset phrases and no text input anywhere in this game — not hidden, not as an option.
+The readers are children, there is no server, so there is nobody to moderate a message and nobody to
+report a person to; a fixed list is the only kind of talking this game can offer honestly. What goes
+over the wire is the phrase's *number*. The words are looked up from our own list, so there is no path
+from the network to a string on the screen. Bubbles sit above the nameplate for four seconds.
+
+**The safety card.** Shown once, on the first run, between the monster picker and the world — not the
+first time somebody else turns up, because that is the moment a player is least likely to read
+anything. Three plain facts: other players see your name, your monster and where you stand and nothing
+else; nobody is in charge here; if somebody is unkind, leave and tell an adult you trust. Remembered
+in the save.
+
+**The online count.** Always in the HUD, because a world with nobody in it and a world that is broken
+look identical. Alone, it says "Just you here for now".
 
 ## Status at last commit
 
-- **Live:** https://online.kakkoi.dev (stage 1: name, monster, and a dungeon to walk around)
+- **Live:** https://online.kakkoi.dev (stage 1 — stage 2 is committed but not yet pushed)
 - **Deploy:** the repo is published verbatim as static files; no check job, no build
 - **Lessons written:** A09, A10 (in the `izumo-io` repo, live in EN/JA/PT)
-- **Not built yet:** stage 2 (other people: presence, positions, preset chat) and stage 3 (the duel:
-  challenge FSM, commit–reveal, the NPC). The module files exist and are empty.
+- **Not built yet:** stage 3 (the duel: challenge FSM, commit–reveal over the wire, the NPC).
+  `duel.js`, `npc.js` and `ui/duel-screen.js` exist and are empty.
 - **Also not done:** audio is present in `audio/` but nothing plays it yet.

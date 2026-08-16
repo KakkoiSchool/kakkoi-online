@@ -18,8 +18,12 @@
     <div id="hud">
       <span id="hud-name" class="badge"></span>
       <span id="hud-place" class="badge hud-quiet"></span>
+      <span id="hud-online" class="badge hud-quiet" aria-live="polite"></span>
       <span id="status" class="badge hud-quiet" aria-live="polite">starting…</span>
     </div>
+
+    <!-- Talking: six set phrases, and no text box anywhere. See src/chat.js. -->
+    <div id="chatbar" aria-label="Say something" hidden></div>
 
     <p id="controls">Arrow keys or <kbd class="kbd">WASD</kbd> to walk — or touch the floor.</p>
 

@@ -6,16 +6,19 @@
  * you are. This file's whole job is to load them, hand them to each other in
  * the right order, and run the loop.
  *
- * Stage 1 is a world you can walk around. `net.js`, `chat.js` and `duel.js`
- * are deliberately empty — the stages that fill them plug in here.
+ * Stage 1 is a world you can walk around; stage 2 puts other people in it.
+ * `duel.js` and `npc.js` are still deliberately empty — stage 3 plugs in here.
  */
 import { startLoop } from './loop.js';
 import { createInput } from './input.js';
 import { loadAtlas } from './sprites.js';
 import { loadWorld } from './world.js';
-import { createCamera, drawMap, drawActor, drawNameplate } from './render.js';
+import { createCamera, drawMap, drawActor, drawNameplate, drawBubble } from './render.js';
 import { createIdentity, loadMonsters, persist } from './identity.js';
-import { askIdentity } from './ui/onboarding.js';
+import { askIdentity, showSafetyCard } from './ui/onboarding.js';
+import { joinRoom } from './net.js';
+import { createChat } from './chat.js';
+import { createChatBar } from './ui/chatbar.js';
 
 const canvas = document.querySelector('#world');
 if (!canvas) throw new Error('no #world canvas in index.html');
@@ -26,6 +29,7 @@ ctx.imageSmoothingEnabled = false;   // pixel art: never smooth it
 const overlay = document.querySelector('#overlay');
 const hudName = document.querySelector('#hud-name');
 const hudPlace = document.querySelector('#hud-place');
+const hudOnline = document.querySelector('#hud-online');
 const statusEl = document.querySelector('#status');
 
 const say = (text) => { if (statusEl) statusEl.textContent = text; };
@@ -61,6 +65,14 @@ async function boot() {
   say('who are you?');
   await askIdentity({ root: overlay, identity, monsters, atlas: creatures });
 
+  // One card, once, before the world appears: what other people can see, that
+  // nobody is in charge here, and what to do if somebody is unkind. The save
+  // remembers it, so a returning player never sees it twice.
+  if (!identity.safetySeen) {
+    await showSafetyCard({ root: overlay });
+    identity.safetySeen = true;
+  }
+
   const player = spawn(world, identity);
   const camera = createCamera(canvas, world);
   camera.follow(player);
@@ -72,6 +84,26 @@ async function boot() {
   hudName.textContent = identity.name;
   hudPlace.textContent = `${identity.creature.name} · ${world.name}`;
   say('');
+
+  // ------------------------------------------------------------ other people
+  const net = joinRoom({ world, identity, monsters, tuning });
+  net.follow(player);                       // says where we are, posHz times a second
+
+  const chat = createChat({ net, self: player });
+  createChatBar({ root: document.querySelector('#chatbar'), chat });
+
+  // A lone player has to be able to tell an empty world from a broken one, so
+  // this always says something — and says the lonely case kindly, because it
+  // is going to be the usual case.
+  const showOnline = () => {
+    const others = net.count();
+    hudOnline.textContent = others === 0
+      ? 'Just you here for now'
+      : `${others + 1} here — you and ${others === 1 ? '1 other' : `${others} others`}`;
+  };
+  net.onPeerJoin(showOnline);
+  net.onPeerLeave(showOnline);
+  showOnline();
 
   let sinceSave = 0;
 
@@ -89,6 +121,12 @@ async function boot() {
 
       camera.follow(player);
 
+      // Peers arrive ten times a second and are drawn sixty, so this slides
+      // them along instead of letting them teleport. It touches no network.
+      const now = performance.now();
+      net.update(now, dt);
+      chat.update(now);
+
       sinceSave += dt * 1000;
       if (sinceSave >= saveEvery) { sinceSave = 0; persist(identity, player); }
     },
@@ -99,8 +137,21 @@ async function boot() {
 
       drawMap(ctx, world, dungeon, camera);
 
-      const drawn = drawActor(ctx, creatures, player, camera, world.scale);
-      drawNameplate(ctx, identity.name, drawn.x + drawn.sprite / 2, drawn.y - 2, { self: true });
+      // Everyone in the room, sorted by how far down the screen their feet are,
+      // so a monster standing in front of another one is drawn in front of it.
+      const cast = [
+        { body: player, name: identity.name, self: true },
+        ...net.peers()
+          .filter((peer) => peer.x !== null)
+          .map((peer) => ({ body: peer.body, name: peer.name, said: peer.said, self: false })),
+      ].sort((a, b) => (a.body.y + a.body.h) - (b.body.y + b.body.h));
+
+      for (const who of cast) {
+        const drawn = drawActor(ctx, creatures, who.body, camera, world.scale);
+        drawNameplate(ctx, who.name, drawn.x + drawn.sprite / 2, drawn.y - 2, { self: who.self });
+        const said = who.self ? player.said : who.said;
+        if (said) drawBubble(ctx, said, drawn.x + drawn.sprite / 2, drawn.y - 17);
+      }
     },
   });
 
@@ -110,7 +161,7 @@ async function boot() {
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
 
   // A handle for verification, and for the stages that come next.
-  globalThis.game = { world, player, camera, identity, monsters, input, tuning, flush };
+  globalThis.game = { world, player, camera, identity, monsters, input, tuning, flush, net, chat };
 }
 
 /** Where the monster starts: where the save says, if that is still a real place. */
@@ -124,6 +175,10 @@ function spawn(world, identity) {
     cell: identity.creature.cell,
     moving: false,
     walked: 0,
+    // The preset phrase above our own head, and when it should stop showing.
+    said: '',
+    saidIndex: -1,
+    saidUntil: 0,
   };
 
   const saved = identity.position;

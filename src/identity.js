@@ -53,6 +53,8 @@ export function createIdentity(monsters) {
     monster: known ? saved.monster : -1,
     /** Where the save says we were, or null for "put me at the spawn". */
     position: saved && known ? { x: saved.x, y: saved.y } : null,
+    /** Has this player read the card about other people? Shown once, then never. */
+    safetySeen: saved?.safety === true,
 
     get chosen() { return identity.monster >= 0 && identity.name.length > 0; },
     get creature() { return monsters.find((m) => m.id === identity.monster) || monsters[0]; },
@@ -73,5 +75,6 @@ export function persist(identity, box) {
     monster: identity.monster,
     x: box.x,
     y: box.y,
+    safety: identity.safetySeen,
   });
 }

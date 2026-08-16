@@ -58,6 +58,11 @@ export function loadSave() {
     monster: data.monster,
     x: data.x,
     y: data.y,
+    // Stage 2 added this one. A field that can be missing does not need a new
+    // version number: an old save simply has not seen the card yet, which is
+    // exactly what `false` means. The version goes up when a field changes
+    // meaning, not when one appears.
+    safety: data.safety === true,
   };
 }
 
@@ -70,6 +75,7 @@ export function writeSave(state) {
     monster: state.monster,
     x: Math.round(state.x),
     y: Math.round(state.y),
+    safety: state.safety === true,
   };
   try {
     localStorage.setItem(KEY, JSON.stringify(data));
