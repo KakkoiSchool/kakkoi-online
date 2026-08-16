@@ -92,7 +92,7 @@ src/
   duel.js           the challenge state machine and the round loop
   npc.js            Flint: answers exactly the questions a peer answers
   audio.js          six effects and a music loop, OFF until you say otherwise
-  ui/duel-screen.js the challenge, three thumb-sized moves, and what happened
+  ui/duel-screen.js the challenge, three thumb-sized moves, and the two moves meeting
   battle/rules.js   PURE. imports nothing. the rock-paper-scissors triangle lives here
 ```
 
@@ -207,6 +207,18 @@ code could read it off the wire and answer it. That is an accepted trade: there 
 is at stake, and a duel a nine-year-old can follow is worth more here than one that cannot be cheated.
 If this were ever a game between strangers, commit–reveal is the thing to put back, and
 `demos/22-no-peeking/` still teaches exactly how it works.
+
+**The round is shown, not narrated.** The two moves sit side by side for the whole round — yours fills
+in the moment you pick it, theirs is a breathing question mark until both are in — and then the reveal
+rings the winner, says one plain sentence (*"Rock beats scissors. You win the round."*) and holds it
+there for `roundGapMs` before the next round opens. The version before this one put `Pick a move.` in
+the headline and *"Last round: you played rock, they played paper"* underneath it in small grey text:
+you never saw the two moves meet, and the thing that had just happened was demoted beneath the prompt
+for the next thing. The three phases are also told apart **by eye** — choosing is lit and live, waiting
+is cooled down with the buttons dimmed, the reveal is the loudest thing on the screen — because a
+player who has to read the panel to know whose turn it is is playing a slower game than the one we
+wrote. The score carries both names (`You 2 — 1 Bristle`); a bare `2 — 1` is the numbers without the
+one thing you wanted them for.
 
 **Flint.** A seventh character stands in the plaza and is challenged exactly the way a person is. He
 matters because this game will usually have one person in it. The point is the *shape*: he answers the
