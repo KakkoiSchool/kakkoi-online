@@ -15,7 +15,7 @@ function go(next, id) { state = next; them = id; }
 
 // A12 unchanged: join the room, send where you are 10 times a second.
 const RELAYS = ['wss://relay.snort.social', 'wss://nostr.sathoarder.com',
-                'wss://nos.lol', 'wss://nostr.vulpem.com'];
+                'wss://nostr.vulpem.com', 'wss://relay.primal.net'];
 const room = joinRoom({ appId: 'kakkoi-online', relayUrls: RELAYS }, 'demo19');
 const [sendMove, onMove] = room.makeAction('move');
 const [sendAsk, onAsk] = room.makeAction('ask');

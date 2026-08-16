@@ -32,8 +32,14 @@ import { cleanName } from './identity.js';
  * verbatim from `demos/12-other-people/main.js`, which is the list currently
  * known to work.
  */
-export const RELAYS = ['wss://relay.snort.social', 'wss://nostr.sathoarder.com',
-                       'wss://nos.lol', 'wss://nostr.vulpem.com'];
+export const RELAYS = [
+  'wss://relay.snort.social',
+  'wss://nostr.sathoarder.com',
+  'wss://nostr.vulpem.com',
+  'wss://relay.primal.net',
+  'wss://nostr.mom',
+  'wss://offchain.pub',
+];
 
 /** The demos use throwaway rooms. The real game has one town, and it is here. */
 export const APP_ID = 'kakkoi-online';

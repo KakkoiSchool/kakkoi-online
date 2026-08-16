@@ -36,7 +36,7 @@ function update(dt) {
 // The noticeboards where the two browsers leave a note saying "I am here".
 // Several, because any one of them can be busy or refuse your note.
 const RELAYS = ['wss://relay.snort.social', 'wss://nostr.sathoarder.com',
-                'wss://nos.lol', 'wss://nostr.vulpem.com'];
+                'wss://nostr.vulpem.com', 'wss://relay.primal.net'];
 
 const room = joinRoom({ appId: 'kakkoi-online', relayUrls: RELAYS }, 'demo');
 const [sendMove, onMove] = room.makeAction('move');

@@ -30,7 +30,7 @@ function update(dt) {
 
 // The noticeboards the browsers use to find each other, as in A12.
 const RELAYS = ['wss://relay.snort.social', 'wss://nostr.sathoarder.com',
-                'wss://nos.lol', 'wss://nostr.vulpem.com'];
+                'wss://nostr.vulpem.com', 'wss://relay.primal.net'];
 const room = joinRoom({ appId: 'kakkoi-online', relayUrls: RELAYS }, 'demo-chat');
 const [sendMove, onMove] = room.makeAction('move');
 const [sendSay, onSay] = room.makeAction('say');
