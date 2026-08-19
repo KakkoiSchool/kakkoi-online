@@ -870,3 +870,29 @@ that set the pixel font put every paragraph in it in a font meant for headings, 
 and the invisible half is the part that bites. A library's reset is not decoration — it is a rule the
 rest of your CSS was quietly written against. And the way you find that is to open the page and look
 at it, at more than one size.
+
+## 2026-08-19 — half a pixel between every pair of letters
+**Lesson:** A16 (the interface) / pixel type
+**What it produced:** the new stylesheet's tracking, straight from the design: `letter-spacing:
+0.02em` on buttons and headings, `0.04em` on badges, and nothing at all on the help line, the name
+plates and the bubbles.
+**Why it was wrong:** the UI unit is a whole number of pixels *because* pixel art has to land on the
+grid — and then the type was tracked in `em`. `0.04em` of a 12.35px font is 0.494px, and a browser
+cannot put half a pixel between two letters: it rounds each gap up or down as it goes, so "Rumble ·
+Kakkoi Town" came out with some pairs touching and others a pixel apart. The same argument the file
+already makes about a `0.14rem` border, applied to the space between letters, and missed. The other
+half was worse in the opposite direction: with no tracking at all, DotGothic16's latin letters at
+11.7px genuinely collide — `WASD` and `walk.` in the help line were mush.
+**How I caught it:** the owner said "the letter spacing looks off". Then six versions of the same
+string rendered side by side at 4× — fractional size with whole tracking, whole size with fractional
+tracking, and so on — which showed the tracking was doing nearly all of the damage and the fractional
+font size almost none.
+**The fix:** `--track: 1px`, set wherever `--pixel` is set, so the family and its tracking always
+travel together; `--track-wide: 2px` for the two small uppercase labels where spacing is the effect.
+Whole pixels at every size, rather than a fraction of each one — the need comes from the grid, not
+from the type. Wider text is text that has to fit, so the phrase row's padding came down a pixel and
+the help line moved down a row: both re-measured at 320x568, 360x640, 390x780, 740x360, 820x1180,
+1280x800 and 1440x300.
+**Worth telling students:** "it looks a bit off" is a real bug report, and usually a measurable one.
+Also: if you have decided your design lives on whole pixels, that applies to the gaps between letters
+too — a rule that only covers the things you remembered to apply it to is not a rule.

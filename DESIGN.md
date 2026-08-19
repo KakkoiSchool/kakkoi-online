@@ -447,6 +447,13 @@ of a duel and only ever that.
   be laid out by hand. The elements are **kept between frames** and moved by writing two numbers: the
   obvious version rebuilds the layer every frame, which at 30fps is a few hundred elements a second
   plus a forced layout inside each frame, and ISSUES.md #1 is a phone getting hot.
+- **Tracking is a whole pixel, not a fraction of the type size.** `0.04em` of a 12.35px font is
+  0.494px, and a browser cannot put half a pixel between two letters — it rounds each gap as it goes,
+  so a word comes out with visibly uneven spaces. Reported as "the letter spacing looks off", and it
+  was. `--track: 1px` now travels with `--pixel` wherever that family is set, which also fixes the
+  places that had none and where `WASD` and `walk.` ran their letters together. The need comes from
+  the pixel grid, not from the type size, which is exactly why a flat pixel is the right answer at
+  every size.
 - **Two fonts, vendored.** `DotGothic16` for chrome, `Space Grotesk` for anything longer than a few
   words — a paragraph set in a pixel font is a paragraph nobody reads. Latin subsets only, 33 kB the
   pair, in `vendor/fonts/` and precached: the game is installable and must open with no network, so a
