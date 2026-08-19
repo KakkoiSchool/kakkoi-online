@@ -9,15 +9,17 @@ cause turned out to be — that file is lesson material, this one is a to-do lis
 ## 1. The game makes a phone hot while you are playing
 
 **Reported by:** Cyril, 2026-08-17, playing on a phone.
-**Status:** OPEN. Not diagnosed. One contributing cause fixed (see below), but the
-owner confirms it still happens **during normal play**, not only in the background.
+**Status:** OPEN. Two more contributing causes fixed below (frame rate, redraw
+cost), on top of the relay storm and background-drain fixes already logged. This
+issue stays open until confirmed on a real phone: none of these fixes have been
+measured on a device yet, only reasoned about and read back.
 
 ### What is known
 
 - It happens with the game in the foreground and being played, so it is not only
   the background-drain case.
 - The canvas is **not** oversized: on a 390x780 phone at `devicePixelRatio: 3` the
-  backing store measures 390x780, i.e. 304,200 pixels — almost exactly the same as
+  backing store measures 390x780, i.e. 304,200 pixels, almost exactly the same as
   the old fixed 640x480 (307,200). Making the canvas fill the screen did **not**
   multiply the pixel count. This was measured, not assumed.
 - Frame-rate measurements taken through an automated browser are worthless here:
@@ -31,32 +33,52 @@ owner confirms it still happens **during normal play**, not only in the backgrou
   every announcement was rejected and retried, forever, logging
   `relay failure ... pow: 28 bits needed`. Removed in `991edf7`. This alone would
   heat a device, but the owner reports heat persisting, so it was not the only
-  cause — and anyone whose service worker still holds an old cache is still
+  cause, and anyone whose service worker still holds an old cache is still
   running the old relay list.
 - **A backgrounded tab cost full price.** `visibilitychange` only flushed the save:
   the render loop and the 10 Hz position broadcast both kept running with the
   screen off. Now the loop pauses and the broadcast sleeps while hidden, without
   leaving the room. This is a real battery fix but does not explain foreground heat.
 
+### Fixed just now, not yet proven on a device
+
+- **Frame rate.** Nothing capped it, so a 120Hz phone ran update+render at 120fps
+  instead of the 60 a normal screen gets, doubling the assumed work again on top
+  of that. `src/loop.js` now skips update and render for any `requestAnimationFrame`
+  callback that lands less than about 33ms after the last one that did real work,
+  which caps the game at 30fps everywhere. `dt` is still measured between the
+  frames that actually ran and still clamped at 0.25, so movement speed is
+  unaffected.
+- **Redraw cost per frame.** `drawMap` re-issued close to 650 `drawImage` calls
+  every single frame, whether or not the camera had moved, on top of running
+  twice too often, that is the same picture painted twice as expensive as it
+  needed to be. `src/render.js` now paints the tile map to an offscreen canvas
+  only when the camera position or the canvas size actually changed, and blits it
+  back with one `drawImage` otherwise. Combined with the frame cap above, the tile
+  map should now redraw at most 30 times a second, and typically far less than
+  that while standing still.
+
 ### Where to look next, roughly in order
 
-1. **Redraw cost per frame.** The world is redrawn from scratch 60 times a second
-   whether or not anything moved. Count the `drawImage` calls in one frame on a
-   real phone. A tile map that only changes when the camera moves is a candidate
-   for drawing to an offscreen canvas once and blitting it.
-2. **Frame rate.** Nothing caps it. A top-down pixel game at 30 fps would be
-   indistinguishable and halve the work. Cheap to try, easy to revert.
-3. **WebRTC.** A full mesh at `posHz` 10 with several peers, plus whatever the
+1. **WebRTC.** A full mesh at `posHz` 10 with several peers, plus whatever the
    relays are doing after connection. Check whether relay sockets stay busy once
    peers are connected, and whether anything reconnects in a loop.
-4. **The interpolation buffer** in `net.js` — confirm old snapshots are discarded
+2. **The interpolation buffer** in `net.js`, confirm old snapshots are discarded
    and the per-peer history cannot grow without bound.
+3. **Per-frame allocation.** The `cast` array in `main.js`'s `render()` and
+   `nearestTarget()`'s `challengeable()` list still allocate fresh arrays and
+   objects every frame. Not touched in this pass: the frame cap already halves
+   how often they run, and pooling them would add real complexity to lesson code
+   for an unmeasured gain. Worth revisiting only if the device measurement below
+   still shows heat.
 
 ### How to reproduce properly
 
 A real phone, screen on, game in the foreground, ideally with a second real player
 present. Watch battery use per app, and profile with the phone attached to desktop
 devtools. **Do not** trust numbers from an automated or backgrounded browser.
+**This has not been done yet for the frame-cap and offscreen-map fixes above.**
+Until it is, treat them as a plausible cause addressed, not a confirmed fix.
 
 ---
 

@@ -13,7 +13,7 @@ import { startLoop } from './loop.js';
 import { createInput } from './input.js';
 import { loadAtlas } from './sprites.js';
 import { loadWorld } from './world.js';
-import { createCamera, fitCanvas, drawMap, drawActor, drawNameplate, drawBubble, drawMarker } from './render.js';
+import { createCamera, fitCanvas, createMapLayer, drawMap, drawActor, drawNameplate, drawBubble, drawMarker } from './render.js';
 import { createIdentity, loadMonsters, persist } from './identity.js';
 import { askIdentity, showSafetyCard, showHowToPlay, confirmReset } from './ui/onboarding.js';
 import { joinRoom } from './net.js';
@@ -117,6 +117,7 @@ async function boot() {
 
   const camera = createCamera(canvas, world);
   camera.follow(player);
+  const mapLayer = createMapLayer();
 
   // A phone rotating, a window being dragged, the URL bar sliding away: all of
   // them change the box, and all of them arrive here.
@@ -313,7 +314,7 @@ async function boot() {
       ctx.fillStyle = '#0c0c12';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      drawMap(ctx, world, dungeon, camera);
+      drawMap(ctx, mapLayer, world, dungeon, camera);
 
       // Everyone in the room, sorted by how far down the screen their feet are,
       // so a monster standing in front of another one is drawn in front of it.

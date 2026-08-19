@@ -72,12 +72,57 @@ export function createCamera(canvas, world) {
   return camera;
 }
 
-export function drawMap(ctx, world, atlas, camera) {
+/**
+ * The tile map only changes when the camera moves or the canvas resizes -
+ * the tiles under it never do, today. Redrawing all ~650 of them from
+ * scratch every frame, whether or not the camera had gone anywhere, was one
+ * of the two things this game was doing 60 (or 120) times a second for no
+ * reason (see ISSUES.md #1). So the map is painted once, onto a canvas
+ * nobody sees, and kept until the camera or the canvas size actually change;
+ * every other frame is one `drawImage` that blits the same pixels back.
+ *
+ * The cache lives for as long as the game does, so it is made once in
+ * `main.js` and threaded through here rather than kept as module state -
+ * a second canvas element on the page would otherwise be a strange thing to
+ * find hiding in a module that draws to whatever canvas it is handed.
+ */
+export function createMapLayer() {
+  return {
+    canvas: document.createElement('canvas'),
+    // NaN so the very first call never matches and always paints.
+    x: NaN, y: NaN, width: NaN, height: NaN,
+  };
+}
+
+export function drawMap(ctx, layer, world, atlas, camera) {
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  const stale = layer.x !== camera.x || layer.y !== camera.y ||
+                layer.width !== width || layer.height !== height;
+
+  if (stale) {
+    if (layer.canvas.width !== width) layer.canvas.width = width;
+    if (layer.canvas.height !== height) layer.canvas.height = height;
+    const lctx = layer.canvas.getContext('2d');
+    // Resizing a canvas resets its context, same trap as `fitCanvas` - set
+    // every time a resize might have just happened, not once at boot.
+    lctx.imageSmoothingEnabled = false;
+    paintTiles(lctx, world, atlas, camera, width, height);
+    layer.x = camera.x;
+    layer.y = camera.y;
+    layer.width = width;
+    layer.height = height;
+  }
+
+  ctx.drawImage(layer.canvas, 0, 0);
+}
+
+function paintTiles(ctx, world, atlas, camera, width, height) {
   const t = world.tile;
   const firstCol = Math.max(0, Math.floor(camera.x / t));
-  const lastCol = Math.min(world.cols - 1, Math.floor((camera.x + ctx.canvas.width) / t));
+  const lastCol = Math.min(world.cols - 1, Math.floor((camera.x + width) / t));
   const firstRow = Math.max(0, Math.floor(camera.y / t));
-  const lastRow = Math.min(world.rows - 1, Math.floor((camera.y + ctx.canvas.height) / t));
+  const lastRow = Math.min(world.rows - 1, Math.floor((camera.y + height) / t));
 
   for (let row = firstRow; row <= lastRow; row++) {
     for (let col = firstCol; col <= lastCol; col++) {
