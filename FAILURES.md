@@ -842,3 +842,31 @@ on very short screens, and only then scrolls — with the buttons still sitting 
 **Worth telling students:** a panel needs to know what to sacrifice before it runs out of room, or it
 will sacrifice the last thing in the file. And test the shape you did not think of: a phone turned
 sideways is 360 pixels tall, which is shorter than almost anything you will try by accident.
+
+## 2026-08-19 — dropping the component library took two rules with it that nothing replaced
+**Lesson:** A16 / A19 (the interface)
+**What it produced:** `vendor/basecoat.min.css` removed and `src/ui/game.css` rewritten to style the
+game's own components — buttons, badges, cards, the lot. The stylesheet was complete and read
+correctly on its own terms.
+**Why it was wrong:** a component library also ships two lines nobody thinks of as part of the look.
+The first is `box-sizing: border-box` on everything: without it `width: min(30rem, 100%)` plus
+`padding: 0.9rem` is *wider* than 100%, so on a 390px phone the duel card came out **399px wide,
+starting at x = −4.6** — hanging off both edges of the screen. The second is a sane `line-height`.
+`#arena` carries `line-height: 0` (the usual trick for killing the line box under a canvas), and the
+duel screen, the onboarding cards and the paused card are all positioned inside `#arena`, so they
+inherited it: `.duel-title` measured **0 pixels tall** and printed "You vs Flint" straight over the
+card's own top edge. Two collapsed layouts, neither of them mentioned by anything in the diff.
+**How I caught it:** played it in a real browser at five window sizes and looked at the screenshots —
+the clipped heading is obvious in a picture and invisible in the CSS. Then `getBoundingClientRect()`
+on the card and the heading, which is where the 399px and the zero came from.
+**The fix:** a `*, *::before, *::after { box-sizing: border-box }` reset at the top of `game.css`, and
+`line-height: 0` deleted from `#arena` and `#screen` rather than patched around — the canvas is
+`display: block`, so it never had a line box to kill, and the declaration was doing nothing but
+leaking into every panel in the game. Three more of the same kind turned up in the same pass: the
+phrase buttons inherited `.btn`'s dark-on-gold ink onto a dark panel and were unreadable, a `.card`
+that set the pixel font put every paragraph in it in a font meant for headings, and the duel's
+"You lost the duel." was printed in the green reserved for winning.
+**Worth telling students:** when you take a dependency out, the visible half is the part you rewrite
+and the invisible half is the part that bites. A library's reset is not decoration — it is a rule the
+rest of your CSS was quietly written against. And the way you find that is to open the page and look
+at it, at more than one size.

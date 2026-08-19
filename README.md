@@ -57,7 +57,7 @@ PASS/FAIL rows. No test runner, no npm.
 ## How it fits together
 
 ```
-index.html          canvas + Basecoat UI shell
+index.html          canvas + the UI shell
 manifest.webmanifest  makes it installable on a phone's home screen
 sw.js               caches the app shell so the game opens offline. BUMP ITS CACHE VERSION
 icons/              the home-screen icons, made from the game's own lion sprite
@@ -67,10 +67,14 @@ src/net.js          the only file that knows trystero exists
 src/duel.js         the challenge state machine and the rounds
 src/npc.js          Flint — answers the same questions a peer does, so duel.js cannot tell
 src/battle/rules.js PURE rules: the rock-paper-scissors triangle — imports nothing, fully testable
+src/ui/game.css     the whole look: one stylesheet, no component library under it
+src/ui/scale.js     how big the interface is, and how far the art is zoomed, on this device
+src/ui/glyphs.js    the pixel glyphs — the three moves, three faces, and the ⚙
+src/ui/bubbles.js   name plates and head bubbles, as DOM over the canvas
 tests/*.test.html   tests you open in a browser
 demos/NN-name/      one standalone demo per lesson: open its index.html and look at it
 data/*.json         every balance number, the monsters, the map
-vendor/             pinned third-party files (see vendor/README.md)
+vendor/             pinned third-party files, fonts included (see vendor/README.md)
 audio/              CC0 sound (see audio/README.md)
 ```
 

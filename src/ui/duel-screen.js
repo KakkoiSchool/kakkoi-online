@@ -13,7 +13,7 @@
  * played rock, they played paper."* You never saw the moves meet — the thing
  * that happened was demoted beneath the prompt for the next thing. Now the two
  * moves sit side by side, large, all the way through a round: yours appears when
- * you pick it, theirs is a question mark until the reveal, and the winner is
+ * you pick it, theirs is three blinking dots until the reveal, and the winner is
  * ringed. `roundGapMs` holds it there before the next round opens, so a result
  * is something you watched rather than something you read about afterwards.
  *
@@ -27,12 +27,25 @@
  * and draws it, and it calls back into `duel` when a finger lands.
  */
 import { MOVES } from '../battle/rules.js';
+import { glyph } from './glyphs.js';
 
+/**
+ * The three moves, in this game's own pixels.
+ *
+ * They used to be emoji — 🪨 📄 ✂️ — which are drawn by the operating system, so
+ * they were the one thing on this screen the game did not control: a rock was a
+ * grey lump on one phone, a cartoon on another, and a flat outline on a third,
+ * at whatever size and weight that vendor felt like. None of them were pixel
+ * art. `ui/glyphs.js` draws all three on the same 16-pixel grid as the tiles.
+ */
 const LOOK = {
-  rock: { icon: '🪨', label: 'Rock' },
-  paper: { icon: '📄', label: 'Paper' },
-  scissors: { icon: '✂️', label: 'Scissors' },
+  rock: { label: 'Rock' },
+  paper: { label: 'Paper' },
+  scissors: { label: 'Scissors' },
 };
+
+/** A move's picture, or the three dots that mean "still choosing". */
+const icon = (move) => glyph(move || 'think');
 
 export function createDuelScreen({ root, duel }) {
   if (!root) return { root: null };
@@ -46,7 +59,7 @@ export function createDuelScreen({ root, duel }) {
   const scoreRow = el('div', 'duel-score');
   const yourName = el('span', 'duel-side', 'You');
   const yourScore = el('span', 'duel-num');
-  const theirScore = el('span', 'duel-num');
+  const theirScore = el('span', 'duel-num is-them');
   const theirName = el('span', 'duel-side');
   scoreRow.append(yourName, yourScore, el('span', 'duel-dash', '—'), theirScore, theirName);
 
@@ -66,7 +79,9 @@ export function createDuelScreen({ root, duel }) {
     const b = el('button', 'btn duel-move');
     b.type = 'button';
     b.dataset.move = move;
-    b.append(el('span', 'duel-move-icon', LOOK[move].icon), el('span', 'duel-move-name', LOOK[move].label));
+    const picture = el('span', 'duel-move-icon');
+    picture.innerHTML = icon(move);
+    b.append(picture, el('span', 'duel-move-name', LOOK[move].label));
     b.addEventListener('click', () => { duel.play(move); b.blur(); });
     return b;
   });
@@ -75,7 +90,7 @@ export function createDuelScreen({ root, duel }) {
   const actions = el('div', 'duel-actions');
   const yes = button('Fight!', 'btn duel-yes', () => duel.accept());
   const no = button('No thanks', 'btn-outline duel-no', () => duel.decline());
-  const leave = button('Leave', 'btn-outline duel-leave', () => duel.close());
+  const leave = button('Leave', 'btn-outline duel-leave duel-give-up', () => duel.close());
   actions.append(yes, no, leave);
 
   // Everything above the buttons is one block, and it is the block that gives
@@ -142,14 +157,21 @@ export function createDuelScreen({ root, duel }) {
 
     // The card carries the phase, and the CSS makes the three look different.
     card.dataset.phase = v.phase;
+    // …and who a decided round or a finished duel went to, so that "You lost
+    // the duel." is not printed in the same green as winning it.
+    card.dataset.result = v.phase === 'over'
+      ? (v.outcome?.how === 'you' ? 'you' : 'them')
+      : (v.phase === 'resolved' && v.last ? v.last.winner : '');
 
     if (v.phase === 'over') {
       // The last round played stays on the table under the final score: the duel
       // ends on the round that won it, and that round should still be visible.
       paint(mineSide, v.last?.mine ?? v.myMove, v.last?.winner === 'you');
       paint(theirSide, v.last?.theirs ?? v.theirMove, v.last?.winner === 'them');
+      // The verdict, and only that: the score row directly above it is already
+      // carrying the numbers, in bigger type than this sentence could use.
       banner.textContent = v.outcome?.text || '';
-      why.textContent = `Final score — you ${v.outcome.score.you}, ${them} ${v.outcome.score.them}.`;
+      why.textContent = '';
       return;
     }
 
@@ -200,17 +222,18 @@ function sentence(last, them) {
 function side(name) {
   const box = el('div', 'duel-side-box');
   const who = el('span', 'duel-face-name', name);
-  const icon = el('span', 'duel-face-icon', '?');
+  const picture = el('span', 'duel-face-icon');
+  picture.innerHTML = icon(null);
   const label = el('span', 'duel-face-move', '—');
   const crown = el('span', 'duel-face-win', 'wins');
-  box.append(who, icon, label, crown);
-  return { box, name: who, icon, label, crown };
+  box.append(who, picture, label, crown);
+  return { box, name: who, icon: picture, label, crown };
 }
 
-/** Show a move on one side of the face-off — or a question mark for "not yet". */
+/** Show a move on one side of the face-off — or the dots that mean "not yet". */
 function paint(target, move, won) {
   const look = move ? LOOK[move] : null;
-  target.icon.textContent = look ? look.icon : '?';
+  target.icon.innerHTML = icon(move);
   target.label.textContent = look ? look.label : 'thinking…';
   target.box.classList.toggle('is-known', Boolean(look));
   target.box.classList.toggle('is-win', Boolean(won));

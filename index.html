@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -15,7 +15,11 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Kakkoi">
-  <link rel="stylesheet" href="./vendor/basecoat.min.css">
+  <!-- One stylesheet, and it owns the whole look. There is no component
+       library under it any more: a rounded, soft-shadowed one and a 16px sprite
+       cannot share a screen without one of them looking like a mistake. The two
+       fonts it uses are vendored beside it, so the game still opens with no
+       network. -->
   <link rel="stylesheet" href="./src/ui/game.css">
 </head>
 <body>
@@ -36,8 +40,14 @@
       <!-- The world. Everything in it is drawn with canvas 2D. -->
       <canvas id="world" width="640" height="480"></canvas>
 
-      <!-- The UI. DOM + Basecoat on top of the canvas: text, buttons and dialogs
-           are miserable to build on a canvas and easy in HTML. -->
+      <!-- Names and speech bubbles, in the DOM rather than painted into the
+           canvas above. Positioned from the numbers the drawing already worked
+           out — see src/ui/bubbles.js. Text a screen reader can reach, at the
+           same scale as the rest of the interface. -->
+      <div id="tags"></div>
+
+      <!-- The UI. DOM on top of the canvas: text, buttons and dialogs are
+           miserable to build on a canvas and easy in HTML. -->
       <div id="hud">
         <span id="hud-name" class="badge"></span>
         <span id="hud-place" class="badge hud-quiet"></span>
@@ -47,7 +57,8 @@
         <!-- One control instead of four bare toggles in a row. See
              src/ui/settings.js. -->
         <button id="settingsBtn" class="btn-outline" type="button"
-                aria-expanded="false" aria-controls="settings" aria-label="Settings">⚙</button>
+                aria-expanded="false" aria-controls="settings"
+                aria-label="Settings"><svg viewBox="0 0 16 16"><use href="#g-gear"></use></svg></button>
       </div>
 
       <!-- What to do, in the words that match the device you are holding. It

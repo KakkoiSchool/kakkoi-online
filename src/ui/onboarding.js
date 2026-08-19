@@ -3,7 +3,8 @@
  *
  * This is DOM, not canvas. Text, buttons and focus rings are miserable to
  * build on a canvas and free in HTML — so the world is a canvas and everything
- * you read or click sits on top of it in real elements, styled by Basecoat.
+ * you read or click sits on top of it in real elements, styled by
+ * `src/ui/game.css`.
  */
 import { drawTile } from '../sprites.js';
 import { cleanName, MAX_NAME } from '../identity.js';
@@ -67,7 +68,6 @@ export function showSafetyCard({ root }) {
     }
 
     const note = document.createElement('p');
-    note.className = 'card-description';
     note.textContent = 'You can only say six set phrases in here. There is nowhere to type, so nobody can send you words they made up.';
 
     const ok = document.createElement('button');
@@ -186,10 +186,9 @@ function panel(title, description) {
   const card = document.createElement('section');
   card.className = 'card onboarding-card';
   const h = document.createElement('h2');
-  h.className = 'card-title';
+  h.className = 'onboarding-title';
   h.textContent = title;
   const p = document.createElement('p');
-  p.className = 'card-description';
   p.textContent = description;
   card.append(h, p);
   return card;
@@ -199,12 +198,13 @@ function askName(root, identity, next) {
   const card = panel('Kakkoi Online', 'What are you called down here?');
 
   const label = document.createElement('label');
-  label.className = 'label';
   label.htmlFor = 'name-input';
   label.textContent = `Name (up to ${MAX_NAME} characters)`;
 
   const input = document.createElement('input');
-  input.className = 'input';
+  // Named, rather than left to default: the stylesheet reaches this field as
+  // `input[type="text"]`, and an <input> with no type attribute is not that.
+  input.type = 'text';
   input.id = 'name-input';
   input.maxLength = MAX_NAME;
   input.autocomplete = 'off';
@@ -212,12 +212,14 @@ function askName(root, identity, next) {
   input.value = identity.name;
 
   const button = document.createElement('button');
-  button.className = 'btn';
+  // The same class the other two panels' buttons carry: it is the one that
+  // finishes this card, and it wants the same height under a thumb.
+  button.className = 'btn onboarding-confirm';
   button.type = 'submit';
   button.textContent = 'Continue';
 
   const hint = document.createElement('p');
-  hint.className = 'card-description onboarding-hint';
+  hint.className = 'onboarding-hint';
   hint.textContent = ' ';
 
   const form = document.createElement('form');

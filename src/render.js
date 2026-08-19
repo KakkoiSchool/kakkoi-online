@@ -18,26 +18,31 @@ import { drawTile } from './sprites.js';
  * thing pixel art must never be.
  *
  * Now the drawing surface IS the box, one canvas pixel per CSS pixel, and the
- * art inside it is drawn at a whole-number scale (`world.scale`, 2). Both
- * dimensions are snapped down to a multiple of that scale so an art pixel can
- * never straddle a boundary, and the size is set in real `px` on the element as
- * well, so the browser is never asked to stretch anything either.
+ * art inside it is drawn at a whole-number scale: `world.scale` (always 2) times
+ * `zoom` (1 or 2, chosen for the device by `ui/scale.js`). Both dimensions are
+ * snapped down to a multiple of that product, so an art pixel can never straddle
+ * a boundary, and the size is set in real `px` on the element as well, so the
+ * browser is never asked to stretch anything either.
  *
- * The world is not endless: past its own size there is nothing to show, so the
- * canvas stops growing there and the page's background frames it.
+ * It no longer stops at the size of the world. The world is not endless, but
+ * refusing to grow past it was what letterboxed the game inside a big window,
+ * and `createCamera` already handles a canvas larger than the map — the clamp's
+ * `Math.max(0, …)` wins and the map sits against the corner, with the page's
+ * background showing past its edges.
  *
- * Resizing a canvas resets its 2D context — including `imageSmoothingEnabled` —
- * so that is set again here, every time, rather than once at boot.
+ * Resizing a canvas resets its 2D context — including `imageSmoothingEnabled`
+ * and any transform — so that is set again here, every time, rather than once at
+ * boot.
  */
-export function fitCanvas({ canvas, ctx, box, world }) {
-  const step = world.scale;
-  const fit = (available, limit) => {
-    const wanted = Math.min(Math.floor(available), limit);
+export function fitCanvas({ canvas, ctx, box, world, zoom = 1 }) {
+  const step = world.scale * zoom;
+  const fit = (available) => {
+    const wanted = Math.floor(available);
     return Math.max(step, wanted - (wanted % step));
   };
 
-  const width = fit(box.clientWidth, world.width);
-  const height = fit(box.clientHeight, world.height);
+  const width = fit(box.clientWidth);
+  const height = fit(box.clientHeight);
   if (canvas.width === width && canvas.height === height) return { width, height, changed: false };
 
   canvas.width = width;
@@ -48,22 +53,34 @@ export function fitCanvas({ canvas, ctx, box, world }) {
   return { width, height, changed: true };
 }
 
-export function createCamera(canvas, world) {
+/**
+ * The camera, in world pixels.
+ *
+ * `view.zoom` is how many screen pixels one world pixel gets — 1 on a phone, 2
+ * on anything roomier. So the piece of the world on screen is the canvas
+ * divided by it, and that is the only place the zoom appears here: everything
+ * else in this file, and everything in the game, stays in world pixels, which
+ * is what the save and the network are written in.
+ */
+export function createCamera(canvas, world, view = { zoom: 1 }) {
+  const across = () => canvas.width / view.zoom;
+  const down = () => canvas.height / view.zoom;
+
   const camera = {
     x: 0,
     y: 0,
 
     follow(target) {
-      camera.x = target.x + target.w / 2 - canvas.width / 2;
-      camera.y = target.y + target.h / 2 - canvas.height / 2;
+      camera.x = target.x + target.w / 2 - across() / 2;
+      camera.y = target.y + target.h / 2 - down() / 2;
       camera.clamp();
     },
 
-    // Stop at the edges. If the map is smaller than the canvas, Math.max(0, …)
-    // wins and the map sits against the top-left corner.
+    // Stop at the edges. If the map is smaller than what fits on screen,
+    // Math.max(0, …) wins and the map sits against the top-left corner.
     clamp() {
-      camera.x = Math.max(0, Math.min(world.width - canvas.width, camera.x));
-      camera.y = Math.max(0, Math.min(world.height - canvas.height, camera.y));
+      camera.x = Math.max(0, Math.min(world.width - across(), camera.x));
+      camera.y = Math.max(0, Math.min(world.height - down(), camera.y));
       // Whole pixels only, or the tile grid shimmers as you walk.
       camera.x = Math.round(camera.x);
       camera.y = Math.round(camera.y);
@@ -90,15 +107,16 @@ export function createMapLayer() {
   return {
     canvas: document.createElement('canvas'),
     // NaN so the very first call never matches and always paints.
-    x: NaN, y: NaN, width: NaN, height: NaN,
+    x: NaN, y: NaN, width: NaN, height: NaN, zoom: NaN,
   };
 }
 
-export function drawMap(ctx, layer, world, atlas, camera) {
+export function drawMap(ctx, layer, world, atlas, camera, zoom = 1) {
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
   const stale = layer.x !== camera.x || layer.y !== camera.y ||
-                layer.width !== width || layer.height !== height;
+                layer.width !== width || layer.height !== height ||
+                layer.zoom !== zoom;
 
   if (stale) {
     if (layer.canvas.width !== width) layer.canvas.width = width;
@@ -107,14 +125,21 @@ export function drawMap(ctx, layer, world, atlas, camera) {
     // Resizing a canvas resets its context, same trap as `fitCanvas` - set
     // every time a resize might have just happened, not once at boot.
     lctx.imageSmoothingEnabled = false;
-    paintTiles(lctx, world, atlas, camera, width, height);
+    lctx.setTransform(zoom, 0, 0, zoom, 0, 0);
+    paintTiles(lctx, world, atlas, camera, width / zoom, height / zoom);
     layer.x = camera.x;
     layer.y = camera.y;
     layer.width = width;
     layer.height = height;
+    layer.zoom = zoom;
   }
 
+  // The blit is in screen pixels, so it goes under whatever transform the
+  // caller has set rather than through it.
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(layer.canvas, 0, 0);
+  ctx.restore();
 }
 
 function paintTiles(ctx, world, atlas, camera, width, height) {
@@ -186,44 +211,10 @@ export function drawActor(ctx, atlas, actor, camera, scale) {
     drawTile(ctx, atlas, actor.cell, x, y, scale);
   }
 
-  // The nameplate and the bubble are text: they are placed from these numbers
-  // and are never mirrored, whichever way the monster is looking.
+  // The name plate and the bubble are text, and they are DOM now — see
+  // src/ui/bubbles.js. They are placed from the numbers returned here, and are
+  // never mirrored, whichever way the monster is looking.
   return { x, y, sprite, flipped };
-}
-
-/**
- * A preset phrase, above the nameplate, for a few seconds.
- *
- * The text is looked up from our own PHRASES list by the number that arrived,
- * so what is drawn here is always one of ours — there is no path from the
- * network to a string on this screen.
- */
-export function drawBubble(ctx, text, centerX, bottomY) {
-  if (!text) return;
-  ctx.save();
-  ctx.font = 'bold 11px ui-monospace, "SF Mono", Menlo, monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  const width = Math.ceil(ctx.measureText(text).width) + 12;
-  const height = 16;
-  const x = Math.round(centerX - width / 2);
-  const y = Math.round(bottomY - height);
-
-  ctx.fillStyle = 'rgba(244, 244, 252, 0.94)';
-  ctx.beginPath();
-  ctx.roundRect(x, y, width, height, 5);
-  ctx.fill();
-  // The little tail that points at whoever said it.
-  ctx.beginPath();
-  ctx.moveTo(Math.round(centerX) - 3, y + height);
-  ctx.lineTo(Math.round(centerX) + 3, y + height);
-  ctx.lineTo(Math.round(centerX), y + height + 4);
-  ctx.fill();
-
-  ctx.fillStyle = '#14141c';
-  ctx.fillText(text, Math.round(centerX), y + height / 2 + 0.5);
-  ctx.restore();
 }
 
 /**
@@ -243,25 +234,5 @@ export function drawMarker(ctx, centerX, bottomY, now) {
   ctx.lineTo(Math.round(centerX), y);
   ctx.closePath();
   ctx.fill();
-  ctx.restore();
-}
-
-/** The name above your head. Chunky on purpose: it is a pixel game. */
-export function drawNameplate(ctx, text, centerX, baselineY, { self = false } = {}) {
-  if (!text) return;
-  ctx.save();
-  ctx.font = 'bold 10px ui-monospace, "SF Mono", Menlo, monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  const width = Math.ceil(ctx.measureText(text).width) + 8;
-  const height = 13;
-  const x = Math.round(centerX - width / 2);
-  const y = Math.round(baselineY - height);
-
-  ctx.fillStyle = 'rgba(12, 12, 18, 0.78)';
-  ctx.fillRect(x, y, width, height);
-  ctx.fillStyle = self ? '#ffd76a' : '#cfd2e6';
-  ctx.fillText(text, Math.round(centerX), y + height / 2 + 0.5);
   ctx.restore();
 }

@@ -7,10 +7,30 @@ Populate with `make vendor` (to be added) or by hand:
 
 | File | Source | Licence |
 |---|---|---|
-| `basecoat.min.css` ✅ **vendored 2026-08-11, basecoat-css@1.0.2** (213 kB) | `https://cdn.jsdelivr.net/npm/basecoat-css@1.0.2/dist/basecoat.cdn.min.css` | MIT |
+| `fonts/` ✅ **vendored 2026-08-19** — the latin subsets of two webfonts (33 kB the pair) | see "Fonts" below | OFL 1.1 |
 | `trystero/` ✅ **vendored 2026-08-16, trystero@0.21.5** (nostr strategy, 6 files, 37 kB) | see table below | MIT |
 | `kenney/` ✅ **vendored 2026-08-16** — three sprite atlases + their licence files (22 kB) | see "Sprite atlases" below | CC0 |
 | `opengameart/` ✅ **vendored 2026-08-16** — one sprite atlas + its licence file (12 kB) | see "Sprite atlases" below | CC0 |
+
+`basecoat.min.css` used to head that table. It went on 2026-08-19: `src/ui/game.css` now styles the
+game's own components, and a rounded, soft-shadowed component library and a 16 px sprite could not
+share a screen without one of them looking like a mistake.
+
+## Fonts
+
+Two families, and only the characters this game can display. Google's `css2` endpoint splits every
+family into subsets by unicode range; these are the `U+0000-00FF` ones, which is what a name made of
+`letters, digits, spaces, - and _` (see `cleanName`) and six English phrases actually need. The full
+DotGothic16 is a Japanese font of well over a megabyte.
+
+They are files in the repo, not a `<link>` to fonts.googleapis.com, for two reasons: the game is
+installable and must open with no network, and a page a child opens should not be a request to
+somebody else's server.
+
+| File | Source | Licence |
+|---|---|---|
+| `fonts/dotgothic16-latin.woff2` ✅ **2026-08-19, DotGothic16 v21** (10 kB) | `https://fonts.gstatic.com/s/dotgothic16/v21/…GH7M6X8.woff2`, named by `https://fonts.googleapis.com/css2?family=DotGothic16` | OFL 1.1 (`fonts/dotgothic16-OFL.txt`) |
+| `fonts/space-grotesk-latin.woff2` ✅ **2026-08-19, Space Grotesk v22** (22 kB, variable 400–700) | `https://fonts.gstatic.com/s/spacegrotesk/v22/…PbF4Cw.woff2`, named by `https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700` | OFL 1.1 (`fonts/space-grotesk-OFL.txt`) |
 
 Record the exact version next to each file when you add it. See
 `izumo-io/planning/kakkoi-online-sources.md` for the full provenance list.

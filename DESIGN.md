@@ -356,12 +356,12 @@ world **36% of the screen height**, most of the game hidden behind dead space; o
 It is now **100% of both**: the canvas is the screen, and every control floats on top of it.
 
 - **Sized in whole art pixels.** `fitCanvas()` in `render.js` gives the canvas a drawing surface the
-  size of its box, one canvas pixel per CSS pixel, snapped down to a multiple of `world.scale`. So an
-  art pixel is exactly 2 CSS pixels and can never be resampled — the old fixed canvas showed 640 real
-  pixels across 374 of them, which is 1.17 screen pixels per art pixel, and pixel art resampled is
-  pixel art ruined. Resizing a canvas resets its 2D context, so `imageSmoothingEnabled` is set again on
-  every fit rather than once at boot. Bigger screens see more of the world, up to the size of the world
-  itself; past that the canvas stops growing and the background frames it.
+  size of its box, one canvas pixel per CSS pixel, snapped down to a multiple of `world.scale × zoom`.
+  So an art pixel is a whole number of CSS pixels and can never be resampled — the old fixed canvas
+  showed 640 real pixels across 374 of them, which is 1.17 screen pixels per art pixel, and pixel art
+  resampled is pixel art ruined. Resizing a canvas resets its 2D context, so `imageSmoothingEnabled` is
+  set again on every fit rather than once at boot. Bigger screens see more of the world; past the edge
+  of the map the camera stops and the background frames it.
 - **One settings control, and everything is in it.** Four bare toggles in a row is four decisions asked
   of somebody who has not started playing yet, and it made the page look unfinished — so they are behind
   a ⚙ in the corner (`src/ui/settings.js`). Because it is now the only door to anything that is not the
@@ -394,6 +394,64 @@ It is now **100% of both**: the canvas is the screen, and every control floats o
   a new character must not re-teach them.
 - **The phrase row never wraps.** `nowrap` and a font that shrinks with the viewport; at 390px all six
   fit on one line, and the horizontal scroll is only a safety net for something narrower than a phone.
+
+## One unit, and a zoom — but only one of them touches the world
+
+The interface used to be sized in `px` and the art was always ×2. Both are now decided from the size of
+the window, in `src/ui/scale.js`, and the two decisions are deliberately different in kind.
+
+- **The UI unit** is a whole number of pixels, 9 to 15, taken from the *smaller* side of the window and
+  written to the root font size. Every length in `game.css` is a `rem`, so the whole interface is that
+  one number: a phone gets small chrome, a desktop gets big chrome, and there is no breakpoint in the
+  file except two, where the *shape* of the duel card changes rather than its size. Whole numbers
+  because a `0.14rem` border has to land on a pixel boundary — a fractional unit gives fractional
+  borders, which is exactly the smudge `image-rendering: pixelated` exists to prevent. The smaller side
+  because a phone in landscape is 844×390, and sizing from width alone would give it desktop chrome with
+  nowhere to put it.
+  Interactive rows carry `max(Nrem, Npx)`: the unit can shrink, a thumb cannot, so the px floor is what
+  a finger actually gets — 40px for a phrase, 44px for `Challenge` and the duel buttons, 34px for the ⚙.
+- **The art zoom** is 1 or 2 screen pixels per world pixel, so the town is drawn at ×2 on a phone and ×4
+  on anything roomier. A phone showing the whole 640×480 world made a 16px monster about four
+  millimetres tall; now a small screen simply sees less of the town, which is how every game this one is
+  pretending to be has always worked.
+
+  **The zoom is not `world.scale`, and must never become it.** `world.scale` is the size of the
+  coordinate space itself: the player's box, `walkSpeed`, `challengeReachPx`, every saved position and
+  every position that goes over the wire are all in world pixels. Make that depend on the size of the
+  window and a phone and a desktop stop agreeing about where anybody is standing — your x of 400 lands
+  halfway across my map — and dragging a window wider teleports the player and rescales the map under
+  them. So the coordinate space stays exactly where it was, at ×2, and the zoom is a transform
+  `render.js` sets on the way to the screen. Both numbers are whole, which is all pixel art asks.
+  Checked by resizing across the boundary: the player's position and the world's size do not move.
+
+## The game draws its own buttons
+
+`vendor/basecoat.min.css` is gone, and `src/ui/game.css` styles the whole interface itself. A
+component library is built to make an admin panel look considered — rounded corners, soft shadows,
+a blur — and a 16-pixel sprite and a soft shadow cannot share a screen without one of them looking
+like a mistake. The replacement is one rule applied everywhere: **0.14rem of solid black and a hard
+offset of the same black.** No radii, no blur, no gradient. That is what makes a name plate, a badge,
+a bubble and a button read as the same object at four sizes, and it is why nothing needs a colour of
+its own to look deliberate. Gold is the action colour and only ever that; rose is the opponent's side
+of a duel and only ever that.
+
+- **The moves are the game's own pixels.** ✊ ✋ ✌ were emoji, drawn by the operating system, so they
+  were the one thing on the screen the game did not control: a rock was a grey lump on one phone, a
+  cartoon on another, a flat outline on a third. `src/ui/glyphs.js` draws all three as rectangles on
+  the same 16-pixel grid as the tiles, once, as `<symbol>`s — so a move button, a face-off box and a
+  bubble over somebody's head are literally the same picture at three sizes. The ⚙ is one of them too.
+- **Names and bubbles are DOM, not canvas.** `drawNameplate()` and `drawBubble()` are gone from
+  `render.js`; `src/ui/bubbles.js` puts real elements over the canvas, positioned from the numbers
+  `drawActor()` already returns. Canvas text cannot be read by a screen reader or found by the
+  browser's own find, it is measured in device pixels so it fought the UI unit, and every glyph had to
+  be laid out by hand. The elements are **kept between frames** and moved by writing two numbers: the
+  obvious version rebuilds the layer every frame, which at 30fps is a few hundred elements a second
+  plus a forced layout inside each frame, and ISSUES.md #1 is a phone getting hot.
+- **Two fonts, vendored.** `DotGothic16` for chrome, `Space Grotesk` for anything longer than a few
+  words — a paragraph set in a pixel font is a paragraph nobody reads. Latin subsets only, 33 kB the
+  pair, in `vendor/fonts/` and precached: the game is installable and must open with no network, so a
+  webfont from a CDN is a webfont that is missing on a plane, and a page a child opens should not be a
+  request to somebody else's server.
 
 ## There is no element, anywhere
 
@@ -487,3 +545,15 @@ look. It is deliberately not a banner or a call to action.
   menu's last row is reachable at 1440x300; and in a duel, all three moves and the leave button are on
   screen without scrolling at 1440x300, 740x360, 667x375, 320x480, 390x780, 1024x768, 1280x720, 280x600
   and 1920x1080, in every phase
+- **Verified for the pixel skin** (2026-08-19, in Chromium, at 390x780, 740x360, 820x1180, 1280x800 and
+  1440x300): the game boots with no page errors and no failed requests; both vendored fonts load and
+  the pixel/prose split holds; the ⚙ and all three move glyphs draw; the name plate and the head bubble
+  are elements that are *kept* across frames rather than rebuilt (marked and still there after a second
+  of walking) and a phrase bubble appears and expires on its own; a full duel against Flint plays out
+  through choosing, waiting, the reveal and the final score, with the card fitting the window and
+  nothing scrolling at every size above; nothing scrolls the page anywhere; the 7 rules tests still
+  pass; and the game still boots with the browser offline, from a v9 cache holding 53 files including
+  the fonts and the three new modules
+- **Verified across the zoom boundary**: resized 390x780 → 1280x800 → 375x667, which takes the art zoom
+  from 1 to 2 and back. The player's position (742, 558) and the world's size (1536x1152) do not move —
+  which is the whole reason the zoom is a transform and not `world.scale`

@@ -13,7 +13,10 @@ import { startLoop } from './loop.js';
 import { createInput } from './input.js';
 import { loadAtlas } from './sprites.js';
 import { loadWorld } from './world.js';
-import { createCamera, fitCanvas, createMapLayer, drawMap, drawActor, drawNameplate, drawBubble, drawMarker } from './render.js';
+import { createCamera, fitCanvas, createMapLayer, drawMap, drawActor, drawMarker } from './render.js';
+import { applyScale } from './ui/scale.js';
+import { installGlyphs } from './ui/glyphs.js';
+import { drawTags, duelBubble } from './ui/bubbles.js';
 import { createIdentity, loadMonsters, persist } from './identity.js';
 import { askIdentity, showSafetyCard, showHowToPlay, confirmReset } from './ui/onboarding.js';
 import { joinRoom } from './net.js';
@@ -35,7 +38,13 @@ const ctx = canvas.getContext('2d');
 if (!ctx) throw new Error('canvas 2d context unavailable');
 ctx.imageSmoothingEnabled = false;   // pixel art: never smooth it
 
+// The pixel glyph sheet, before anything can ask for a glyph out of it: the ⚙
+// in the corner is an <svg><use> pointing into it, and it is in the page from
+// the moment this module runs.
+installGlyphs();
+
 const arena = document.querySelector('#arena');
+const tags = document.querySelector('#tags');
 const overlay = document.querySelector('#overlay');
 const hudName = document.querySelector('#hud-name');
 const hudPlace = document.querySelector('#hud-place');
@@ -111,11 +120,21 @@ async function boot() {
   const player = spawn(world, identity);
 
   // The canvas takes the whole arena, and the arena is the whole screen. Sized
-  // before the camera is made, because the camera centres on half the canvas.
-  const fit = () => fitCanvas({ canvas, ctx, box: arena, world });
+  // before the camera is made, because the camera centres on half of what fits.
+  //
+  // How big the interface is and how far the art is zoomed in are one decision,
+  // taken in `ui/scale.js` from the size of the box, and taken again on every
+  // resize. `view.zoom` is screen pixels per world pixel; the world's own
+  // coordinates never change, so a phone and a desktop still agree about where
+  // everybody is standing — see the note in `ui/scale.js`.
+  const view = { zoom: 1 };
+  const fit = () => {
+    view.zoom = applyScale(arena).zoom;
+    fitCanvas({ canvas, ctx, box: arena, world, zoom: view.zoom });
+  };
   fit();
 
-  const camera = createCamera(canvas, world);
+  const camera = createCamera(canvas, world, view);
   camera.follow(player);
   const mapLayer = createMapLayer();
 
@@ -264,13 +283,36 @@ async function boot() {
     startFight();
   });
 
+  /**
+   * What goes over somebody's head.
+   *
+   * A phrase if they have just said one — one of ours, looked up by number, so
+   * there is no path from the network to a string on this screen. Otherwise
+   * their side of the duel: the move they have committed to, or a face once the
+   * round is decided.
+   *
+   * The duel half only ever applies to the two people IN the duel, because
+   * nobody else is told that it is happening: a duel is a private conversation
+   * between two peers and the room hears none of it. So a bystander walking past
+   * two people fighting still sees two people standing still. Making that
+   * visible needs the room to be told, which is a change to the protocol and not
+   * to this file — it is written down in ISSUES.md rather than guessed at here.
+   */
+  function bubbleFor(who, fight) {
+    const said = who.self ? player.said : who.said;
+    if (said) return said;
+    if (who.self) return duelBubble(fight, 'you');
+    if (fight.them && who.id === fight.them.id) return duelBubble(fight, 'them');
+    return null;
+  }
+
   let sinceSave = 0;
 
   const loop = startLoop({
     update(dt) {
       // In a duel you are not also walking around. A19's state machine again:
       // one state at a time, and the keys that do nothing here do nothing.
-      const wish = duel.busy ? { dx: 0, dy: 0 } : steer(input, player, camera);
+      const wish = duel.busy ? { dx: 0, dy: 0 } : steer(input, player, camera, view.zoom);
       const before = { x: player.x, y: player.y };
 
       // One axis at a time — that is what makes sliding along a wall work.
@@ -311,15 +353,22 @@ async function boot() {
     },
 
     render() {
+      // Screen pixels, for the two things that are about the screen: wiping it,
+      // and blitting the cached tile map back onto it.
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#0c0c12';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      drawMap(ctx, mapLayer, world, dungeon, camera);
+      drawMap(ctx, mapLayer, world, dungeon, camera, view.zoom);
+
+      // Everything from here is drawn in world pixels, and the zoom is the one
+      // place the size of the screen gets in.
+      ctx.setTransform(view.zoom, 0, 0, view.zoom, 0, 0);
 
       // Everyone in the room, sorted by how far down the screen their feet are,
       // so a monster standing in front of another one is drawn in front of it.
       const cast = [
-        { id: '', body: player, name: identity.name, self: true },
+        { id: 'you', body: player, name: identity.name, self: true },
         { id: npc.id, body: npc.body, name: npc.name, self: false },
         ...net.peers()
           .filter((peer) => peer.x !== null)
@@ -327,15 +376,32 @@ async function boot() {
       ].sort((a, b) => (a.body.y + a.body.h) - (b.body.y + b.body.h));
 
       const now = performance.now();
+      const fight = duel.view();
+      // What goes over each head, collected here and handed to the DOM layer in
+      // one call: names and bubbles are text, and text belongs in elements.
+      const tagged = [];
+
       for (const who of cast) {
         const drawn = drawActor(ctx, creatures, who.body, camera, world.scale);
         const middleX = drawn.x + drawn.sprite / 2;
-        drawNameplate(ctx, who.name, middleX, drawn.y - 2, { self: who.self });
-        const said = who.self ? player.said : who.said;
-        if (said) drawBubble(ctx, said, middleX, drawn.y - 17);
         // An arrow over whoever the "Challenge" button is currently about.
         if (near && who.id === near.id) drawMarker(ctx, middleX, drawn.y - 16, now);
+
+        tagged.push({
+          id: who.id,
+          name: who.name,
+          self: who.self,
+          // Canvas pixels for the layer over the canvas — and taken from where
+          // the monster STANDS rather than from `drawn.y`, so a name does not
+          // bob up and down with the sprite it belongs to.
+          sx: middleX * view.zoom,
+          sy: (who.body.y + who.body.h - drawn.sprite - camera.y) * view.zoom,
+          sprite: drawn.sprite * view.zoom,
+          bubble: bubbleFor(who, fight),
+        });
       }
+
+      drawTags(tags, tagged);
     },
   });
 
@@ -508,11 +574,15 @@ function spawn(world, identity) {
  * faster than a straight line; shrinking both by the same amount fixes it.
  * A held finger wins over the keys: it is a direct instruction.
  */
-function steer(input, player, camera) {
+function steer(input, player, camera, zoom = 1) {
   const pointer = input.pointer;
   if (pointer) {
-    const toX = pointer.x + camera.x - (player.x + player.w / 2);
-    const toY = pointer.y + camera.y - (player.y + player.h / 2);
+    // The pointer is in canvas pixels and the player is in world pixels, which
+    // are the same thing only at zoom 1. Undo the zoom before the subtraction,
+    // or a tap on the far side of the screen asks for somewhere half as far
+    // away as where the finger actually is.
+    const toX = pointer.x / zoom + camera.x - (player.x + player.w / 2);
+    const toY = pointer.y / zoom + camera.y - (player.y + player.h / 2);
     const distance = Math.hypot(toX, toY);
     if (distance < 4) return { dx: 0, dy: 0 };
     return { dx: toX / distance, dy: toY / distance };

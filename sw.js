@@ -28,7 +28,7 @@
  * This never touches `localStorage`. Saved characters are not ours to clear.
  */
 
-const CACHE = 'kakkoi-online-v8';
+const CACHE = 'kakkoi-online-v9';
 
 /**
  * Every file the game loads, by hand. `./` and `./index.html` are both here on
@@ -40,8 +40,13 @@ const SHELL = [
   './index.html',
   './manifest.webmanifest',
 
-  './vendor/basecoat.min.css',
   './src/ui/game.css',
+
+  // The two families game.css asks for, vendored. A webfont fetched from a CDN
+  // is a webfont that is missing on a plane, and this file exists so that the
+  // game opens on a plane.
+  './vendor/fonts/dotgothic16-latin.woff2',
+  './vendor/fonts/space-grotesk-latin.woff2',
 
   './src/main.js',
   './src/loop.js',
@@ -64,6 +69,9 @@ const SHELL = [
   './src/ui/paused.js',
   './src/ui/settings.js',
   './src/ui/help.js',
+  './src/ui/scale.js',
+  './src/ui/glyphs.js',
+  './src/ui/bubbles.js',
 
   // trystero, and only the files it actually pulls in.
   './vendor/trystero/nostr.js',

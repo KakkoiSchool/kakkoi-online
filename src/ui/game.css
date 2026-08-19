@@ -1,136 +1,316 @@
-/* Layout only. Component styling comes from vendor/basecoat.min.css. */
-:root { color-scheme: dark; }
+/**
+ * Kakkoi Online — the pixel skin.
+ *
+ * This file used to be layout only, with component styling coming from
+ * vendor/basecoat.min.css. It now owns both, and basecoat is dropped from
+ * index.html: a rounded, soft-shadowed component library and a 16px sprite
+ * cannot share a screen without one of them looking like a mistake.
+ *
+ * Two rules hold the whole thing together.
+ *
+ * 1. THE UNIT. Every size here is in `rem`, and src/ui/scale.js sets the root
+ *    font size to a whole number of pixels (9–15) worked out from the size of
+ *    the window. A phone gets a small unit, a desktop a big one, and the layout
+ *    itself never changes — so there is no breakpoint anywhere in this file
+ *    except where the SHAPE of something has to change, which is twice.
+ *
+ *    Interactive rows carry `max(Nrem, Npx)`. The unit can shrink; a thumb
+ *    cannot, so the px floor is what a finger actually gets.
+ *
+ * 2. THE EDGE. One border treatment, everywhere: 0.14rem of solid black and a
+ *    hard offset shadow of the same black. No radii, no blur, no gradient. That
+ *    is what makes a name plate, a badge, a bubble and a button all read as the
+ *    same object at different sizes, and it is why nothing here needs a colour
+ *    of its own to look deliberate.
+ */
 
-/* The game is one screen. Nothing scrolls, nothing sits under the world, and
-   every piece of interface floats over the canvas — which is both how it reads
-   as one small app and why nothing appearing can ever move the world. */
+/* The two families, vendored rather than linked.
+ *
+ * The game is installable and opens with no network, so a webfont from a CDN is
+ * a webfont that is missing on a plane — and a `<link>` to fonts.googleapis.com
+ * is also a request to somebody else's server for every child who opens this
+ * page. These are the latin subsets, 33KB the pair, sitting in vendor/ with
+ * their licences beside the rest of the third-party files, and precached by
+ * `sw.js` like everything else.
+ *
+ * `swap` on purpose: the game must be readable before the font has arrived, and
+ * the fallbacks below are chosen so a missing font is ugly, not broken. */
+@font-face {
+  font-family: 'DotGothic16';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../../vendor/fonts/dotgothic16-latin.woff2') format('woff2');
+}
+
+/* One variable file covers all three weights the interface asks for. */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../../vendor/fonts/space-grotesk-latin.woff2') format('woff2');
+}
+
+:root {
+  color-scheme: dark;
+
+  /* The ink and the two families. Chrome is pixel type; anything longer than a
+     few words is not, because a paragraph set in a pixel font is a paragraph
+     nobody reads. */
+  --ink: #e8e8ef;
+  --ink-quiet: #8f8fae;
+  --ink-faint: #6f6f8c;
+  --gold: #ffd76a;          /* the action colour, and only ever that */
+  --gold-ink: #22160a;
+  --rose: #ff7ab8;          /* the opponent's side of a duel */
+  --win: #7ce07c;
+  --wait: #9fc7ff;
+  --panel: #191927;
+  --sunk: #14141f;
+  --raised: #23233a;
+  --edge: #33334f;
+  --void: #06060a;
+
+  --pixel: 'DotGothic16', ui-monospace, 'SF Mono', Menlo, monospace;
+  --prose: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* The edge, in one place. */
+  --line: 0.14rem solid #000;
+  --lift: 0 0.2rem 0 #000;
+  --lift-lg: 0 0.25rem 0 #000;
+  --inset: inset 0 0 0 0.14rem var(--edge);
+}
+
+/* The one thing a component library was quietly providing that this file has to
+   provide for itself. Without it, `width: 100%` plus padding is wider than its
+   parent, and the duel card hangs off both edges of a phone. */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
 body {
   margin: 0;
   height: 100svh;
   overflow: hidden;
-  background: #08080c;
-  color: #e8e8ef;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--prose);
   overscroll-behavior: none;
+  /* Chrome text is pixel type, and pixel type must not be hinted or smoothed
+     into something softer than the art beside it. */
+  -webkit-font-smoothing: none;
+  font-smooth: never;
 }
+
+/* Prose is smoothed again: only the pixel font wants hard edges. */
+p, li, label { -webkit-font-smoothing: antialiased; }
 
 #stage {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: radial-gradient(120% 90% at 50% 0%, #17171f 0%, #0b0b10 70%);
+  background: var(--void);
 }
 
-/* The space the world is allowed to take: the whole screen. `src/main.js`
-   measures THIS box and sizes the canvas to it in whole art pixels, stopping at
-   the size of the world itself and centring what is left over.
-
-   `position: absolute; inset: 0` rather than `width/height: 100%`: as a grid
-   item its width would have been resolved against a column sized by the canvas
-   inside it, so the box measured to size the canvas depended on the canvas —
-   and a 640px canvas kept a 390px phone reporting a 640px box, forever. */
+/* The world fills the screen. It is no longer letterboxed inside it: the art
+   keeps a whole-number zoom and a small screen simply sees less of the town.
+   A 640×480 world shown whole on a phone wastes half the display and makes a
+   16px monster four millimetres tall. */
+/* No `line-height: 0` here, and none on #screen either. It is the usual trick
+   for killing the line box under a canvas — and a canvas that is `display:
+   block`, as the one below is, never had one. What it did instead was inherit
+   into every panel positioned inside this box: the duel card's heading came out
+   nought pixels tall and printed itself over the card's own top edge. */
 #arena {
   position: absolute;
   inset: 0;
-  line-height: 0;
   display: grid;
   place-items: center;
 }
 
-/* Exactly the canvas's box: it wraps the canvas and nothing else, so it is
-   whatever size `fitCanvas()` last made it. Everything on screen is positioned
-   against THIS, not against the arena — the arena is the whole window and can be
-   taller than the world, and an overlay measured from the window's bottom is an
-   overlay that will one day be below the canvas or off the screen. */
 #screen {
   position: relative;
-  /* `line-height: 0` because a canvas is an inline element and would otherwise
-     sit on a text baseline, leaving a few pixels of gap under it — which would
-     make this box very slightly taller than the canvas it is meant to be. */
-  line-height: 0;
 }
 
-/* Never smoothed, and never stretched: `src/main.js` gives it a size in whole
-   pixels and `render.js` draws the art at a whole-number scale.
-   `image-rendering: pixelated` is the last line of defence that keeps a 16px
-   sprite looking like pixel art instead of a smudge. */
 #world {
   display: block;
   image-rendering: pixelated;
   background: #0c0c12;
-  touch-action: none;      /* a finger steers the monster, it does not scroll */
+  touch-action: none;
   cursor: crosshair;
 }
 
-/* Over the top of the world, never in the flow — the badges change text (and
-   width) constantly as people arrive and leave, and none of that is allowed to
-   move the canvas by a pixel. */
+/* ------------------------------------------------------------- components */
+
+/* What basecoat used to provide, in the shape this game actually is. Square,
+   outlined, and pressed with a real offset rather than a shadow that pretends
+   to be light. */
+/* Chrome is pixel type — buttons, badges, the name field. A card is NOT on this
+   list: it holds paragraphs as well as headings, and every heading in this file
+   asks for the pixel family by name, so leaving a card's own text alone is what
+   keeps a sentence in the family that was chosen for sentences. */
+.btn,
+.btn-outline,
+.badge,
+input[type="text"] {
+  font-family: var(--pixel);
+}
+
+.btn,
+.btn-outline,
+.badge,
+.card,
+input[type="text"] { border-radius: 0; }
+
+.btn,
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0 0.7rem;
+  font-size: 0.95rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: var(--raised);
+  border: var(--line);
+  box-shadow: var(--lift);
+  cursor: pointer;
+  touch-action: manipulation;
+  /* A pressed pixel button moves down onto its own shadow. Nothing fades. */
+  transition: none;
+}
+
+.btn { background: var(--gold); color: var(--gold-ink); box-shadow: var(--lift-lg); }
+.btn-outline { background: var(--panel); }
+
+.btn:hover { background: #ffe49a; }
+.btn-outline:hover { background: #2e2e4a; }
+
+.btn:active,
+.btn-outline:active { transform: translateY(0.15rem); box-shadow: 0 0.05rem 0 #000; }
+
+.btn:focus-visible,
+.btn-outline:focus-visible {
+  outline: 0.14rem solid var(--gold);
+  outline-offset: 0.14rem;
+}
+
+.btn:disabled,
+.btn-outline:disabled { opacity: 0.45; cursor: default; transform: none; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: max(1.9rem, 24px);
+  padding: 0 0.55rem;
+  font-family: var(--pixel);
+  font-size: 0.95rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: #cfcfe4;
+  background: var(--panel);
+  border: var(--line);
+  box-shadow: 0 0.14rem 0 #000;
+}
+
+.card {
+  background: var(--panel);
+  border: 0.2rem solid #000;
+  box-shadow: 0 0.4rem 0 rgb(0 0 0 / 0.9), var(--inset);
+}
+
+input[type="text"] {
+  min-height: max(3rem, 44px);
+  padding: 0 0.7rem;
+  font-size: 1.2rem;
+  color: var(--ink);
+  background: #0f0f18;
+  border: 0.16rem solid #000;
+  box-shadow: var(--inset);
+  outline: none;
+}
+
+input[type="text"]:focus { box-shadow: inset 0 0 0 0.14rem var(--gold); }
+
+/* Headings and prose. A heading is pixel type; a sentence is not. */
+h2 { margin: 0; font-family: var(--pixel); font-size: 1.5rem; font-weight: 400; color: var(--gold); letter-spacing: 0.02em; }
+p { text-wrap: pretty; }
+
+/* ------------------------------------------------------------------ the HUD */
+
 #hud {
   position: absolute;
-  top: 0.6rem;
-  left: 0.6rem;
-  right: 0.6rem;
+  top: 0.5rem;
+  left: 0.5rem;
+  right: 0.5rem;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 0.35rem;
-  padding-right: 2.4rem;   /* the ⚙ sits in that corner; leave it alone */
-  line-height: normal;     /* #screen zeroes it for the canvas */
-  pointer-events: none;    /* the badges are text; the ⚙ turns this back on */
+  gap: 0.3rem;
+  padding-right: 3.2rem;    /* the ⚙ sits in that corner; leave it alone */
+  pointer-events: none;
   z-index: 4;
 }
 
-#hud .badge { backdrop-filter: blur(4px); }
-.hud-quiet { opacity: 0.75; font-weight: 400; }
+/* Your own name is the gold one. Nothing else on the HUD is. */
+#hud-name { background: var(--gold); color: var(--gold-ink); }
+.hud-quiet { color: var(--ink-quiet); }
 #hud .badge:empty { display: none; }
+
+/* "3 others here" gets a lit square rather than a word, so a glance is enough. */
+#hud-online::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.35rem;
+  background: var(--win);
+}
+
+#hud-online:empty::before { display: none; }
 
 /* ------------------------------------------------------ settings, behind a ⚙ */
 
-/* Pinned to the corner rather than laid out at the end of the badge row: the
-   badges change width all the time as people arrive, and a ⚙ that moves — or
-   wraps onto a second line on a phone — is a ⚙ you have to look for. */
 #settingsBtn {
   position: absolute;
   top: 0;
   right: 0;
   pointer-events: auto;
-  width: 34px;
-  min-height: 34px;
+  display: grid;
+  place-items: center;
+  /* game.css used to say 34px flat. It is now the unit with 34px as the floor,
+     so the gear grows on a desktop and never shrinks below a finger. */
+  width: max(2.6rem, 34px);
+  min-height: max(2.6rem, 34px);
   padding: 0;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  line-height: 1;
-  backdrop-filter: blur(4px);
-  touch-action: manipulation;
+  background: var(--raised);
 }
 
-#settingsBtn[aria-expanded="true"] { border-color: #ffd76a; color: #ffd76a; }
+#settingsBtn svg { width: 1.4rem; height: 1.4rem; }
+#settingsBtn[aria-expanded="true"] { color: var(--gold); }
 
 #settings[hidden] { display: none; }
 
 #settings {
   position: absolute;
-  top: 3rem;
-  right: 0.6rem;
+  top: 3.4rem;
+  right: 0.5rem;
   z-index: 6;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
   width: max-content;
-  min-width: 10.5rem;
-  padding: 0.45rem;
-  line-height: normal;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 0.7rem;
-  box-shadow: 0 14px 40px rgb(0 0 0 / 0.55);
-  /* This menu is the only route to every control that is not the game, so an
-     entry that cannot be reached is a control that has ceased to exist. On a
-     short window the panel was simply clipped and the last row — the link out to
-     the lessons — was gone, with no way to scroll to it. It is now bounded by
-     the box it hangs in (the canvas, which is never taller than the screen) and
-     scrolls inside that. Making the rows smaller would have been a fix that
-     lasts exactly until the next entry is added. */
-  max-height: calc(100% - 3.6rem);
+  min-width: 12rem;
+  padding: 0.4rem;
+  background: var(--panel);
+  border: 0.16rem solid #000;
+  box-shadow: 0 0.35rem 0 rgb(0 0 0 / 0.9), var(--inset);
+  /* This menu is the only route to everything that is not the game, so a row
+     that cannot be reached is a control that has ceased to exist. Bounded by
+     the box it hangs in, and it scrolls inside that. */
+  max-height: calc(100% - 4rem);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -138,51 +318,54 @@ body {
 #settings button,
 #settings a {
   flex: 0 0 auto;          /* a scrolling column must not squash its own rows */
-  min-height: 38px;
-  padding: 0 0.7rem;
-  font-size: 0.85rem;
-  border-radius: 0.5rem;
+  min-height: max(2.5rem, 38px);
+  padding: 0 0.6rem;
+  font-size: 0.95rem;
+  justify-content: flex-start;
   text-align: left;
 }
 
-/* Basecoat centres a button's label with flex; an <a> is inline, so it needs
-   saying, or the link sits a pixel or two off the buttons above it. */
 #settings a {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
   white-space: nowrap;
+  color: var(--ink-quiet);
+  background: var(--sunk);
 }
 
-#settings button[aria-pressed="true"] { border-color: #ffd76a; color: #ffd76a; }
+#settings a:hover { color: var(--gold); }
+#settings button[aria-pressed="true"] { color: var(--gold); box-shadow: inset 0 0 0 0.14rem var(--gold), var(--lift); }
 
 /* ------------------------------------------------------------- the help line */
 
-/* Out of flow like everything else, so fading it away moves nothing. Two lines,
-   hidden one at a time: how to walk and how to pick a fight are learned at
-   different moments. See src/ui/help.js. */
 #controls {
   position: absolute;
-  top: 4.4rem;             /* under the badges, even when they wrap on a phone */
+  /* Under the badges, even when they wrap to two rows on a phone: 0.5rem of top
+     inset, two 1.9rem badges and the 0.3rem between them come to 4.6rem, and a
+     line that starts inside the row above it is a line nobody finishes. */
+  top: 5rem;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.1rem;
-  max-width: min(92%, 30rem);
+  gap: 0.2rem;
+  max-width: min(88%, 30rem);
   margin: 0;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  background: rgb(8 8 14 / 0.62);
-  backdrop-filter: blur(4px);
-  font-size: 0.8rem;
-  line-height: normal;
+  padding: 0.45rem 0.7rem;
+  background: rgb(8 8 14 / 0.82);
+  border: var(--line);
+  font-family: var(--pixel);
+  font-size: 0.9rem;
+  line-height: 1.4;
   text-align: center;
-  opacity: 0.78;
+  color: #cfcfe4;
   pointer-events: none;
   transition: opacity 0.8s ease;
-  z-index: 3;
+  /* Below the name plates and bubbles (z-index 3 on #tags): a bubble that is
+     covered is a message that was never delivered. */
+  z-index: 2;
 }
 
 #controls.is-gone { opacity: 0; }
@@ -190,58 +373,107 @@ body {
 
 @media (prefers-reduced-motion: reduce) { #controls { transition: none; } }
 
+/* -------------------------------------------------- name plates and bubbles */
+
+/* Text over the world lives in the DOM, not on the canvas: text drawn into a
+   canvas can be read by an eye and by nothing else. This layer is positioned
+   from the numbers drawActor() returns — see src/ui/bubbles.js. */
+#tags {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.tag-plate {
+  position: absolute;
+  transform: translateX(-50%);
+  z-index: 2;              /* a bubble must never hide a name */
+  padding: 0.2rem 0.35rem;
+  white-space: nowrap;
+  font-family: var(--pixel);
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--ink);
+  background: rgb(10 10 18 / 0.85);
+  border: var(--line);
+}
+
+.tag-plate.is-self { color: var(--gold-ink); background: var(--gold); }
+
+/* One bubble shape, six contents: the three moves, won, lost, thinking, plus a
+   phrase. The doubled shadow is the stepped tail — two hard offsets, no curve,
+   so it belongs to the same drawing as the sprite under it. */
+.tag-bubble {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.1rem;
+  min-height: 1.8rem;
+  padding: 0.15rem 0.35rem;
+  white-space: nowrap;
+  font-family: var(--pixel);
+  font-size: 0.9rem;
+  color: var(--gold-ink);
+  background: #f3f3fb;
+  border: var(--line);
+  box-shadow: 0 0.16rem 0 #000, 0 0.3rem 0 -0.1rem #000;
+}
+
+.tag-bubble svg { width: 1.3rem; height: 1.3rem; }
+.tag-bubble.is-win { background: #1b3a1b; }
+.tag-bubble.is-lose { background: #16243a; }
+.tag-bubble.is-think { background: var(--raised); }
+.tag-bubble.is-think svg { animation: blink 1.2s steps(1, end) infinite; }
+
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .tag-bubble.is-think svg { animation: none; } }
+
 /* ---------------------------------------------------------------- chat bar */
 
-/* Along the bottom of the world, and ALWAYS one row. It used to wrap onto two
-   on a 390px phone, which moved everything under it and made the whole page
-   half an inch taller when the second row appeared. `nowrap` plus a font that
-   shrinks with the screen fits all six across a phone; the scroll is only a
-   safety net for something narrower than any phone we have. */
 #chatbar[hidden] { display: none; }
 
 #chatbar {
   display: flex;
   flex-wrap: nowrap;
-  gap: 0.3rem;
+  gap: 0.25rem;
   justify-content: center;
   max-width: 100%;
   pointer-events: auto;
-  line-height: normal;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
 #chatbar::-webkit-scrollbar { display: none; }
 
+/* All six across a phone, one row, no scroll. The clamp is against the viewport
+   because the bar is as wide as the screen; the 40px floor is the thumb. */
 .phrase-btn {
   flex: 0 0 auto;
-  min-height: 40px;
-  padding: 0 clamp(0.4rem, 1.8vw, 0.9rem);
-  font-size: clamp(0.68rem, 2.3vw, 0.95rem);
+  min-height: max(2.7rem, 40px);
+  padding: 0 clamp(3px, 1.3vw, 0.7rem);
+  font-size: clamp(9px, 2.5vw, 0.95rem);
   white-space: nowrap;
-  border-radius: 0.6rem;
-  backdrop-filter: blur(4px);
-  touch-action: manipulation;
+  /* Not gold: six of these in a row is not six calls to action, and `Challenge`
+     is the only gold thing at the bottom of the screen. The colour has to come
+     with the background, though — `.btn` sets dark ink to sit on gold, and
+     leaving that behind on a dark panel is six unreadable buttons. */
+  color: var(--ink);
+  background: var(--panel);
 }
+
+/* …and the same again for hover, or the pointer turns one phrase gold and its
+   pale text disappears into it. */
+.phrase-btn:hover { background: #2e2e4a; }
 
 /* --------------------------------------------- the bottom of the world */
 
 /* The challenge prompt and the phrase row are ONE stack, pinned to the bottom of
-   the canvas's own box.
-
-   Three earlier versions were wrong in three different ways: the first was
-   measured from the bottom of the page and sat on top of the sound buttons; the
-   second was given the canvas's grid cell, which pushed the canvas into the next
-   row so the whole page jumped every time somebody came into reach; the third
-   floated at a hand-tuned `bottom: 4.2rem`, picked to clear the phrase row —
-   which is only right while the phrase row is exactly that tall and actually
-   there. The owner found that one: alone in the world, with the phrases not
-   showing, the prompt was half off the bottom of the screen.
-
-   A stack has no such number in it. The prompt is above the phrases because it
-   comes before them; take the phrases away and the prompt takes the bottom of
-   the canvas. Nothing here is measured from the window, so it cannot leave the
-   world, and being out of flow it still moves nothing when it appears. */
+   the canvas's own box. The prompt is above the phrases because it comes before
+   them: take the phrases away and it takes the bottom of the canvas, with no
+   hand-tuned offset to go stale. */
 #bottom {
   position: absolute;
   left: 0;
@@ -250,15 +482,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  /* Never taller or wider than the canvas it is pinned inside, whatever the
-     window is doing: the canvas is at most the viewport, so anything inside
-     this box is inside the screen by construction and not by arithmetic. */
+  gap: 0.45rem;
   max-width: 100%;
   max-height: 100%;
-  padding: 0 0.4rem 0.55rem;
-  line-height: normal;     /* #screen zeroes it for the canvas */
-  pointer-events: none;    /* the gaps between the buttons are still the world */
+  padding: 0 0.4rem 0.5rem;
+  pointer-events: none;
   z-index: 5;
 }
 
@@ -266,21 +494,17 @@ body {
 
 #nearby {
   max-width: 90%;
-  min-height: 44px;
+  min-height: max(2.9rem, 44px);
   padding: 0 1.1rem;
   pointer-events: auto;
-  font-weight: 700;
-  border-radius: 0.6rem;
-  background: #ffd76a;
-  color: #22160a;
-  box-shadow: 0 6px 22px rgb(0 0 0 / 0.5);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
   animation: nudge 1.6s ease-in-out infinite;
-  touch-action: manipulation;
 }
 
 @keyframes nudge {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-3px); }
+  50%      { transform: translateY(-0.2rem); }
 }
 
 @media (prefers-reduced-motion: reduce) { #nearby { animation: none; } }
@@ -294,41 +518,36 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 0.6rem;
+  padding: 0.7rem;
   background: rgb(6 6 10 / 0.86);
   overflow-y: auto;
   z-index: 9;
 }
 
-/**
- * The card never grows past the window, and what it spends its space on is in
- * priority order: the three moves and the button that leaves are how you play,
- * so they are never allowed to shrink and never end up below the fold. It was
- * possible before to hold a phone sideways and have "Give up" off the bottom,
- * and to drag a window short and lose all three moves — an overlay that scrolls
- * is not an answer, because nobody scrolls a thing they cannot see.
- */
+/* The card never grows past the window, and what it spends its space on is in
+   priority order: the three moves and the button that leaves are how you play,
+   so they never shrink and never end up below the fold. */
 .duel-card {
   width: min(30rem, 100%);
   max-height: 100%;
-  padding: 1rem;
+  padding: 0.9rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
   text-align: center;
   overflow: hidden;
 }
 
 /* Everything above the buttons. This is the part that gives way: it shrinks
-   first, and only when there is genuinely nothing left to give does it scroll
-   inside itself — with the moves still sitting under it, on screen. */
+   first, and only when there is nothing left to give does it scroll inside
+   itself — with the moves still on screen under it. */
 .duel-top {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -336,27 +555,29 @@ body {
 .duel-moves,
 .duel-actions { flex: 0 0 auto; }
 
-.duel-title { margin: 0; font-size: 1.15rem; }
-.duel-sub { margin: 0; font-size: 0.8rem; opacity: 0.7; }
+.duel-title { margin: 0; font-family: var(--pixel); font-size: 1.5rem; font-weight: 400; color: var(--gold); }
+.duel-sub { margin: 0; font-size: 0.95rem; line-height: 1.5; color: var(--ink-quiet); }
 
 /* The score always carries both names. A bare "1 — 0" is the numbers without
-   the one thing you wanted them for. */
+   the one thing you wanted them for. Yours is gold, theirs is rose — the same
+   two colours the face-off uses, so you never have to work out which is which. */
 .duel-score {
   display: flex;
   justify-content: center;
   align-items: baseline;
   gap: 0.5rem;
-  margin: 0.2rem 0;
+  margin: 0;
+  font-family: var(--pixel);
   font-variant-numeric: tabular-nums;
 }
 
-.duel-num { font-size: 2.2rem; font-weight: 800; line-height: 1; }
-.duel-dash { opacity: 0.4; font-size: 1.2rem; }
+.duel-num { font-size: 2.2rem; line-height: 1; color: var(--gold); }
+.duel-num.is-them { color: var(--rose); }
+.duel-dash { font-size: 1.2rem; color: #55556f; }
 
 .duel-side {
-  font-size: 0.85rem;
-  font-weight: 600;
-  opacity: 0.75;
+  font-size: 0.95rem;
+  color: var(--ink-quiet);
   max-width: 7rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -365,15 +586,11 @@ body {
 
 /* ------------------------------------------------------------ the face-off */
 
-/* The two moves, side by side, for the whole round. Yours fills in the moment
-   you pick it; theirs is a question mark until both are in. Fixed height, so
-   the card does not resize under your thumb when the reveal lands. */
 .duel-face {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: stretch;
-  gap: 0.5rem;
-  margin: 0.35rem 0 0.1rem;
+  gap: 0.4rem;
 }
 
 .duel-face[hidden] { display: none; }
@@ -382,51 +599,51 @@ body {
   display: grid;
   align-content: center;
   justify-items: center;
-  gap: 0.1rem;
-  min-height: 118px;
-  padding: 0.6rem 0.3rem;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  border-radius: 0.8rem;
-  background: rgb(255 255 255 / 0.03);
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  gap: 0.15rem;
+  min-height: max(7rem, 90px);
+  padding: 0.5rem 0.3rem;
+  background: var(--sunk);
+  border: var(--line);
+  box-shadow: inset 0 0 0 0.14rem #2a2a44;
 }
 
-.duel-face-name { font-size: 0.75rem; font-weight: 600; opacity: 0.6; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.duel-face-icon { font-size: 2.6rem; line-height: 1.15; }
-.duel-face-move { font-size: 0.9rem; font-weight: 700; }
+.duel-side-box.is-known { background: #1d1d30; box-shadow: inset 0 0 0 0.14rem #3f3f66; }
 
-/* "wins" only exists on the winning side, and only takes up room there. */
+.duel-face-name { font-family: var(--pixel); font-size: 0.85rem; color: var(--ink-faint); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.duel-face-icon { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; }
+.duel-face-icon svg { width: 100%; height: 100%; }
+.duel-face-move { font-family: var(--pixel); font-size: 0.95rem; }
+
 .duel-face-win {
-  margin-top: 0.15rem;
-  padding: 0.05rem 0.45rem;
-  border-radius: 999px;
-  background: #ffd76a;
-  color: #22160a;
-  font-size: 0.65rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  margin-top: 0.1rem;
+  padding: 0.05rem 0.4rem;
+  font-family: var(--pixel);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  background: var(--gold);
+  color: var(--gold-ink);
   visibility: hidden;
 }
 
 .duel-side-box.is-win {
-  border-color: #ffd76a;
-  background: rgb(255 215 106 / 0.12);
-  transform: scale(1.03);
+  background: #2a2312;
+  box-shadow: inset 0 0 0 0.14rem var(--gold);
 }
 
+.duel-side-box.is-win .duel-face-name { color: #a08e5a; }
 .duel-side-box.is-win .duel-face-win { visibility: visible; }
 
-/* Not chosen yet: a dim question mark that breathes, so "we are waiting on this
-   one" is visible from across a room and not only readable up close. */
+/* Not chosen yet: three dim dots that breathe, so "we are waiting on this one"
+   is visible from across a room and not only readable up close. */
 .duel-side-box:not(.is-known) .duel-face-icon { opacity: 0.35; animation: think 1.4s ease-in-out infinite; }
-.duel-side-box:not(.is-known) .duel-face-move { opacity: 0.5; font-weight: 500; }
+.duel-side-box:not(.is-known) .duel-face-move { color: var(--ink-quiet); }
 
-.duel-vs { align-self: center; font-size: 0.8rem; font-weight: 700; opacity: 0.45; }
+.duel-vs { align-self: center; font-family: var(--pixel); font-size: 0.9rem; color: #55556f; }
 
 @keyframes think {
-  0%, 100% { opacity: 0.25; }
-  50%      { opacity: 0.6; }
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 0.75; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -435,25 +652,35 @@ body {
 
 /* ---- the three states, told apart by eye and not only by reading ---- */
 
-.duel-banner { margin: 0; font-weight: 800; font-size: 1.05rem; min-height: 1.5rem; }
-.duel-why { margin: 0; font-size: 0.85rem; opacity: 0.75; min-height: 2.4rem; line-height: 1.5; }
+.duel-banner { margin: 0; font-family: var(--pixel); font-size: 1.3rem; letter-spacing: 0.02em; text-wrap: balance; }
+.duel-why { margin: 0; font-size: 0.9rem; line-height: 1.45; color: var(--ink-quiet); }
 
-/* Your turn: the banner is lit and the buttons below it are live. */
-.duel-card[data-phase="choosing"] .duel-banner { color: #ffd76a; }
-
-/* Their turn: everything cools down and the card says so quietly. The moves are
-   already disabled by the screen — this is what makes that *look* different. */
-.duel-card[data-phase="waiting"] .duel-banner { color: #9fc7ff; font-weight: 700; }
+.duel-card[data-phase="choosing"] .duel-banner { color: var(--gold); }
+.duel-card[data-phase="waiting"] .duel-banner { color: var(--wait); }
 .duel-card[data-phase="waiting"] .duel-moves { opacity: 0.5; }
 
-/* The reveal is the loudest thing on the screen, and it stays for roundGapMs. */
-.duel-card[data-phase="resolved"] .duel-banner,
-.duel-card[data-phase="over"] .duel-banner { font-size: 1.2rem; }
+.duel-card[data-phase="resolved"] .duel-banner { color: var(--win); font-size: 1.45rem; }
+.duel-card[data-phase="over"] .duel-banner { color: var(--win); font-size: 1.6rem; }
+
+/* Green is for the rounds you won. A round that went the other way takes the
+   opponent's rose, and a draw takes neither — the score row above uses the same
+   two colours, so the banner never has to be read to know which way it went. */
+.duel-card[data-result="them"] .duel-banner { color: var(--rose); }
+.duel-card[data-result="nobody"] .duel-banner { color: var(--ink-quiet); }
+.duel-card[data-phase="resolved"] .duel-moves,
+.duel-card[data-phase="over"] .duel-moves { opacity: 0.45; }
 .duel-card[data-phase="resolved"] .duel-face { animation: reveal 0.28s ease-out; }
+.duel-card[data-phase="over"] .duel-num { font-size: 3rem; }
+
+/* The result sentence and the score row say the same thing twice. The row above
+   already carries the numbers, so the sentence carries only the verdict. */
+.duel-card[data-phase="over"] .duel-why { display: none; }
+
+.duel-over-label { margin: 0; font-family: var(--pixel); font-size: 1.05rem; letter-spacing: 0.14em; color: var(--ink-faint); }
 
 @keyframes reveal {
-  from { transform: scale(0.94); opacity: 0.4; }
-  to   { transform: scale(1); opacity: 1; }
+  from { transform: scale(0.9); }
+  to   { transform: scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -464,8 +691,7 @@ body {
 .duel-moves {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  margin-top: 0.25rem;
+  gap: 0.4rem;
 }
 
 .duel-moves[hidden] { display: none; }
@@ -473,79 +699,69 @@ body {
 .duel-move {
   display: grid;
   justify-items: center;
-  gap: 0.15rem;
-  min-height: 76px;
-  padding: 0.5rem 0.2rem;
-  border-radius: 0.7rem;
-  font: inherit;
-  touch-action: manipulation;
+  gap: 0.1rem;
+  min-height: max(4.6rem, 54px);
+  padding: 0.4rem 0.2rem;
+  box-shadow: var(--lift-lg), inset 0 0.14rem 0 rgb(255 255 255 / 0.06);
 }
 
-.duel-move-icon { font-size: 1.7rem; line-height: 1.1; }
-.duel-move-name { font-size: 0.8rem; font-weight: 600; }
+.duel-move:hover { background: #32325a; }
+.duel-move-icon { display: grid; place-items: center; width: 2.1rem; height: 2.1rem; }
+.duel-move-icon svg { width: 100%; height: 100%; }
+.duel-move-name { font-size: 0.95rem; }
 .duel-move:disabled { opacity: 0.45; }
-.duel-move.is-picked { outline: 2px solid #ffd76a; outline-offset: 2px; }
+.duel-move.is-picked { outline: 0.16rem solid var(--gold); outline-offset: 0.14rem; }
 
 .duel-score[hidden] { display: none; }
 
 .duel-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
   justify-content: center;
-  margin-top: 0.6rem;
+  margin-top: 0.3rem;
 }
 
 .duel-actions button {
-  min-height: 44px;
+  min-height: max(2.8rem, 44px);
   padding: 0 1.1rem;
-  border-radius: 0.6rem;
-  touch-action: manipulation;
+  font-size: 1rem;
 }
 
+/* Giving up is not an action you should hit by accident. */
+.duel-give-up { background: var(--sunk); color: var(--ink-quiet); }
+.duel-give-up:hover { background: var(--sunk); color: var(--ink); }
 .duel-actions button[hidden] { display: none; }
-.duel-yes { font-weight: 700; }
 
-@media (max-width: 26rem) {
-  .duel-num { font-size: 1.8rem; }
-  .duel-move { min-height: 62px; }
-  .duel-side-box { min-height: 104px; }
-  .duel-face-icon { font-size: 2.2rem; }
-}
+/* The only two shape changes in this file. Everything else is the unit.
 
-/* A phone held sideways, or a window dragged short. Everything above the moves
-   gets smaller so that scrolling stays a last resort rather than the way the
-   card normally works — the moves themselves stay a size a thumb can hit. */
-@media (max-height: 560px) {
-  .duel-card { padding: 0.6rem; gap: 0.35rem; }
-  .duel-top { gap: 0.3rem; }
-  .duel-title { font-size: 1rem; }
-  .duel-sub { font-size: 0.72rem; }
-  .duel-num { font-size: 1.5rem; }
-  .duel-banner { font-size: 0.95rem; min-height: 0; }
-  .duel-why { font-size: 0.78rem; min-height: 0; }
-  .duel-side-box { min-height: 66px; padding: 0.3rem 0.2rem; }
-  .duel-face-icon { font-size: 1.7rem; }
-  .duel-face-move { font-size: 0.8rem; }
-  .duel-move { min-height: 54px; }
-  .duel-move-icon { font-size: 1.3rem; }
-  .duel-actions { margin-top: 0.2rem; }
-  .duel-actions button { min-height: 40px; }
-}
-
-/* Shorter still. The face-off goes ONLY while you are choosing, where both
-   sides are a question mark and it is saying nothing you cannot see in the
-   buttons below it. The moment there is a move on it — yours while you wait, or
-   both at the reveal — it comes back, because that is the whole panel. */
-@media (max-height: 400px) {
+   Short: the face-off goes ONLY while you are choosing, where both sides are
+   dots and it is saying nothing the buttons below it do not. The moment there
+   is a real move on it — yours while you wait, or both at the reveal — it comes
+   back, because that is the whole panel. */
+@media (max-height: 420px) {
   .duel-card[data-phase="choosing"] .duel-face { display: none; }
-  /* The round number and the running score both live on the score row above, so
-     the small print under the sentence is repeating itself. It is the cheapest
-     thing to drop, and dropping it is what keeps this from scrolling at all. */
   .duel-sub,
   .duel-why { display: none; }
-  .duel-side-box { min-height: 52px; }
-  .duel-face-icon { font-size: 1.4rem; }
-  .duel-face-win { font-size: 0.6rem; }
+  .duel-side-box { min-height: max(3.6rem, 52px); }
+  .duel-face-icon { width: 1.8rem; height: 1.8rem; }
+
+  /* The sentence that says who took the round has to fit in the room the
+     face-off leaves it. At full size it wraps to a second line that falls below
+     the scrolling area, and a player will not scroll a duel to find out whether
+     they won — measured at 1440x300 and at 740x360, where the second line was
+     22 and 14 pixels past the bottom. */
+  .duel-banner,
+  .duel-card[data-phase="resolved"] .duel-banner,
+  .duel-card[data-phase="over"] .duel-banner { font-size: 1.05rem; line-height: 1.15; }
+
+  /* And the heading goes, once a fight is actually on: "You vs Flint" is what
+     the score row underneath it already says, in bigger type, with the numbers.
+     Only while fighting — before that the heading is the whole message ("Flint
+     challenges you!") and there is no score row to carry it. */
+  .duel-card[data-phase="choosing"] .duel-title,
+  .duel-card[data-phase="waiting"] .duel-title,
+  .duel-card[data-phase="resolved"] .duel-title,
+  .duel-card[data-phase="over"] .duel-title { display: none; }
 }
 
 /* ---------------------------------------------------------------- overlay */
@@ -557,96 +773,74 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 1rem;
-  background: rgb(6 6 10 / 0.82);
-  overflow-y: auto;      /* the safety card is taller than a short phone screen */
+  padding: 0.8rem;
+  background: rgb(6 6 10 / 0.86);
+  overflow-y: auto;
   z-index: 10;
 }
 
-.onboarding-card {
-  width: min(30rem, 100%);
-  padding: 1.5rem;
-  display: grid;
-  gap: 0.5rem;
-}
+.onboarding-card { width: min(28rem, 100%); padding: 1.2rem; display: grid; gap: 0.3rem; }
+.onboarding-card .onboarding-title { font-family: var(--pixel); font-size: 1.8rem; font-weight: 400; color: var(--gold); letter-spacing: 0.04em; margin: 0; }
+.onboarding-card p { margin: 0.3rem 0 0; font-size: 0.95rem; color: #a0a0bb; }
+.onboarding-form { display: grid; gap: 0.4rem; margin-top: 1rem; }
+.onboarding-form label { font-family: var(--pixel); font-size: 0.9rem; color: var(--ink-quiet); }
+.onboarding-hint { min-height: 1.2rem; margin: 0.6rem 0 0; font-size: 0.85rem; color: #ff9a9a; }
+.onboarding-confirm { width: 100%; min-height: max(3rem, 44px); margin-top: 0.3rem; font-size: 1.1rem; }
 
-.onboarding-form {
-  display: grid;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.onboarding-hint { min-height: 1.25rem; color: #ff9a9a; }
-.onboarding-confirm { margin-top: 0.5rem; width: 100%; }
-
-/* "Start over": two plain buttons, neither of them red. */
-.reset-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: center;
-  margin-top: 1rem;
-}
-
-.reset-actions button {
-  min-height: 44px;
-  padding: 0 1.1rem;
-  border-radius: 0.6rem;
-  touch-action: manipulation;
-}
-
-.reset-yes { font-weight: 700; }
+.reset-actions { display: flex; gap: 0.4rem; justify-content: center; margin-top: 1rem; }
+.reset-actions button { min-height: max(3rem, 44px); padding: 0 1.1rem; }
 
 /* The card about other people. Calm, not alarming: no red, no warning icon. */
 .safety-card { width: min(34rem, 100%); }
 
 .safety-list {
-  margin: 0.75rem 0 0;
+  margin: 0.9rem 0 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .safety-list li {
-  padding: 0.7rem 0.85rem;
-  border-radius: 0.6rem;
-  background: rgb(255 255 255 / 0.04);
-  border: 1px solid rgb(255 255 255 / 0.08);
+  padding: 0.7rem 0.8rem;
+  background: var(--sunk);
+  border: var(--line);
+  box-shadow: inset 0 0 0 0.14rem #2a2a44;
 }
 
-.safety-list strong { display: block; font-size: 0.95rem; }
-.safety-list p { margin: 0.2rem 0 0; font-size: 0.85rem; opacity: 0.78; line-height: 1.5; }
+.safety-list strong { display: block; font-family: var(--pixel); font-size: 1.05rem; font-weight: 400; color: var(--ink); }
+.safety-list p { margin: 0.2rem 0 0; font-size: 0.9rem; line-height: 1.5; color: #a0a0bb; }
 
 .monster-grid {
-  margin-top: 0.75rem;
+  margin-top: 0.9rem;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .monster-card {
   display: grid;
   justify-items: center;
   gap: 0.25rem;
-  padding: 0.6rem 0.3rem;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 0.6rem;
-  background: rgb(255 255 255 / 0.03);
+  padding: 0.5rem 0.3rem;
   color: inherit;
+  background: var(--sunk);
+  border: var(--line);
+  box-shadow: inset 0 0 0 0.14rem #2a2a44;
   font: inherit;
   cursor: pointer;
 }
 
-.monster-card:hover { background: rgb(255 255 255 / 0.08); }
-.monster-card[aria-pressed="true"] {
-  border-color: #ffd76a;
-  background: rgb(255 215 106 / 0.12);
-}
+.monster-card:hover { background: #1d1d30; }
+.monster-card[aria-pressed="true"] { background: #2a2312; box-shadow: inset 0 0 0 0.14rem var(--gold); }
+.monster-swatch { image-rendering: pixelated; width: 3.4rem; height: 3.4rem; }
+.monster-name { font-family: var(--pixel); font-size: 0.9rem; }
+
+/* Nothing sits under an animal but its name: the animal you pick has no effect
+   on a duel, so any badge under it would say otherwise. */
 
 /* -------------------------------------------------- the paused window card */
 
-/* Above everything, including a duel screen — an inactive window must not look
-   like it is still half-playable. Calm on purpose: nothing has gone wrong. */
 #paused[hidden] { display: none; }
 
 #paused {
@@ -654,38 +848,12 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 1rem;
-  background: rgb(6 6 10 / 0.92);
+  padding: 0.8rem;
+  background: rgb(6 6 10 / 0.94);
   z-index: 20;
 }
 
-.paused-card {
-  width: min(26rem, 100%);
-  padding: 1.5rem;
-  display: grid;
-  gap: 0.6rem;
-  text-align: center;
-}
-
-.paused-title { margin: 0; font-size: 1.15rem; }
-.paused-body { margin: 0; font-size: 0.9rem; opacity: 0.8; line-height: 1.55; }
-
-.paused-resume {
-  justify-self: center;
-  min-height: 44px;
-  padding: 0 1.2rem;
-  margin-top: 0.4rem;
-  font-weight: 700;
-  border-radius: 0.6rem;
-  touch-action: manipulation;
-}
-
-.monster-swatch { image-rendering: pixelated; width: 56px; height: 56px; }
-.monster-name { font-size: 0.85rem; font-weight: 600; }
-
-/* Nothing sits under an animal but its name: the animal you pick has no effect
-   on a duel, so any badge under it would say otherwise. */
-
-@media (max-width: 26rem) {
-  .monster-grid { grid-template-columns: repeat(2, 1fr); }
-}
+.paused-card { width: min(26rem, 100%); padding: 1.3rem; display: grid; gap: 0.5rem; text-align: center; }
+.paused-title { margin: 0; font-family: var(--pixel); font-size: 1.4rem; font-weight: 400; color: var(--ink); }
+.paused-body { margin: 0; font-size: 0.95rem; line-height: 1.55; color: #a0a0bb; }
+.paused-resume { justify-self: center; min-height: max(3rem, 44px); margin-top: 0.4rem; padding: 0 1.2rem; font-size: 1.05rem; }
