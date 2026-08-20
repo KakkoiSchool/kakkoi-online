@@ -925,3 +925,28 @@ never arrives. Here the answer was "the game is over until you reload", and a br
 event always arrives — could never have shown it. The fix that lasts is not handling one more event
 name; it is checking the state you actually care about, on a clock that is independent of the thing
 that failed.
+
+## 2026-08-20 — a player closed their tab and stayed in the world, wearing an id
+**Lesson:** A12 / A13 (other people)
+**What it produced:** three message handlers in `net.js`, each opening with
+`const peer = peers.get(id) || makePeer(id)` — make a record for whoever this packet came from. It
+reads as ordinary defensiveness, and it is how the file had always worked.
+**Why it was wrong:** it answers the wrong question. `peers` is what we know *about* people, and the
+handler was using it as if it were *who is here*. A player who closes their tab leaves one last
+position packet in flight, and it can arrive after trystero has already reported them gone and their
+record has been deleted — so the packet made a fresh one. Having missed the greeting that carries the
+name, it fell back to `id.slice(0, 4)`; having no sender left alive, nothing would ever move or remove
+it. The owner saw a monster standing in the plaza called `a1b2`, which he could walk up to and
+challenge, for the rest of the session.
+**How I caught it:** the owner reported it, and the id-shaped name was the whole diagnosis — that
+string exists in exactly one place in the codebase, in `makePeer`, so the record had to have been
+made *after* the greeting was already spent. Reproducing it needed a fake trystero and one line of
+ordering: join, hello, move, leave, move.
+**The fix:** a `here` set written only by trystero's own join and leave, and a `present(id)` that
+every message goes through — a record for somebody in the room, null for a departed player or a
+stranger who never joined, and the message dropped and counted in `net.dropped.gone`. Rejoining works,
+because the join is what puts somebody back in `here`.
+**Worth telling students:** the giveaway was a name that could only have come from one line of code.
+When something looks wrong on screen, find the exact place that string or number can be produced —
+that usually names the bug before you have read anything else. And when you write `x || make(x)`, ask
+what it means if `x` is missing *because it was deliberately removed a moment ago*.

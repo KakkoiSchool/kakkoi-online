@@ -166,6 +166,33 @@ in the save.
 **The online count.** Always in the HUD, because a world with nobody in it and a world that is broken
 look identical. Alone, it says "Just you here for now".
 
+## A packet can outlive the person who sent it
+
+Somebody closed their tab and stayed in the world: still drawn, still standing there, still close
+enough to challenge — and wearing the first four letters of their peer id where their name had been.
+
+The id is the whole diagnosis. `net.js` had three handlers that each began `peers.get(id) ||
+makePeer(id)`, making a record for whoever a packet came from. That is fine while somebody is here and
+wrong the moment they are not: a player who closes their tab leaves one last position packet in
+flight, and it can arrive *after* `onPeerLeave` has removed them. The record it made had missed the
+greeting that carries the name, so it fell back to `id.slice(0, 4)`, and nothing was ever going to
+arrive to move it or remove it again.
+
+The fix is to separate two questions that had been sharing one map. `peers` is what we know **about**
+people; a new `here` set is who is actually **in the room**, written only by trystero's own join and
+leave. Every message now goes through `present(id)`, which returns a record for somebody who is here,
+makes one if this is the first we have heard from them, and returns null for everybody else — a
+departed player, or a stranger who never joined at all. The caller drops the message and counts it in
+`net.dropped.gone`. Somebody who joins again gets a real record again, because the join is what puts
+them back in `here`.
+
+`tests/net.test.html` covers it, and needs a word of explanation: `net.js` is the only file that knows
+trystero exists, which is exactly what makes it hard to test, because there is no network in the page
+to drive. The test uses an **import map** to point that one specifier at `tests/fake-nostr.js`, so
+`net.js` runs unmodified against a room the test can shout into — join, leave, and deliver, in any
+order, including the order that was the bug. An import map only applies to the page that declares it,
+so the game is untouched. Six of its eleven rows fail against the build this fixed.
+
 ## The fight (stage 3)
 
 **The moves are rock, paper and scissors, and nothing else.** Rock beats scissors, scissors beats

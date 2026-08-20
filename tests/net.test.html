@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakkoi Online — who is in the room</title>
+  <style>
+    body { font: 14px/1.6 system-ui, sans-serif; margin: 2rem; background: #1b1b22; color: #e8e8ef; }
+    h1 { font-size: 1.2rem; }
+    #summary { font-weight: 700; margin-bottom: 1rem; }
+    .row { font-family: ui-monospace, monospace; }
+    .pass { color: #7ee081; }
+    .fail { color: #ff7b72; }
+  </style>
+
+  <!-- src/net.js is the only file that knows trystero exists, which is what
+       makes it hard to test: there is no network in here to drive. This points
+       that one import at tests/fake-nostr.js, so net.js runs UNMODIFIED against
+       a room this page can shout into. The game itself is untouched — an import
+       map only applies to the page that declares it. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "/vendor/trystero/nostr.js": "/tests/fake-nostr.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>who is in the room</h1>
+  <p>Open this file through Live Server (not <code>file://</code>) — it loads modules.</p>
+  <div id="summary">running…</div>
+  <div id="rows"></div>
+
+  <script type="module">
+    import { joinRoom } from '../src/net.js';
+    import { harness } from './fake-nostr.js';
+
+    const rows = document.querySelector('#rows');
+    let passed = 0;
+    let failed = 0;
+
+    function test(name, body) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      try {
+        body();
+        passed++;
+        row.classList.add('pass');
+        row.textContent = `PASS  ${name}`;
+      } catch (err) {
+        failed++;
+        row.classList.add('fail');
+        row.textContent = `FAIL  ${name} — ${err.message}`;
+      }
+      rows.append(row);
+    }
+
+    function is(actual, expected, what) {
+      if (actual !== expected) throw new Error(`${what}: expected ${expected}, got ${actual}`);
+    }
+
+    const WORLD = { tile: 32, width: 1536, height: 1152 };
+    const MONSTERS = [
+      { id: 0, name: 'Sunmane', cell: 156 },
+      { id: 1, name: 'Flint', cell: 12 },
+    ];
+
+    /** A freshly joined room, plus the handle that plays everybody else. */
+    function room() {
+      const net = joinRoom({
+        world: WORLD,
+        identity: { name: 'Kiri', monster: 0 },
+        monsters: MONSTERS,
+        tuning: { posHz: 10, interpDelayMs: 150 },
+      });
+      return { net, wire: harness() };
+    }
+
+    /** Somebody arrives, says who they are, and stands somewhere. */
+    function arrive(wire, id, name = 'Rue', at = { x: 400, y: 300 }) {
+      wire.join(id);
+      wire.deliver('hello', { name, monster: 1 }, id);
+      wire.deliver('move', { x: at.x, y: at.y, m: 1 }, id);
+    }
+
+    // ------------------------------------------------------- the ordinary day
+
+    test('somebody who joins and says hello is in the room, by name', () => {
+      const { net, wire } = room();
+      arrive(wire, 'p1');
+      is(net.count(), 1, 'how many are here');
+      is(net.peer('p1').name, 'Rue', 'their name');
+      is(net.peer('p1').x, 400, 'where they are');
+      is(net.peer('p1').monster, 1, 'which monster');
+    });
+
+    test('a position from somebody in the room is believed', () => {
+      const { net, wire } = room();
+      arrive(wire, 'p1');
+      wire.deliver('move', { x: 512, y: 288, m: 1 }, 'p1');
+      is(net.peer('p1').x, 512, 'their x');
+      is(net.dropped.position, 0, 'nothing refused');
+    });
+
+    test('a position off the edge of the world is refused', () => {
+      const { net, wire } = room();
+      arrive(wire, 'p1');
+      wire.deliver('move', { x: 99999, y: 0, m: 1 }, 'p1');
+      is(net.peer('p1').x, 400, 'they did not move');
+      is(net.dropped.position, 1, 'and it was counted');
+    });
+
+    // ------------------------------------- the packet that outlived its sender
+
+    test('leaving the room takes them off the screen', () => {
+      const { net, wire } = room();
+      arrive(wire, 'p1');
+      wire.part('p1');
+      is(net.count(), 0, 'how many are here');
+      is(net.peer('p1'), undefined, 'their record');
+    });
+
+    test('a position that arrives after they have gone does not bring them back', () => {
+      const { net, wire } = room();
+      arrive(wire, 'p1');
+      wire.part('p1');
+      // The last thing they broadcast, still in flight when the channel closed.
+      wire.deliver('move', { x: 420, y: 300, m: 1 }, 'p1');
+      is(net.count(), 0, 'how many are here');
+      is(net.peer('p1'), undefined, 'no ghost was made for them');
+      is(net.dropped.gone, 1, 'and the packet was counted');
+    });
+
+    test('a ghost cannot appear wearing the first four letters of an id', () => {
+      // This is what the bug looked like from the outside: somebody standing in
+      // the plaza called `a1b2`, who could still be walked up to and challenged.
+      const { net, wire } = room();
+      arrive(wire, 'a1b2c3d4');
+      wire.part('a1b2c3d4');
+      wire.deliver('move', { x: 420, y: 300, m: 1 }, 'a1b2c3d4');
+      is(net.peers().length, 0, 'how many are drawn');
+      is(net.peers().some((p) => p.name === 'a1b2'), false, 'anybody wearing an id');
+    });
+
+    test('a greeting after they have gone is refused as well', () => {
+      const { net, wire } = room();
+      arrive(wire, 'p1');
+      wire.part('p1');
+      wire.deliver('hello', { name: 'Rue', monster: 1 }, 'p1');
+      is(net.count(), 0, 'how many are here');
+      is(net.dropped.gone, 1, 'counted');
+    });
+
+    test('a duel started by somebody who has gone is refused', () => {
+      const { net, wire } = room();
+      let started = 0;
+      net.onLink(() => { started++; });
+      arrive(wire, 'p1');
+      wire.part('p1');
+      wire.deliver('duel', { t: 'ask' }, 'p1');
+      is(started, 0, 'conversations opened with a ghost');
+      is(net.count(), 0, 'how many are here');
+      is(net.dropped.gone, 1, 'counted');
+    });
+
+    test('a stranger who never joined cannot arrive by packet alone', () => {
+      const { net, wire } = room();
+      wire.deliver('move', { x: 400, y: 300, m: 1 }, 'nobody');
+      wire.deliver('hello', { name: 'Nobody', monster: 1 }, 'nobody');
+      is(net.count(), 0, 'how many are here');
+      is(net.dropped.gone, 2, 'both counted');
+    });
+
+    // --------------------------------------------------------- and coming back
+
+    test('somebody who joins again is a real person again', () => {
+      const { net, wire } = room();
+      arrive(wire, 'p1');
+      wire.part('p1');
+      wire.deliver('move', { x: 420, y: 300, m: 1 }, 'p1');   // the late one
+      is(net.count(), 0, 'gone');
+
+      arrive(wire, 'p1', 'Rue', { x: 448, y: 320 });          // and back
+      is(net.count(), 1, 'here again');
+      is(net.peer('p1').name, 'Rue', 'named again');
+      is(net.peer('p1').x, 448, 'and where they now are');
+    });
+
+    test('a duel conversation is closed when its opponent leaves', () => {
+      const { net, wire } = room();
+      arrive(wire, 'p1');
+      let closed = 0;
+      const link = net.linkTo('p1');
+      link.onClose(() => { closed++; });
+      wire.part('p1');
+      is(closed, 1, 'the fight was told');
+    });
+
+    const summary = document.querySelector('#summary');
+    summary.textContent = `${passed} passed, ${failed} failed`;
+    summary.className = failed ? 'fail' : 'pass';
+  </script>
+</body>
+</html>

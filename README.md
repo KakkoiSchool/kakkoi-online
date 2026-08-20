@@ -52,8 +52,9 @@ Home Screen". It then opens like an app, with no browser bar, **and it works wit
 world, your saved character and Flint are all cached. Other players are the one thing offline cannot
 give you, because finding them needs a real connection.
 
-**Tests** are web pages: open `tests/rules.test.html` and `tests/spectate.test.html` through the same
-server and read the PASS/FAIL rows. No test runner, no npm.
+**Tests** are web pages: open `tests/rules.test.html`, `tests/net.test.html` and
+`tests/spectate.test.html` through the same server and read the PASS/FAIL rows. No test runner, no
+npm.
 
 ## How it fits together
 

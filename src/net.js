@@ -75,7 +75,18 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
   const peers = new Map();
 
   /** Everything we refused, by reason. Handy in the console, honest in a lesson. */
-  const dropped = { position: 0, monster: 0, name: 0, message: 0 };
+  const dropped = { position: 0, monster: 0, name: 0, message: 0, gone: 0 };
+
+  /**
+   * Everybody trystero currently holds a connection to.
+   *
+   * Kept beside `peers` because the two answer different questions: `peers` is
+   * what we know ABOUT people, and this is who is actually here. A packet can
+   * outlive its sender — the last position somebody broadcast can arrive after
+   * trystero has said they left — and without this, that packet would make them
+   * a new record. See `present()`.
+   */
+  const here = new Set();
 
   const joinHandlers = [];
   const leaveHandlers = [];
@@ -127,7 +138,28 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     return peer;
   }
 
+  /**
+   * The record for somebody who is really in the room, made on demand.
+   *
+   * Every message goes through here rather than making a record for whoever
+   * sent it. A player who closes their tab leaves one last position packet in
+   * flight, and it can arrive AFTER `onPeerLeave` has removed them: the old code
+   * cheerfully made them a fresh record, which — having missed the greeting that
+   * carries the name — showed the first four letters of their peer id where
+   * their name should be, standing wherever that final packet put them, for the
+   * rest of the session. Nothing was ever going to arrive to move or remove
+   * them, and you could still walk up to the ghost and challenge it.
+   *
+   * Returns null for somebody who is not here, and the caller drops the message.
+   */
+  function present(id) {
+    if (peers.has(id)) return peers.get(id);
+    if (!here.has(id)) return null;
+    return makePeer(id);
+  }
+
   room.onPeerJoin((id) => {
+    here.add(id);
     const peer = peers.get(id) || makePeer(id);
     // Tell the newcomer who we are, and where. They do the same to us: trystero
     // fires this on both sides, so nobody has to ask.
@@ -137,6 +169,7 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
   });
 
   room.onPeerLeave((id) => {
+    here.delete(id);
     const peer = peers.get(id);
     // Close any duel with them BEFORE forgetting who they were: a link's name
     // is looked up from the peer list, and "sUSd left" is not what a person
@@ -193,8 +226,9 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     if (!data || typeof data !== 'object' ||
         typeof data.t !== 'string' || data.t.length > 8) { dropped.message++; return; }
     // Somebody can start a duel before their greeting has landed, and a link
-    // that has no peer record cannot answer. Make the record first.
-    if (!peers.has(id)) makePeer(id);
+    // that has no peer record cannot answer. Make the record first — unless they
+    // are not here at all, in which case there is nobody to duel.
+    if (!present(id)) { dropped.gone++; return; }
     const fresh = !links.has(id);
     const link = linkTo(id);
     // Tell whoever cares about a brand new conversation BEFORE the message that
@@ -211,7 +245,8 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
    * the same "letters, digits, spaces, - and _ only" rule.
    */
   onHello((data, id) => {
-    const peer = peers.get(id) || makePeer(id);
+    const peer = present(id);
+    if (!peer) { dropped.gone++; return; }
     if (!data || typeof data !== 'object') { dropped.message++; return; }
 
     const name = cleanName(data.name);
@@ -222,7 +257,8 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
   });
 
   onMove((data, id) => {
-    const peer = peers.get(id) || makePeer(id);
+    const peer = present(id);
+    if (!peer) { dropped.gone++; return; }
     if (!data || typeof data !== 'object') { dropped.position++; return; }
 
     const x = Number(data.x);
@@ -349,6 +385,7 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     for (const link of links.values()) link.closed();
     links.clear();
     peers.clear();
+    here.clear();
     room.leave();
   }
 
