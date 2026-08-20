@@ -189,6 +189,40 @@ export function writeTrophies(trophies) {
 }
 
 /**
+ * What Aniki has taken this hour, and whether he fell.
+ *
+ * His wounds last the hour, so a reload in the middle of a fight must not hand
+ * him his lives back — and the hour it belongs to is stored with it, because an
+ * hour later it is a different Aniki and none of it counts.
+ */
+export const BOSS_KEY = 'kakkoi-online-boss';
+
+export function loadBoss() {
+  try {
+    const data = JSON.parse(localStorage.getItem(BOSS_KEY) || '{}');
+    return {
+      hour: Number.isInteger(data.hour) ? data.hour : -1,
+      hits: Number.isInteger(data.hits) && data.hits >= 0 ? data.hits : 0,
+      felled: data.felled === true,
+      ours: data.ours === true,
+    };
+  } catch {
+    return { hour: -1, hits: 0, felled: false, ours: false };
+  }
+}
+
+export function writeBoss(state) {
+  try {
+    localStorage.setItem(BOSS_KEY, JSON.stringify({
+      hour: state.hour, hits: state.hits, felled: state.felled === true, ours: state.ours === true,
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Throw the character away. The safety, learned and trophy keys are left alone
  * on purpose — see the notes on them above.
  */

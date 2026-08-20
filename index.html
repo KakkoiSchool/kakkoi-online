@@ -59,6 +59,9 @@
         <span id="hud-place" class="badge hud-quiet"></span>
         <span id="hud-online" class="badge hud-quiet" aria-live="polite"></span>
         <span id="status" class="badge hud-quiet" aria-live="polite">starting…</span>
+        <!-- When Aniki is due, and how long he stays. Worked out from the clock
+             every browser already has — nobody announces him. See src/boss.js. -->
+        <span id="hud-boss" class="badge hud-quiet" aria-live="off"></span>
 
         <!-- One control instead of four bare toggles in a row. See
              src/ui/settings.js. -->
@@ -127,6 +130,10 @@
 
     <!-- The duel: the challenge, the three moves, and what just happened. -->
     <div id="duel" hidden></div>
+
+    <!-- The raid: the same three moves, against somebody with ten lives, with
+         everybody else who walked up to him. -->
+    <div id="boss" hidden></div>
 
     <!-- First run only: name, then monster. Hidden the moment both are known. -->
     <div id="overlay" hidden></div>

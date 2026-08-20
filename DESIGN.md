@@ -37,10 +37,11 @@ and invented AI mistakes, and students notice immediately.
 | M4 | audio, polish, "you're the only one here", NAT diagnostic | A27–A28 |
 | M5 | chests, cosmetics, the `look` message | A30–A32 |
 | M6 | the level editor, map validation, the PR button | A33–A35 |
-| M7 | Aniki, the raid, the achievement, a second map | A36–A38 |
+| M7 | Aniki, the raid, the achievement | A36–A38 |
+| M8 | a second map, and the door into it | A39+ |
 
-M5 to M7 are **planned, not built** — the argument for them, with the decisions and the open
-questions, is in `PLAN.md`. Their lesson numbers are provisional.
+M5, M6 and M7 are **built**; the argument for all of them, and what changed on the way, is in
+`PLAN.md`. M8 is split out of M7 and not started. Lesson numbers are provisional.
 
 A10 deploys to the live URL **before M0**, so every milestone lands in public.
 
@@ -276,6 +277,68 @@ dice about a third of the time so he never becomes predictable himself.
 `onMessage`, `onClose` — and that is the entire interface between the duel and the outside world. All
 five duel messages ride one trystero action, because a duel is one conversation and one action keeps
 it in order. `net.js` is still the only file that has heard of trystero.
+
+## Aniki, and what five browsers can agree on (M7)
+
+Flint's big brother stands in the plaza for the first ten minutes of every hour. Ten lives against
+your three, everybody who walks up fights him at the same time, and beating him leaves a mark on you
+that no chest can hand out.
+
+The boss is not the interesting part. **Agreement without a referee is**, and it splits into three
+questions with three different answers.
+
+**When is he here? Arithmetic, not an announcement.** Every browser computes
+`Math.floor(Date.now() / 3600000)` and he is present for the first `bossMinutes` of it. Nothing is
+sent, nobody has to be first, and somebody who arrives late sees exactly what everybody else sees. A
+device with a badly-set clock sees him at the wrong time, which is the honest price of a shared fact
+you did not have to transmit.
+
+**What does he play? A seeded dice.** His move for round *r* is a hash of (hour, round), mixed with
+`Math.imul` so the sum is identical in every browser rather than drifting into floats. Every client
+computes it independently and nobody can be ahead of him, because he was decided before anybody
+chose. This costs the thing that was asked for — he does *not* play Flint's algorithm — and the
+reason is that Flint's algorithm leans against *your* favourite move, and in a fight with five people
+there is no "your". Making him adaptive would mean every move reaching every browser before he
+chooses, so one dropped packet would give two players **different Aniki moves**, and they would then
+disagree about who got hit. Unpredictable-but-identical beats adaptive-but-inconsistent.
+
+**Who lost what? Half of it is certain and half of it is an estimate, and the screen says which.**
+Your own lives come from your move against his, both of which you hold: no packet can make you wrong
+about your own health and nobody else can take a life off you — there is a test for exactly that. His
+lives are what *you* saw: one hit for every player whose move reached you and beat him. Somebody
+whose packet went missing did not hit him as far as you know, so two people can genuinely see him on
+3 and 4 and finish a round apart. That is written into the design rather than hidden, the panel is
+labelled accordingly, and the achievement goes to anybody who was still standing when **their own**
+browser saw him fall. There is a test that cuts one player's wire and asserts the size of the
+disagreement: one hit, on one screen, with both players still right about themselves.
+
+**Rounds run on a timetable, not a handshake.** A duel waits for both players; a raid cannot wait for
+five, and must not break when one of them locks their phone. A round opens and closes by the clock —
+five seconds to choose, three to see it — whatever anybody did. Miss one and you neither deal damage
+nor take it, which is kinder than punishing a dropped packet and makes joining halfway through free:
+there is no state to catch up on. It also caught a real bug, because a clock-driven fight has changes
+nobody *did*: the panel only repainted when something happened, so the three move buttons stayed
+disabled through the whole of the next round. `boss.js` now tells the screen when a round opens, and
+the bar between those moments is the one thing drawn per frame.
+
+**His wounds last the hour; yours last the fight.** Ten against three is a fight you are meant to
+gather friends for, and this game usually has one person in it. Scaling his lives to the size of the
+crowd was the obvious fix and it is wrong — how many people are here is another thing browsers cannot
+agree on, and disagreeing about his *starting* health is worse than disagreeing about his current
+health. So the numbers stay exactly as asked, and the fight is repeatable instead: lose your three
+and you are out, walk back up and you get three more, and his damage stays where it is until the hour
+ends. A crowd fells him in minutes; one person can still do it, slowly.
+
+**He is not in `duel.js`.** A boss five people fight at once is a different fight with the same three
+moves, and `duel.js` is a tested one-against-one machine that should stay one. `src/boss.js` imports
+the same pure `battle/rules.js` and the panel borrows the duel screen's own card, so a player does not
+have to learn a second interface to use what they already know.
+
+**What it does not do yet:** open a new area. That was in the plan and is deferred to its own
+milestone, for reasons written in `PLAN.md`: a second map is a door tile, a save that knows which map
+you are in, a world swapped underneath the running loop, and peers who are in a *different room* —
+which the position protocol has no way to express. The achievement is a look instead, which is real,
+visible to everybody, and built on machinery that already exists and is tested.
 
 ## The map maker, and a pull request with no secret in it (M6)
 

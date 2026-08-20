@@ -25,6 +25,42 @@ export const NAME = 'Flint';
 export const NPC_MONSTER = 1;
 export const NPC_TILE = { col: 27, row: 20 };
 
+/**
+ * And his big brother, who is only here for the first ten minutes of an hour.
+ *
+ * The same animal, drawn at twice the size and in the hot colours of the
+ * `Ember` look — a big brother should read as a big brother from across the
+ * plaza, before anybody has read a word. He needs no code of his own here
+ * because he does not duel: `src/boss.js` is a different fight with the same
+ * three moves, and this is only where he stands.
+ */
+export const ANIKI = {
+  id: 'npc:aniki',
+  name: 'Aniki',
+  monster: NPC_MONSTER,
+  tile: { col: 21, row: 20 },
+  /** A look id from data/cosmetics.json, borrowed for its recoloured sheet. */
+  look: 3,
+  /** Twice the world's own scale: he is drawn bigger, and stands the same. */
+  size: 2,
+};
+
+/** Aniki's body, in world pixels. Made in main.js, which knows the world. */
+export function anikiBody(world, monsters, box = { w: 20, h: 14 }) {
+  const monster = monsters.find((m) => m.id === ANIKI.monster) || monsters[0];
+  const t = world.tile;
+  return {
+    x: ANIKI.tile.col * t + (t - box.w) / 2,
+    y: ANIKI.tile.row * t + (t - box.h) - 4,
+    w: box.w,
+    h: box.h,
+    cell: monster.cell,
+    moving: false,
+    walked: 0,
+    facing: 1,
+  };
+}
+
 export function createNpc({ monsters, world, tuning = {}, box = { w: 20, h: 14 } }) {
   const monster = monsters.find((m) => m.id === NPC_MONSTER) || monsters[0];
   const t = world.tile;

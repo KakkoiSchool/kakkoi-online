@@ -23,7 +23,9 @@ import { joinRoom } from './net.js';
 import { createChat } from './chat.js';
 import { createChatBar } from './ui/chatbar.js';
 import { createDuel } from './duel.js';
-import { createNpc } from './npc.js';
+import { createNpc, ANIKI, anikiBody } from './npc.js';
+import { createBoss } from './boss.js';
+import { createBossScreen } from './ui/boss-screen.js';
 import { createSpectate, duelFaces } from './spectate.js';
 import { loadLooks, createLooks, BARE } from './looks.js';
 import { createWins } from './wins.js';
@@ -55,6 +57,7 @@ const hudPlace = document.querySelector('#hud-place');
 const hudOnline = document.querySelector('#hud-online');
 const statusEl = document.querySelector('#status');
 const nearbyBtn = document.querySelector('#nearby');
+const hudBoss = document.querySelector('#hud-boss');
 const soundBtn = document.querySelector('#soundBtn');
 const musicBtn = document.querySelector('#musicBtn');
 const resetBtn = document.querySelector('#resetBtn');
@@ -265,9 +268,35 @@ async function boot() {
   // person is, and `duel.js` is never told which one it has.
   const npc = createNpc({ monsters, world, tuning });
 
+  // Aniki, on the hour. He is not a duel and deliberately not in `duel.js`: a
+  // boss five people fight at once is a different fight with the same three
+  // moves, and `duel.js` is a tested one-against-one machine that should stay
+  // one. He needs the network, because everybody's move is everybody's business.
+  const aniki = { id: ANIKI.id, name: ANIKI.name, body: anikiBody(world, monsters), look: ANIKI.look };
+  const boss = createBoss({ tuning, net });
+  const bossScreen = createBossScreen({ root: document.querySelector('#boss'), boss });
+
   const duel = createDuel({ tuning });
   createDuelScreen({ root: document.querySelector('#duel'), duel });
   duel.onSound((name) => audio.play(name));
+  boss.onSound((name) => audio.play(name));
+
+  // Standing when he fell is the whole of what the mark means, and `boss.js`
+  // has already decided it about this player. Nothing is counted twice: `award`
+  // only says yes the first time.
+  // Which look that is comes from the data, not from a number written twice:
+  // it is the one no chest can give, and `data/cosmetics.json` says which.
+  const mark = cosmetics.find((look) => look.from === 'aniki');
+
+  boss.onChange((v) => {
+    if (!v.ours || !mark) return;
+    if (wins.award(mark.id)) {
+      say(`Aniki is down. You were standing — that is ${mark.name}.`);
+      wins.wear(mark.id);
+      identity.setLook(mark.id);
+      net.sendLook();
+    }
+  });
   duel.onNotice((text) => { say(text); setTimeout(() => { if (statusEl.textContent === text) say(''); }, 4000); });
   duel.onChange(() => { if (duel.state !== 'walking') hideNearby(); });
 
@@ -284,8 +313,18 @@ async function boot() {
     net.sendLook();
   });
 
-  // Somebody out there has started talking duel to us.
-  net.onLink((link) => duel.receive(link));
+  // Somebody out there has started talking duel to us — unless we are in the
+  // raid, in which case they get the same polite no `duel.js` gives anybody who
+  // asks while we are busy. Without this the duel card opens on top of the raid
+  // panel and there are two fights on one screen.
+  net.onLink((link) => {
+    if (!boss.busy) { duel.receive(link); return; }
+    link.onMessage((kind) => {
+      if (kind !== 'ask') return;
+      link.send('reply', { yes: false });
+      link.close();
+    });
+  });
 
   // …and everybody who is not in this duel gets to watch it. One broadcast, of
   // one picture, whenever the picture changes — see src/spectate.js.
@@ -294,9 +333,18 @@ async function boot() {
   const reach = Number(tuning.challengeReachPx) || 64;
   const middle = (body) => ({ x: body.x + body.w / 2, y: body.y + body.h / 2 });
 
-  /** Everyone in the world who could be challenged, peer or not. */
+  /**
+   * Everyone in the world you could walk up to and start something with.
+   *
+   * Aniki is on this list only while he is standing there, and he is the one
+   * entry with no `link`: what he starts is a raid, not a duel, so `startFight`
+   * asks which it is. Everybody else answers the same questions as a peer.
+   */
   function challengeable() {
     const list = [{ id: npc.id, name: npc.name, body: npc.body, link: () => npc.link() }];
+    if (boss.present && !boss.felled) {
+      list.push({ id: aniki.id, name: aniki.name, body: aniki.body, boss: true });
+    }
     for (const peer of net.peers()) {
       if (peer.x === null) continue;
       list.push({ id: peer.id, name: peer.name, body: peer.body, link: () => net.linkTo(peer.id) });
@@ -322,17 +370,18 @@ async function boot() {
   function hideNearby() { nearbyBtn.hidden = true; }
 
   function showNearby(target) {
-    if (!target || duel.state !== 'walking') return hideNearby();
-    const label = `Challenge ${target.name}`;
+    if (!target || duel.state !== 'walking' || boss.busy) return hideNearby();
+    const label = target.boss ? `Take on ${target.name}` : `Challenge ${target.name}`;
     if (nearbyBtn.textContent !== label) nearbyBtn.textContent = label;
     nearbyBtn.hidden = false;
   }
 
   const startFight = () => {
-    if (!near || duel.state !== 'walking') return;
+    if (!near || duel.state !== 'walking' || boss.busy) return;
     help.challenged();          // they know how to do this now; stop saying it
     audio.play('ping');
-    duel.challenge(near.link());
+    if (near.boss) boss.join();
+    else duel.challenge(near.link());
     hideNearby();
   };
 
@@ -369,13 +418,43 @@ async function boot() {
     return spectate.faceOf(who.id) || null;
   }
 
+  /**
+   * When Aniki is due, or how long he is staying. It changes once a second at
+   * most, so the badge is only rewritten when the words would actually differ —
+   * a badge that repaints thirty times a second is thirty layouts for nothing.
+   */
+  let bossSaid = '';
+
+  function showBoss() {
+    const v = boss.view();
+    const minutes = Math.max(0, Math.ceil(v.clock / 60000));
+    const words = v.felled
+      ? 'Aniki is down for this hour'
+      : v.present
+        ? `Aniki is here — ${minutes} min left`
+        : `Aniki in ${minutes} min`;
+    if (words === bossSaid) return;
+    bossSaid = words;
+    hudBoss.textContent = words;
+    hudBoss.classList.toggle('is-here', v.present && !v.felled);
+  }
+
   let sinceSave = 0;
 
   const loop = startLoop({
     update(dt) {
-      // In a duel you are not also walking around. A19's state machine again:
-      // one state at a time, and the keys that do nothing here do nothing.
-      const wish = duel.busy ? { dx: 0, dy: 0 } : steer(input, player, camera, view.zoom);
+      // The hour, the round, and everything that happens to anybody in the raid.
+      // It is driven by the clock rather than by a message, so it has to be
+      // asked every frame — see src/boss.js.
+      boss.update();
+      showBoss();
+      if (boss.busy) bossScreen.tick(boss.view());
+
+      // In a duel — or a raid — you are not also walking around. A19's state
+      // machine again: one state at a time, and the keys that do nothing here
+      // do nothing.
+      const busy = duel.busy || boss.busy;
+      const wish = busy ? { dx: 0, dy: 0 } : steer(input, player, camera, view.zoom);
       const before = { x: player.x, y: player.y };
 
       // One axis at a time — that is what makes sliding along a wall work.
@@ -402,7 +481,7 @@ async function boot() {
 
       // Who is within arm's reach? Recomputed every frame because everyone in
       // it is moving, and it is a handful of distances.
-      near = duel.busy ? null : nearestTarget();
+      near = busy ? null : nearestTarget();
       if (near) showNearby(near); else hideNearby();
 
       // Peers arrive ten times a second and are drawn sixty, so this slides
@@ -434,6 +513,11 @@ async function boot() {
       const cast = [
         { id: 'you', body: player, name: identity.name, self: true, look: identity.look, monster: identity.creature },
         { id: npc.id, body: npc.body, name: npc.name, self: false, look: BARE, monster: monsterOf(npc.monster) },
+        // Twice the size, and only while the clock says he is here.
+        ...(boss.present && !boss.felled
+          ? [{ id: aniki.id, body: aniki.body, name: aniki.name, self: false,
+               look: aniki.look, monster: monsterOf(ANIKI.monster), big: ANIKI.size }]
+          : []),
         ...net.peers()
           .filter((peer) => peer.x !== null)
           .map((peer) => ({
@@ -452,7 +536,7 @@ async function boot() {
         // The sheet is the one this look calls for — a tint has its own,
         // recoloured once and kept — and the overlay is whatever is painted on
         // top of it, already moved onto this creature's face.
-        const drawn = drawActor(ctx, looks.atlasFor(who.look), who.body, camera, world.scale,
+        const drawn = drawActor(ctx, looks.atlasFor(who.look), who.body, camera, world.scale * (who.big || 1),
                                 looks.overlayFor(who.look, who.monster));
         const middleX = drawn.x + drawn.sprite / 2;
         // An arrow over whoever the "Challenge" button is currently about.
@@ -591,7 +675,7 @@ async function boot() {
   // A handle for verification, and for the stages that come next.
   globalThis.game = {
     world, player, camera, identity, monsters, input, tuning, flush,
-    net, chat, duel, npc, audio, session, resume, settings, help, fit, spectate, loop, wins, looks,
+    net, chat, duel, npc, audio, session, resume, settings, help, fit, spectate, loop, wins, looks, boss,
     get paused() { return !session.active; },
     /** Who the Challenge button is about right now, or null. */
     get near() { return near; },

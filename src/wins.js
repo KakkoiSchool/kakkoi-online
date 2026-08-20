@@ -60,7 +60,8 @@ export function createWins({ looks = [] } = {}) {
    * queue on every win after the one that earned it. Six wins gave nine chests.
    */
   function earned() {
-    return looks.filter((look) => count >= look.wins &&
+    return looks.filter((look) => Number.isInteger(look.wins) &&
+                                  count >= look.wins &&
                                   !unlocked.includes(look.id) &&
                                   !waiting.includes(look));
   }
@@ -96,6 +97,22 @@ export function createWins({ looks = [] } = {}) {
     return look;
   }
 
+  /**
+   * Hand somebody a look for something that is not a duel — there is one, and it
+   * is for standing up when Aniki fell. It arrives unlocked rather than in a
+   * chest: the fight was the ceremony.
+   *
+   * Returns true only the first time, so whatever calls it can say so.
+   */
+  function award(id) {
+    const look = looks.find((l) => l.id === id);
+    if (!look || unlocked.includes(id)) return false;
+    unlocked.push(id);
+    remember();
+    emit();
+    return true;
+  }
+
   /** Wear one of the looks we have earned, or `BARE` to wear none. */
   function wear(id) {
     if (id !== BARE && !unlocked.includes(id)) return false;
@@ -109,6 +126,7 @@ export function createWins({ looks = [] } = {}) {
     saw,
     open,
     wear,
+    award,
     onChange: (fn) => changed.push(fn),
     get count() { return count; },
     get wearing() { return wearing; },
@@ -117,7 +135,8 @@ export function createWins({ looks = [] } = {}) {
     get waiting() { return waiting.length; },
     /** How many more wins until the next thing, or 0 when there is no next thing. */
     get next() {
-      const ahead = looks.filter((look) => look.wins > count).sort((a, b) => a.wins - b.wins)[0];
+      const ahead = looks.filter((look) => Number.isInteger(look.wins) && look.wins > count)
+        .sort((a, b) => a.wins - b.wins)[0];
       return ahead ? ahead.wins - count : 0;
     },
     has: (id) => unlocked.includes(id),

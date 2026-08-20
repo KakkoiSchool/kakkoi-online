@@ -3,7 +3,10 @@
   "answerTimeoutMs": 10000,
   "roundGapMs": 2200,
   "challengeReachPx": 64,
-  "npcThinkMs": [450, 900],
+  "npcThinkMs": [
+    450,
+    900
+  ],
   "npcMemory": 5,
   "npcDiceChance": 0.34,
   "stepIntervalMs": 400,
@@ -14,17 +17,32 @@
   "interpDelayMs": 150,
   "walkSpeed": 150,
   "saveEveryMs": 500,
-
+  "_boss": "Aniki, on the hour. He stands in the plaza for the first `bossMinutes` of every hour; a round is `bossRoundMs` long and you may choose in the first `bossChooseMs` of it. His lives last the hour, yours last the fight — see src/boss.js.",
+  "bossMinutes": 10,
+  "bossLives": 10,
+  "playerLives": 3,
+  "bossRoundMs": 8000,
+  "bossChooseMs": 5000,
   "_unused": "Below are the numbers of the strike/block/charge duel that was designed and then dropped (design decisions 52 and 53). No lesson teaches it, so the game does not play it: the duel is rock, paper, scissors and has no hit points. They stay only as a record of what was tried.",
   "hp": 30,
   "baseDamage": 4,
   "punishMultiplier": 1.5,
-  "chargeMultiplier": [1, 2, 3],
+  "chargeMultiplier": [
+    1,
+    2,
+    3
+  ],
   "maxCharges": 2,
   "blockRewardCharges": 1,
   "maxHitFraction": 0.5,
-  "damageRoll": [0.9, 1.0],
+  "damageRoll": [
+    0.9,
+    1.0
+  ],
   "stallChipDamage": 1,
   "stallRounds": 3,
-  "targetRounds": [4, 12]
+  "targetRounds": [
+    4,
+    12
+  ]
 }

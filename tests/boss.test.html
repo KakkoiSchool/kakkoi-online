@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakkoi Online — Aniki</title>
+  <style>
+    body { font: 14px/1.6 system-ui, sans-serif; margin: 2rem; background: #1b1b22; color: #e8e8ef; }
+    h1 { font-size: 1.2rem; }
+    #summary { font-weight: 700; margin-bottom: 1rem; }
+    .row { font-family: ui-monospace, monospace; }
+    .pass { color: #7ee081; }
+    .fail { color: #ff7b72; }
+  </style>
+</head>
+<body>
+  <h1>Aniki, and what five browsers can agree on</h1>
+  <p>Open this file through Live Server (not <code>file://</code>) — it loads modules.</p>
+  <div id="summary">running…</div>
+  <div id="rows"></div>
+
+  <!-- The clock is handed in, so this page can stand at any moment of any hour
+       and step through a fight a round at a time. That is the only thing a test
+       needs that the game does not: everything else here is the shipping code.
+
+       The interesting rows are the ones about AGREEMENT — two boss objects,
+       wired to each other through a fake room, asked whether they saw the same
+       fight. That is the question the whole feature turns on. -->
+  <script type="module">
+    import { createBoss, moveFor, dice, HOUR_MS } from '../src/boss.js';
+    import { BOSS_KEY } from '../src/save.js';
+    import { MOVES, beats } from '../src/battle/rules.js';
+
+    const rows = document.querySelector('#rows');
+    let passed = 0;
+    let failed = 0;
+
+    function test(name, body) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      localStorage.removeItem(BOSS_KEY);
+      try {
+        body();
+        passed++;
+        row.classList.add('pass');
+        row.textContent = `PASS  ${name}`;
+      } catch (err) {
+        failed++;
+        row.classList.add('fail');
+        row.textContent = `FAIL  ${name} — ${err.message}`;
+      }
+      rows.append(row);
+    }
+
+    function is(actual, expected, what) {
+      if (actual !== expected) throw new Error(`${what}: expected ${expected}, got ${actual}`);
+    }
+
+    const TUNING = { bossMinutes: 10, bossLives: 10, playerLives: 3, bossRoundMs: 8000, bossChooseMs: 5000 };
+
+    /** A clock this test drives by hand. Starts at the top of some hour. */
+    function clock(at = 1000 * HOUR_MS) {
+      const c = { t: at };
+      c.now = () => c.t;
+      c.tick = (ms) => { c.t += ms; };
+      /** Move to the choosing part of round `r` of the current hour. */
+      c.toChoose = (r) => { c.t = Math.floor(c.t / HOUR_MS) * HOUR_MS + r * 8000 + 500; };
+      /** …and to the part where it is shown. */
+      c.toShow = (r) => { c.t = Math.floor(c.t / HOUR_MS) * HOUR_MS + r * 8000 + 6000; };
+      return c;
+    }
+
+    /** What beats what, said the way a test wants to say it. */
+    const beat = (move) => MOVES.find((m) => beats(m) === move);
+    const lose = (move) => beats(move);
+
+    // -------------------------------------------------- the same dice, always
+
+    test('his move is the same in any two browsers, for a thousand rounds', () => {
+      for (let hour = 0; hour < 50; hour++) {
+        for (let round = 0; round < 20; round++) {
+          const one = moveFor(hour, round);
+          const two = moveFor(hour, round);
+          is(one, two, `hour ${hour} round ${round}`);
+          if (!MOVES.includes(one)) throw new Error(`hour ${hour} round ${round}: ${one}`);
+        }
+      }
+    });
+
+    test('his move is not the same every round', () => {
+      const seen = new Set();
+      for (let round = 0; round < 30; round++) seen.add(moveFor(7, round));
+      is(seen.size, 3, 'different moves in thirty rounds');
+    });
+
+    test('and it is not the same hour after hour either', () => {
+      const seen = new Set();
+      for (let hour = 0; hour < 30; hour++) seen.add(moveFor(hour, 0));
+      is(seen.size, 3, 'different opening moves in thirty hours');
+    });
+
+    test('the dice is spread evenly enough to be a dice', () => {
+      const count = { rock: 0, paper: 0, scissors: 0 };
+      for (let round = 0; round < 900; round++) count[moveFor(123, round)] += 1;
+      for (const move of MOVES) {
+        if (count[move] < 240 || count[move] > 360) {
+          throw new Error(`${move} came up ${count[move]} times in 900`);
+        }
+      }
+    });
+
+    test('the hash does not fall apart on big numbers', () => {
+      // Hours since 1970 are around half a million, and rounds go to 75.
+      const hour = Math.floor(Date.now() / HOUR_MS);
+      is(typeof dice(hour, 74), 'number', 'a number');
+      is(dice(hour, 74), dice(hour, 74), 'the same one twice');
+      if (dice(hour, 74) === dice(hour, 73)) throw new Error('neighbouring rounds collided');
+    });
+
+    // ------------------------------------------------------------- the clock
+
+    test('he is here for the first ten minutes of the hour and no longer', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      is(boss.view().present, true, 'at the top of the hour');
+      c.tick(9 * 60000);
+      is(boss.view().present, true, 'nine minutes in');
+      c.tick(2 * 60000);
+      is(boss.view().present, false, 'eleven minutes in');
+      c.tick(50 * 60000);
+      is(boss.view().present, true, 'the next hour');
+    });
+
+    test('the countdown says how long until he comes, then how long he stays', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      is(Math.round(boss.view().clock / 60000), 10, 'minutes he is still here for');
+      c.tick(11 * 60000);
+      is(Math.round(boss.view().clock / 60000), 49, 'minutes until he is back');
+    });
+
+    test('a round is eight seconds, five of them yours', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      is(boss.view().round, 0, 'round at the top of the hour');
+      is(boss.view().phase, 'choosing', 'phase at the top');
+      c.tick(6000);
+      is(boss.view().phase, 'showing', 'six seconds in');
+      c.tick(3000);
+      is(boss.view().round, 1, 'nine seconds in');
+      is(boss.view().phase, 'choosing', 'and open again');
+    });
+
+    // ------------------------------------------------------------- the fight
+
+    /** Play one round: choose, then let the clock run past the end of it. */
+    function round(boss, c, r, move) {
+      c.toChoose(r);
+      boss.update();
+      if (move) boss.play(move);
+      c.toShow(r);
+      boss.update();
+    }
+
+    test('beating him takes one of his lives', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      is(boss.view().his, 10, 'before');
+      round(boss, c, 1, beat(moveFor(boss.view().hour, 1)));
+      is(boss.view().his, 9, 'after a round we won');
+      is(boss.view().yours, 3, 'our own lives');
+    });
+
+    test('losing to him takes one of ours', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      round(boss, c, 1, lose(moveFor(boss.view().hour, 1)));
+      is(boss.view().yours, 2, 'our lives');
+      is(boss.view().his, 10, 'his');
+    });
+
+    test('a draw costs nobody anything', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      round(boss, c, 1, moveFor(boss.view().hour, 1));
+      is(boss.view().yours, 3, 'ours');
+      is(boss.view().his, 10, 'his');
+    });
+
+    test('a round you did not play does not touch you', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      round(boss, c, 1, null);              // asleep, offline, thinking too long
+      is(boss.view().yours, 3, 'ours');
+      is(boss.view().his, 10, 'his');
+    });
+
+    test('you may only choose once in a round, and only while it is open', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      c.toChoose(2);
+      boss.update();
+      is(boss.play('rock'), true, 'the first choice');
+      is(boss.play('paper'), false, 'changing your mind');
+      is(boss.play('nonsense'), false, 'a move that is not a move');
+      c.toShow(2);
+      is(boss.play('rock'), false, 'once the round is closed');
+    });
+
+    test('three lives, and then you are out of the fight', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      for (let r = 1; r <= 3; r++) round(boss, c, r, lose(moveFor(boss.view().hour, r)));
+      is(boss.view().yours, 0, 'lives');
+      is(boss.view().joined, false, 'still in it');
+    });
+
+    test('his wounds last the hour; yours last the fight', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      round(boss, c, 1, beat(moveFor(boss.view().hour, 1)));
+      for (let r = 2; r <= 4; r++) round(boss, c, r, lose(moveFor(boss.view().hour, r)));
+      is(boss.view().joined, false, 'knocked out');
+      is(boss.view().his, 9, 'the hit we landed is still on him');
+
+      is(boss.join(), true, 'walking back up to him');
+      is(boss.view().yours, 3, 'our lives, again');
+      is(boss.view().his, 9, 'his, unchanged');
+    });
+
+    test('a new hour is a new Aniki', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      round(boss, c, 1, beat(moveFor(boss.view().hour, 1)));
+      is(boss.view().his, 9, 'wounded');
+      c.tick(HOUR_MS);
+      boss.update();
+      is(boss.view().his, 10, 'an hour later');
+      is(boss.view().felled, false, 'and unbeaten');
+    });
+
+    test('felling him is the achievement, and only if you were standing', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      let r = 1;
+      while (boss.view().his > 0 && r < 40) {
+        round(boss, c, r, beat(moveFor(boss.view().hour, r)));
+        r += 1;
+      }
+      is(boss.view().his, 0, 'his lives');
+      is(boss.view().felled, true, 'he fell');
+      is(boss.view().ours, true, 'and we were there');
+      is(boss.join(), false, 'you cannot fight him again this hour');
+    });
+
+    test('somebody with no lives left when he falls does not get it', () => {
+      const c = clock();
+      const boss = createBoss({ tuning: TUNING, now: c.now });
+      boss.join();
+      for (let r = 1; r <= 3; r++) round(boss, c, r, lose(moveFor(boss.view().hour, r)));
+      is(boss.view().joined, false, 'out of the fight');
+      // Now somebody else fells him, as far as this browser can see: it cannot,
+      // on its own, so the honest check is that being out means not getting it.
+      is(boss.view().ours, false, 'the achievement');
+    });
+
+    // --------------------------------------------- what two browsers agree on
+
+    /** A room the boss objects can shout across, the shape net.js has. */
+    function room() {
+      const members = new Map();
+      return {
+        join(id, name) {
+          const handlers = [];
+          const peers = new Map();
+          const net = {
+            dropped: { message: 0, gone: 0 },
+            expect() {},
+            onMessage: (fn) => handlers.push(fn),
+            onPeerJoin() {},
+            onPeerLeave() {},
+            peer: (who) => peers.get(who),
+            peers: () => [...peers.values()],
+            send(kind, payload) {
+              for (const [other, m] of members) {
+                if (other === id) continue;
+                m.deliver(kind, JSON.parse(JSON.stringify(payload)), id, name);
+              }
+            },
+          };
+          const member = {
+            net,
+            deliver(kind, payload, from, fromName) {
+              if (!peers.has(from)) peers.set(from, { id: from, name: fromName });
+              for (const fn of handlers) fn(kind, payload, from);
+            },
+          };
+          members.set(id, member);
+          return member;
+        },
+      };
+    }
+
+    test('two people fighting him see the same fight', () => {
+      const c = clock();
+      const r = room();
+      const one = r.join('p1', 'Kiri');
+      const two = r.join('p2', 'Rue');
+      const bossOne = createBoss({ tuning: TUNING, net: one.net, now: c.now });
+      const bossTwo = createBoss({ tuning: TUNING, net: two.net, now: c.now });
+      bossOne.join();
+      bossTwo.join();
+
+      for (let n = 1; n <= 3; n++) {
+        const his = moveFor(bossOne.view().hour, n);
+        c.toChoose(n);
+        bossOne.update(); bossTwo.update();
+        bossOne.play(beat(his));                 // both of them hit him
+        bossTwo.play(beat(his));
+        c.toShow(n);
+        bossOne.update(); bossTwo.update();
+        is(bossOne.view().his, bossTwo.view().his, `his lives after round ${n}`);
+      }
+      is(bossOne.view().his, 4, 'six hits off ten');
+    });
+
+    test('a packet that never arrives costs only that browser its count', () => {
+      // This is the disagreement the design accepts, and it is worth a test that
+      // says exactly how big it is: one hit, on one screen, and both of them
+      // still right about their OWN lives.
+      const c = clock();
+      const r = room();
+      const one = r.join('p1', 'Kiri');
+      const two = r.join('p2', 'Rue');
+      const bossOne = createBoss({ tuning: TUNING, net: one.net, now: c.now });
+      const bossTwo = createBoss({ tuning: TUNING, net: two.net, now: c.now });
+      bossOne.join();
+      bossTwo.join();
+
+      const his = moveFor(bossOne.view().hour, 1);
+      c.toChoose(1);
+      bossOne.update(); bossTwo.update();
+      bossOne.play(beat(his));
+      // p2 chooses with the wire cut: nobody hears it.
+      const cut = two.net.send;
+      two.net.send = () => {};
+      bossTwo.play(beat(his));
+      two.net.send = cut;
+      c.toShow(1);
+      bossOne.update(); bossTwo.update();
+
+      is(bossOne.view().his, 9, 'what p1 saw: only its own hit');
+      is(bossTwo.view().his, 8, 'what p2 saw: both');
+      is(bossOne.view().yours, 3, 'p1 is right about p1');
+      is(bossTwo.view().yours, 3, 'p2 is right about p2');
+    });
+
+    test('nobody can take one of your lives off you', () => {
+      const c = clock();
+      const r = room();
+      const one = r.join('p1', 'Kiri');
+      const two = r.join('p2', 'Rue');
+      const bossOne = createBoss({ tuning: TUNING, net: one.net, now: c.now });
+      createBoss({ tuning: TUNING, net: two.net, now: c.now });
+      bossOne.join();
+
+      const his = moveFor(bossOne.view().hour, 1);
+      c.toChoose(1);
+      bossOne.update();
+      bossOne.play(beat(his));
+      // p2 plays badly and loses a life. p1 must not.
+      two.net.send('raid', { r: 1, m: lose(his) });
+      c.toShow(1);
+      bossOne.update();
+      is(bossOne.view().yours, 3, 'p1 lives');
+    });
+
+    test('junk from another browser is counted, not believed', () => {
+      const c = clock();
+      const r = room();
+      const one = r.join('p1', 'Kiri');
+      const two = r.join('p2', 'Rue');
+      const boss = createBoss({ tuning: TUNING, net: one.net, now: c.now });
+      boss.join();
+      c.toChoose(1);
+      boss.update();
+
+      for (const junk of [{ r: 1, m: 'lightning' }, { r: 'now', m: 'rock' }, null, 'rock', { r: 99, m: 'rock' }]) {
+        two.net.send('raid', junk);
+      }
+      c.toShow(1);
+      boss.update();
+      is(boss.view().his, 10, 'his lives, untouched by nonsense');
+      if (one.net.dropped.message < 5) throw new Error(`only ${one.net.dropped.message} counted`);
+    });
+
+    localStorage.removeItem(BOSS_KEY);
+    const summary = document.querySelector('#summary');
+    summary.textContent = `${passed} passed, ${failed} failed`;
+    summary.className = failed ? 'fail' : 'pass';
+  </script>
+</body>
+</html>

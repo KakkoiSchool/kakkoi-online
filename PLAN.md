@@ -1,8 +1,12 @@
 # Stage 4 — chests, Aniki, and the level editor
 
-The plan for the three features that make up **part 3 of the course**. Nothing here is built yet.
-This document is the argument for how to build it, written before the code so that the expensive
-decisions are made in prose where they are cheap to change.
+The plan for the three features that make up **part 3 of the course**. It was written before any of
+it existed, so that the expensive decisions were made in prose where they are cheap to change.
+
+**Status: M5, M6 and M7 are built.** What was decided here is what shipped, with the recommended
+answers taken for every open question, and `DESIGN.md` now carries the design of each as it actually
+turned out. Two things below did not survive contact with the code, and both are marked **[changed]**
+where they appear: Aniki's lives, and the new area. The rest of this document stands as written.
 
 Read `DESIGN.md` first if you have not: it is the record of why the game is what it is, and this plan
 is bound by it.
@@ -187,12 +191,28 @@ in it.
 - **He might be lonely.** An hourly boss in a game with one player in it is an hourly boss you fight
   alone with three lives against ten. Balance for the solo case first — either fewer lives when fewer
   people are present (everyone can count the room), or a solo fight that is honestly winnable.
+
+  **[changed]** Scaling his lives to the crowd was the recommendation and it was wrong: how many
+  people are here is another thing browsers cannot agree on, and disagreeing about how much health he
+  *started* with is worse than disagreeing about how much he has left. What shipped instead keeps his
+  ten and your three exactly as asked, and makes the fight repeatable: **his wounds last the hour,
+  yours last the fight.** Lose your three and you are out — then walk back up to him with three more,
+  while his damage stays where it is until the hour ends. A crowd fells him in a couple of minutes;
+  one person can still do it, slowly. Same numbers, no agreement needed.
 - **Ten minutes is a long window to keep six browsers in step.** Expect the first version to disagree
   more than the plan hopes, and instrument it: log the round, his move, and your damage, so a
   disagreement can be read afterwards rather than argued about.
 - **The new area** it unlocks is a second map, which the game cannot do yet (one map is loaded at
   boot). That is a real piece of work — see the order of play below, because the editor is what makes
   maps.
+
+  **[changed] The new area was deferred, and the achievement is a look instead.** Beating him gives
+  *Aniki's mark*, which no chest can hand out, and which everybody else can see on you. The reason is
+  scope told honestly: a second map is not "load another file", it is a door tile, a save that knows
+  which map you are in, a camera and a world that can be swapped underneath the loop, and — the part
+  that makes it a milestone rather than an afternoon — **peers who are in a different room**, which
+  the position protocol has no way to say. Half of that shipped as a broken door would be worse than
+  none of it. It wants its own milestone and its own plan.
 
 **Size: L.** The biggest of the three, and the one to build last.
 
@@ -285,7 +305,8 @@ everything. And reading a review: someone will ask them to change something.
 |---|---|---|
 | **M5** | Chests, cosmetics, the `look` message | Smallest, self-contained, and it establishes how a cosmetic crosses the wire before anything else needs to |
 | **M6** | The level editor, validation, the PR button | Independent of the other two, teaches the highest-value thing, and it is what *makes* the new area |
-| **M7** | Aniki, the raid, the achievement, the second map | Hardest, and it is the only one that wants something the other two have already built |
+| **M7** | Aniki, the raid, the achievement | Hardest, and it is the only one that wants something the other two have already built |
+| **M8** | A second map, and the door into it | Split out of M7: see the note on the new area above |
 
 The boss is last because it needs the most from the rest: an achievement worth showing off (M5's
 cosmetics), and somewhere to unlock (M6's editor, which is how the new area gets drawn). Building it
@@ -299,6 +320,9 @@ one written *after* its code, from `FAILURES.md`, exactly as the build order in 
 ## Open questions
 
 These change what gets built. My recommendation is given for each, so the plan is usable either way.
+
+*(All six were answered by "implement now", which took the recommendation in each case. They are
+kept here as the record of what was decided and why.)*
 
 1. **Aniki's moves: seeded dice, or Flint's memory?** I recommend the seeded dice — identical in every
    browser, impossible to be ahead of, and it removes the whole class of "we disagree about what he

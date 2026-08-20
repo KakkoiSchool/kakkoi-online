@@ -16,6 +16,12 @@ fight from across the plaza, too: what each fighter has chosen, and who won, app
 Nobody else online? **Flint** is always standing in the plaza, and he fights exactly the way a person
 does — he even remembers what you like playing and leans against it.
 
+**Aniki** — Flint's big brother — stands in the plaza for the first ten minutes of every hour. He has
+ten lives, you have three, and everybody who walks up to him fights him at the same time in the same
+rounds. Nobody announces him: every browser works out that he is due from the clock it already has.
+His wounds last the hour and yours last the fight, so being knocked out means walking back up to him,
+not waiting for next time. Beat him and you get a mark no chest can give.
+
 **Chests** open at 10, 25, 50 and 100 duels won: a colour, a pair of shades, another colour, a crown.
 They are looks and nothing else — the animal you picked already changes nothing in a fight, and a
 reward that changed one would undo the only promise the duel makes. Everyone else sees what you are
@@ -66,8 +72,8 @@ world, your saved character and Flint are all cached. Other players are the one 
 give you, because finding them needs a real connection.
 
 **Tests** are web pages: open `tests/rules.test.html`, `tests/net.test.html`,
-`tests/spectate.test.html`, `tests/wins.test.html` and `tests/map.test.html` through the same server
-and read the PASS/FAIL rows. No test runner, no npm.
+`tests/spectate.test.html`, `tests/wins.test.html`, `tests/map.test.html` and
+`tests/boss.test.html` through the same server and read the PASS/FAIL rows. No test runner, no npm.
 
 ## How it fits together
 
@@ -81,6 +87,7 @@ src/loop.js         the requestAnimationFrame loop
 src/net.js          the only file that knows trystero exists
 src/duel.js         the challenge state machine and the rounds
 src/npc.js          Flint — answers the same questions a peer does, so duel.js cannot tell
+src/boss.js         Aniki: a shared clock, a seeded dice, and what browsers can agree on
 src/spectate.js     what the room is told about a duel, so bystanders can watch it
 src/wins.js         duels won, chests earned, and what is being worn
 src/looks.js        a look painted onto a sprite: a hue turned, or pixels on top

@@ -800,6 +800,101 @@ p { text-wrap: pretty; }
   .duel-card[data-phase="over"] .duel-title { display: none; }
 }
 
+/* ----------------------------------------------------------- the raid panel */
+
+/* The same card as the duel, because it is the same three moves and nobody
+   should have to learn a second interface. What it adds is a clock and other
+   people. */
+#boss[hidden] { display: none; }
+
+#boss {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0.7rem;
+  background: rgb(10 4 4 / 0.88);
+  overflow-y: auto;
+  z-index: 9;
+}
+
+.boss-card { width: min(32rem, 100%); }
+.boss-card .duel-title { color: var(--rose); }
+
+.boss-lives {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--pixel);
+  letter-spacing: var(--track);
+  font-size: 0.9rem;
+  color: var(--ink-quiet);
+}
+
+.boss-lives-name { min-width: 3.6rem; text-align: right; }
+.boss-lives-count { font-variant-numeric: tabular-nums; }
+.boss-pips { display: flex; flex: 1 1 auto; gap: 0.15rem; }
+
+.boss-pip {
+  flex: 1 1 auto;
+  height: 0.7rem;
+  max-width: 1.4rem;
+  background: var(--rose);
+  border: var(--line);
+}
+
+.boss-pip.is-gone { background: var(--sunk); }
+.boss-yours .boss-pip { background: var(--gold); }
+.boss-yours .boss-pip.is-gone { background: var(--sunk); }
+
+/* A round ends when this runs out, whatever anybody did. It is a clock, not a
+   turn — which is the whole reason a fight with five people in it works. */
+.boss-timer {
+  height: 0.5rem;
+  margin: 0.2rem 0;
+  background: var(--sunk);
+  border: var(--line);
+}
+
+.boss-timer-fill {
+  height: 100%;
+  background: var(--gold);
+  transition: width 0.12s linear;
+}
+
+.boss-timer.is-closed .boss-timer-fill { background: #55556f; }
+
+@media (prefers-reduced-motion: reduce) { .boss-timer-fill { transition: none; } }
+
+/* Everybody else in this round, as their moves arrive. */
+.boss-crowd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
+  min-height: 2rem;
+}
+
+.boss-other {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.4rem;
+  background: var(--sunk);
+  border: var(--line);
+  font-family: var(--pixel);
+  letter-spacing: var(--track);
+  font-size: 0.8rem;
+  color: var(--ink-quiet);
+}
+
+.boss-other-icon { display: grid; place-items: center; width: 1.1rem; height: 1.1rem; }
+.boss-other-icon svg { width: 100%; height: 100%; }
+
+/* The badge that says when he is due. Rose, because he is. */
+#hud-boss:empty { display: none; }
+#hud-boss.is-here { color: var(--rose); }
+
 /* ---------------------------------------------------------------- overlay */
 
 #overlay[hidden] { display: none; }

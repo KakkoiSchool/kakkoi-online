@@ -127,7 +127,11 @@ export function showWardrobe({ root, wins, looks, identity, atlas }) {
 
       const name = document.createElement('span');
       name.className = 'monster-name';
-      name.textContent = owned ? entry.name : `${entry.wins} wins`;
+      // A look with no number of wins on it cannot come out of a chest, so the
+      // locked label has to say what it does take. There is one, and it is him.
+      name.textContent = owned ? entry.name
+        : Number.isInteger(entry.wins) ? `${entry.wins} wins`
+        : 'Beat Aniki';
       button.append(name);
 
       button.addEventListener('click', () => choose(entry.id));
