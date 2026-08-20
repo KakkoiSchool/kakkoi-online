@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakkoi Online — is this a place?</title>
+  <style>
+    body { font: 14px/1.6 system-ui, sans-serif; margin: 2rem; background: #1b1b22; color: #e8e8ef; }
+    h1 { font-size: 1.2rem; }
+    #summary { font-weight: 700; margin-bottom: 1rem; }
+    .row { font-family: ui-monospace, monospace; }
+    .pass { color: #7ee081; }
+    .fail { color: #ff7b72; }
+  </style>
+</head>
+<body>
+  <h1>is this a place?</h1>
+  <p>Open this file through Live Server (not <code>file://</code>) — it loads modules.</p>
+  <div id="summary">running…</div>
+  <div id="rows"></div>
+
+  <!-- The map maker will not let anybody propose a map that fails these, and
+       there is no CI job behind it: this is the whole gate before a human reads
+       the pull request. So the interesting rows are the bad maps. -->
+  <script type="module">
+    import { check, walk, toJson, slug, MIN_FLOOR } from '../src/map-check.js';
+    import { createWorld } from '../src/world.js';
+    import { plan, pathFor, URL_BUDGET } from '../editor/submit.js';
+
+    const rows = document.querySelector('#rows');
+    let passed = 0;
+    let failed = 0;
+
+    function test(name, body) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      try {
+        body();
+        passed++;
+        row.classList.add('pass');
+        row.textContent = `PASS  ${name}`;
+      } catch (err) {
+        failed++;
+        row.classList.add('fail');
+        row.textContent = `FAIL  ${name} — ${err.message}`;
+      }
+      rows.append(row);
+    }
+
+    function is(actual, expected, what) {
+      if (actual !== expected) throw new Error(`${what}: expected ${expected}, got ${actual}`);
+    }
+    function has(problems, word) {
+      if (!problems.some((p) => p.toLowerCase().includes(word))) {
+        throw new Error(`no problem mentioned "${word}" — got: ${problems.join(' / ') || 'none'}`);
+      }
+    }
+
+    const CELLS = 132;                     // tiny-dungeon: 12 across, 11 down
+    const FLOOR = 0;
+    const WALL = 40;
+
+    /** A room with a wall around it, which is the smallest real place. */
+    function room(width = 12, height = 10, extra = {}) {
+      const ground = [];
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          const edge = col === 0 || row === 0 || col === width - 1 || row === height - 1;
+          ground.push(edge ? WALL : FLOOR);
+        }
+      }
+      return {
+        name: 'A place', atlas: 'dungeon', tileSize: 16, width, height,
+        spawn: { col: 2, row: 2 }, solid: [WALL],
+        ground, decor: new Array(width * height).fill(-1),
+        ...extra,
+      };
+    }
+
+    // ----------------------------------------------------------- a good map
+
+    test('a room with a wall around it is a place', () => {
+      const result = check(room(), { cells: CELLS });
+      is(result.ok, true, 'ok — ' + result.problems.join(' / '));
+      is(result.floor, 80, 'squares you can walk to (10x8 of inside)');
+    });
+
+    // ---------------------------------------------------------- broken maps
+
+    test('a map with no name is refused', () => {
+      has(check(room(12, 10, { name: '  ' }), { cells: CELLS }).problems, 'name');
+    });
+
+    test('a layer of the wrong length is refused, and says by how much', () => {
+      const bad = room();
+      bad.ground.push(0);
+      const result = check(bad, { cells: CELLS });
+      is(result.ok, false, 'ok');
+      has(result.problems, 'squares');
+    });
+
+    test('a tile that is not in the sheet is refused, and says where it is', () => {
+      const bad = room();
+      bad.ground[3 * 12 + 5] = 999;
+      const result = check(bad, { cells: CELLS });
+      is(result.ok, false, 'ok');
+      has(result.problems, 'column 5');
+      has(result.problems, 'row 3');
+    });
+
+    test('a start off the edge of the map is refused', () => {
+      has(check(room(12, 10, { spawn: { col: 40, row: 2 } }), { cells: CELLS }).problems, 'off the edge');
+    });
+
+    test('a start inside a wall is refused', () => {
+      has(check(room(12, 10, { spawn: { col: 0, row: 0 } }), { cells: CELLS }).problems, 'inside a wall');
+    });
+
+    test('a map with no start at all is refused', () => {
+      has(check(room(12, 10, { spawn: null }), { cells: CELLS }).problems, 'nowhere');
+    });
+
+    test('a map smaller than the smallest room is refused', () => {
+      has(check(room(4, 4), { cells: CELLS }).problems, 'smallest');
+    });
+
+    test('something that is not a map at all is refused without throwing', () => {
+      is(check(null, { cells: CELLS }).ok, false, 'null');
+      is(check([1, 2, 3], { cells: CELLS }).ok, false, 'an array');
+      is(check('a map', { cells: CELLS }).ok, false, 'a string');
+    });
+
+    // --------------------------------------------- the one only walking finds
+
+    test('a room you cannot get out of is refused', () => {
+      // The mistake that reads perfectly well in the file: a cupboard, walled
+      // off from the rest of the map, with the player standing in it.
+      const bad = room(20, 12);
+      for (let row = 1; row < 11; row++) bad.ground[row * 20 + 4] = WALL;
+      for (let col = 1; col < 5; col++) bad.ground[5 * 20 + col] = WALL;
+      bad.spawn = { col: 2, row: 2 };
+      const result = check(bad, { cells: CELLS });
+      is(result.ok, false, 'ok');
+      has(result.problems, 'cannot be reached');
+      is(result.floor, 12, 'squares inside the cupboard');
+      is(result.cutOff, 155, 'squares of floor shut away behind the wall');
+    });
+
+    test('the same map is fine once doors are knocked in it', () => {
+      // Both walls need one. Knocking through only the first leaves the corner
+      // below the second one sealed, and the check says so — which is the point
+      // of it, and was found by this test rather than by reading the map.
+      const good = room(20, 12);
+      for (let row = 1; row < 11; row++) good.ground[row * 20 + 4] = WALL;
+      for (let col = 1; col < 5; col++) good.ground[5 * 20 + col] = WALL;
+      good.spawn = { col: 2, row: 2 };
+
+      good.ground[3 * 20 + 4] = FLOOR;                    // through the long wall
+      const half = check(good, { cells: CELLS });
+      is(half.ok, false, 'with only one door');
+      is(half.cutOff, 15, 'the corner still shut away');
+
+      good.ground[5 * 20 + 2] = FLOOR;                    // and into the corner
+      const result = check(good, { cells: CELLS });
+      is(result.ok, true, 'ok — ' + result.problems.join(' / '));
+      is(result.cutOff, 0, 'nothing left behind a wall');
+    });
+
+    test('a decoration can be a wall too', () => {
+      // Solidity is ground OR decor, the same rule the game walks by.
+      const bad = room(12, 10);
+      const barrel = 75;
+      bad.solid.push(barrel);
+      for (let col = 1; col < 11; col++) bad.decor[3 * 12 + col] = barrel;
+      bad.spawn = { col: 2, row: 2 };
+      const result = check(bad, { cells: CELLS });
+      is(result.floor, 20, 'the squares above the barrels');
+      is(result.cutOff, 50, 'the squares below them');
+      is(result.ok, false, 'a map cut in half by furniture');
+    });
+
+    test('walking counts every square and no square twice', () => {
+      const world = createWorld(room(12, 10));
+      is(walk(world, { col: 2, row: 2 }).size, 80, 'squares');
+    });
+
+    // ------------------------------------------------------------ the file
+
+    test('the file it writes can be read back as the same map', () => {
+      const before = room(14, 11);
+      const after = JSON.parse(toJson(before));
+      is(after.width, before.width, 'width');
+      is(after.ground.length, before.ground.length, 'ground');
+      is(after.ground[17], before.ground[17], 'a square in the middle');
+      is(after.spawn.col, before.spawn.col, 'the start');
+      is(JSON.stringify(after.solid), JSON.stringify(before.solid), 'the walls');
+    });
+
+    test('the layers are one line each, so a pull request is readable', () => {
+      const lines = toJson(room()).split('\n');
+      is(lines.filter((l) => l.includes('"ground"')).length, 1, 'ground lines');
+      is(lines.length, 12, 'lines, counting the empty one after the last newline');
+    });
+
+    test('a name becomes a filename anybody can type', () => {
+      is(slug('The Old Well'), 'the-old-well', 'spaces and capitals');
+      is(slug('  ...  '), 'a-new-place', 'a name made of nothing');
+      is(slug('Café 42!'), 'caf-42', 'punctuation');
+      is(pathFor('the-old-well'), 'data/maps/the-old-well.json', 'the path');
+    });
+
+    // ------------------------------------------------- carrying it to GitHub
+
+    test('a small map fits in a link', () => {
+      const made = plan(toJson(room(20, 14)), 'a-place');
+      is(made.fits, true, `fits (${made.size} characters)`);
+      if (!made.url.startsWith('https://github.com/KakkoiSchool/kakkoi-online/new/main?')) {
+        throw new Error('unexpected address: ' + made.url.slice(0, 60));
+      }
+    });
+
+    test('a map the size of the town does not, and says so instead of failing', () => {
+      const made = plan(toJson(room(48, 36)), 'a-place');
+      is(made.fits, false, `fits (${made.size} characters, budget ${URL_BUDGET})`);
+    });
+
+    // ------------------------------------------------- and the shipping town
+
+    const summary = document.querySelector('#summary');
+    fetch('../data/maps/town.json')
+      .then((r) => r.json())
+      .then((town) => {
+        test('the town that ships is a place', () => {
+          const result = check(town, { cells: CELLS });
+          is(result.ok, true, 'ok — ' + result.problems.join(' / '));
+          if (result.floor < 200) throw new Error(`only ${result.floor} squares reachable`);
+        });
+      })
+      .catch((err) => test('the town that ships is a place', () => { throw err; }))
+      .finally(() => {
+        summary.textContent = `${passed} passed, ${failed} failed`;
+        summary.className = failed ? 'fail' : 'pass';
+      });
+  </script>
+</body>
+</html>

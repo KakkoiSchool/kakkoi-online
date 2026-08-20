@@ -52,14 +52,22 @@ card explaining why. See "One window at a time" in `DESIGN.md`.
 offers it, **Start over** — a new name and a new animal, which asks first — and the link to the
 lessons.
 
+**Make a map.** `editor/` is a map maker: paint with the tile sheet, put the start square somewhere,
+press **Check** — it walks the map from the start and lights up everywhere your feet can reach — and
+then **Propose it on GitHub**, which opens GitHub's own new-file page with your map already in it. No
+account details ever reach this page, because a page that is served to everybody cannot keep a
+secret; you sign in as yourself and it becomes a pull request. It is also the piece meant to be used
+*with* an AI: copy the map's text, ask Claude to put a pillar in the middle, paste it back, look at
+what happened.
+
 **Install it on your phone.** The live site is a proper PWA: open it and use your browser's "Add to
 Home Screen". It then opens like an app, with no browser bar, **and it works with no network** — the
 world, your saved character and Flint are all cached. Other players are the one thing offline cannot
 give you, because finding them needs a real connection.
 
 **Tests** are web pages: open `tests/rules.test.html`, `tests/net.test.html`,
-`tests/spectate.test.html` and `tests/wins.test.html` through the same server and read the PASS/FAIL
-rows. No test runner, no npm.
+`tests/spectate.test.html`, `tests/wins.test.html` and `tests/map.test.html` through the same server
+and read the PASS/FAIL rows. No test runner, no npm.
 
 ## How it fits together
 
@@ -81,6 +89,8 @@ src/ui/game.css     the whole look: one stylesheet, no component library under i
 src/ui/scale.js     how big the interface is, and how far the art is zoomed, on this device
 src/ui/glyphs.js    the pixel glyphs — the three moves, three faces, and the ⚙
 src/ui/bubbles.js   name plates and head bubbles, as DOM over the canvas
+src/map-check.js    is this map a place? — shared by the map maker and its tests
+editor/             the map maker: paint a map, check it, propose it as a pull request
 tests/*.test.html   tests you open in a browser
 demos/NN-name/      one standalone demo per lesson: open its index.html and look at it
 data/*.json         every balance number, the monsters, the map

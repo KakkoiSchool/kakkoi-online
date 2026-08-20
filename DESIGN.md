@@ -277,6 +277,48 @@ dice about a third of the time so he never becomes predictable himself.
 five duel messages ride one trystero action, because a duel is one conversation and one action keeps
 it in order. `net.js` is still the only file that has heard of trystero.
 
+## The map maker, and a pull request with no secret in it (M6)
+
+`editor/` is a separate page. The game stays a screen; a map maker is a desk, and a desk is allowed to
+have tools down one side and scroll. It draws with the game's own atlas code, validates with the
+game's own `src/map-check.js`, and writes exactly the `data/maps/*.json` the game reads — a map made
+here is not a special kind of map, it is the only kind there is.
+
+**The submit button cannot use a token, and that is the lesson.** Anything this page knows, every
+child who opens it knows: a token in a static site is a token you have given away, and there is no
+server here to keep one on anybody's behalf. So the button calls no API. It opens GitHub's own
+*create a new file* page with the map already written into the address —
+`github.com/OWNER/REPO/new/main?filename=…&value=…` — and the student, signed in as themselves, gets
+their own fork, their own branch, their own commit and their own pull request. Nothing here ever
+touches their account.
+
+**A URL is not a file upload.** `data/maps/town.json` is about 11,000 bytes, and once every comma has
+become `%2C` it is far past what a server will take, so `editor/submit.js` measures the encoded
+length first and stops at 7,000 — well short of the usual cliff, because "it worked on my map" is a
+poor thing to learn from a stranger's failed pull request. Past that it says so plainly and hands
+over the copy-and-paste route, which always works and is the same three steps with one done by hand.
+
+**Check is a flood fill, and it is the only gate.** There is no build step and no check job (see "The
+toolchain"), so before a human reads the pull request the only thing standing between a map and the
+game is this. It reads the file — sizes, layer lengths, tiles that are really in the sheet, a start
+that exists — and then it *walks the map the way the player would*, out from the start square, and
+lights up everything it reached. Two mistakes only walking finds: a room whose door was drawn shut,
+and floor that is fenced off by furniture, because solidity is ground **or** decor. Any floor at all
+that cannot be reached is reported; the town that ships has 653 squares of floor and reaches all 653,
+so the strict rule costs nothing and catches the cupboard.
+
+**The AI half is the text box.** The map is shown as JSON, with Copy and *Read it back* beside it. You
+paste it into Claude, ask for a room with a pillar in the middle, paste the answer back, and look at
+what it did — and **Check** runs before anything can be proposed, so a wrong answer from a machine is
+caught by the same gate as a wrong answer from a person. That needs no API key, which this page could
+not hold anyway, for the same reason the submit button cannot.
+
+**And a map is content, which is the one place moderation exists.** Everywhere else this game says
+moderation is impossible: no server, no logs, no reports, so chat is six preset phrases and abuse is
+designed out rather than policed. A pull request is different — somebody has to merge it, and that
+person is the moderator. Worth saying out loud, because it is the honest difference between "you may
+send six phrases" and "you may send a map".
+
 ## Chests, and what a reward is allowed to be (M5)
 
 Four chests, at 10, 25, 50 and 100 duels won, and every one of them holds **a look and nothing else**.

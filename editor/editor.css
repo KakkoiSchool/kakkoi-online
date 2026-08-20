@@ -1,0 +1,158 @@
+/**
+ * The map maker's own layout.
+ *
+ * It borrows the game's whole look — `src/ui/game.css` is loaded first, so the
+ * buttons, the black edge, the two fonts and the unit are all already here. This
+ * file is only the arrangement, because the editor is a desk and the game is a
+ * screen, and a desk has to scroll.
+ */
+
+body.editor {
+  height: auto;
+  min-height: 100svh;
+  overflow: auto;
+  padding: 0.6rem;
+  background: var(--void);
+}
+
+#bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+#bar h1 {
+  margin: 0 0.6rem 0 0;
+  font-family: var(--pixel);
+  letter-spacing: var(--track);
+  font-size: 1.4rem;
+  font-weight: 400;
+  color: var(--gold);
+}
+
+#bar .grow { flex: 1 1 auto; }
+#bar button { min-height: max(2.6rem, 40px); }
+
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--pixel);
+  letter-spacing: var(--track);
+  font-size: 0.9rem;
+  color: var(--ink-quiet);
+}
+
+.field input[type="text"] { min-height: max(2.6rem, 40px); font-size: 1rem; }
+
+.field input[type="number"] {
+  width: 4.5rem;
+  min-height: max(2.4rem, 36px);
+  padding: 0 0.4rem;
+  font-family: var(--pixel);
+  font-size: 1rem;
+  color: var(--ink);
+  background: #0f0f18;
+  border: 0.16rem solid #000;
+  border-radius: 0;
+}
+
+#desk {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+#palette {
+  flex: 0 0 auto;
+  width: 14rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  background: var(--panel);
+  border: 0.16rem solid #000;
+  box-shadow: var(--inset);
+}
+
+.tool-row { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.tool-row button { flex: 1 1 auto; min-height: max(2.4rem, 36px); font-size: 0.9rem; }
+.tool-row button[aria-pressed="true"] { color: var(--gold); box-shadow: inset 0 0 0 0.14rem var(--gold), var(--lift); }
+
+/* The sheet is drawn at twice life size and clicked on directly: the tile you
+   want is the tile you can see, which is the only palette a child needs. */
+#sheet {
+  width: 100%;
+  image-rendering: pixelated;
+  background: #0f0f18;
+  border: 0.16rem solid #000;
+  cursor: crosshair;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--ink-quiet);
+}
+
+/* The map itself scrolls inside its own box, so a big map never pushes the
+   tools off the screen. */
+#paper {
+  flex: 1 1 auto;
+  max-height: calc(100svh - 8rem);
+  overflow: auto;
+  padding: 0.4rem;
+  background: var(--sunk);
+  border: 0.16rem solid #000;
+  box-shadow: var(--inset);
+}
+
+#map {
+  display: block;
+  image-rendering: pixelated;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+#report[hidden] { display: none; }
+
+#report {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--panel);
+  border: 0.16rem solid #000;
+  box-shadow: var(--inset);
+}
+
+#report h2 { font-size: 1.1rem; }
+#report ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+#report li { margin: 0.2rem 0; }
+#report.is-good h2 { color: var(--win); }
+#report.is-bad h2 { color: var(--rose); }
+
+#json { margin-top: 0.6rem; color: var(--ink-quiet); }
+#json summary { font-family: var(--pixel); letter-spacing: var(--track); cursor: pointer; padding: 0.4rem 0; }
+
+#text {
+  width: 100%;
+  min-height: 9rem;
+  padding: 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: #0f0f18;
+  border: 0.16rem solid #000;
+  border-radius: 0;
+  resize: vertical;
+}
+
+/* A phone can look at a map. Painting one wants a mouse, and saying so is
+   kinder than pretending otherwise. */
+@media (max-width: 720px) {
+  #desk { flex-direction: column; }
+  #palette { width: 100%; }
+  #paper { max-height: 60svh; width: 100%; }
+}

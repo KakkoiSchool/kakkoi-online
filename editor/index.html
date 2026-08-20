@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c0c12">
+  <title>Kakkoi Online — map maker</title>
+  <link rel="icon" href="../icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="../icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="stylesheet" href="../src/ui/game.css">
+  <link rel="stylesheet" href="./editor.css">
+</head>
+<body class="editor">
+  <header id="bar">
+    <h1>Map maker</h1>
+    <label class="field">Name <input id="name" type="text" maxlength="40" value="A new place"></label>
+    <span class="grow"></span>
+    <button id="checkBtn" class="btn-outline" type="button">Check</button>
+    <button id="submitBtn" class="btn" type="button">Propose it on GitHub</button>
+  </header>
+
+  <main id="desk">
+    <!-- The tile sheet. Click one, then paint with it. -->
+    <aside id="palette" aria-label="Tiles">
+      <div class="tool-row">
+        <button id="layerGround" class="btn-outline" type="button" aria-pressed="true">Floor</button>
+        <button id="layerDecor" class="btn-outline" type="button" aria-pressed="false">On top</button>
+      </div>
+      <div class="tool-row">
+        <button id="solidBtn" class="btn-outline" type="button" aria-pressed="false">Wall</button>
+        <button id="spawnBtn" class="btn-outline" type="button" aria-pressed="false">Start</button>
+        <button id="eraseBtn" class="btn-outline" type="button" aria-pressed="false">Rub out</button>
+      </div>
+      <canvas id="sheet" width="192" height="176"></canvas>
+      <p class="hint" id="tileHint">Tile 0</p>
+      <div class="tool-row">
+        <label class="field">Wide <input id="mapW" type="number" min="8" max="96" value="28"></label>
+        <label class="field">Tall <input id="mapH" type="number" min="8" max="96" value="20"></label>
+      </div>
+      <div class="tool-row">
+        <button id="newBtn" class="btn-outline" type="button">New</button>
+        <button id="townBtn" class="btn-outline" type="button">Load the town</button>
+        <button id="zoomBtn" class="btn-outline" type="button">Zoom ×2</button>
+      </div>
+    </aside>
+
+    <!-- The map. Click to paint, hold and drag to draw a line of it. -->
+    <div id="paper">
+      <canvas id="map"></canvas>
+    </div>
+  </main>
+
+  <section id="report" hidden></section>
+
+  <!-- The JSON, in both directions. This is the half of the editor that is
+       meant to be used WITH an AI: copy it into a chat, ask for a room with a
+       pillar in the middle, paste what comes back, and look at what it did. -->
+  <details id="json">
+    <summary>The map, as text — for saving, for pasting, and for asking an AI</summary>
+    <p class="hint">
+      Copy this into Claude and ask it to change something, then paste its answer back and press
+      <b>Read it back</b> to see what happened. It cannot break anything: <b>Check</b> runs before
+      anything can be proposed.
+    </p>
+    <textarea id="text" spellcheck="false" rows="8"></textarea>
+    <div class="tool-row">
+      <button id="copyBtn" class="btn-outline" type="button">Copy</button>
+      <button id="readBtn" class="btn-outline" type="button">Read it back</button>
+    </div>
+  </details>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
