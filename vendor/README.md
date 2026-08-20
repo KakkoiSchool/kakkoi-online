@@ -80,6 +80,11 @@ in their **License** row; the OpenGameArt page states `License(s): CC0`.
   For A16: cell **48** is a plain sandy floor and cell **40** is a solid stone wall.
   There is **no walk cycle in this file.** Its characters (cells 84–88, 96–100, 108–112, 120–124)
   are one frame each.
+  **Most of this file is never drawn.** The characters include a wizard, a skeleton, a ghost and a
+  red devil, and the item rows are weapons, potions and wands; the map maker paints places and
+  offers none of them. `src/tiles.js` lists the 81 cells it does offer, and says why. The image is
+  kept whole and unedited anyway, which is what this folder is for: a pinned copy is only worth
+  anything if it is the copy that was published.
 - **`tiny-town.png`** — the outdoor half of the same 16 px set: grass, paths, houses, fences.
 - **`pixel-platformer-characters.png`** — this is where the **walk cycle** lives. The characters are
   laid out as **adjacent pairs**: cells 0/1, 2/3, 4/5 and 6/7 on the top row are four characters,

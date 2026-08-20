@@ -24,6 +24,7 @@
        the pull request. So the interesting rows are the bad maps. -->
   <script type="module">
     import { check, walk, toJson, slug, MIN_FLOOR } from '../src/map-check.js';
+    import { PAINTABLE, isPaintable } from '../src/tiles.js';
     import { createWorld } from '../src/world.js';
     import { plan, pathFor, URL_BUDGET } from '../editor/submit.js';
 
@@ -184,6 +185,48 @@
       is(walk(world, { col: 2, row: 2 }).size, 80, 'squares');
     });
 
+    // ------------------------------------------------ what a map may be made of
+    //
+    // The tile sheet is a dungeon set, and a third of it is a wizard, a
+    // skeleton, a ghost, a devil, potions and swords. None of that goes in a
+    // map. The palette will not draw them, but the palette is not the gate:
+    // anybody can paste a map into the text box, and an AI asked for "a spooky
+    // room" will happily write one. So the gate is here.
+
+    const GHOST = 108;
+
+    test('a ghost painted into the floor is refused, and says where it is', () => {
+      const bad = room(12, 10);
+      bad.ground[4 * 12 + 6] = GHOST;
+      const result = check(bad, { cells: CELLS });
+      is(result.ok, false, 'refused');
+      has(result.problems, 'column 6, row 4');
+      has(result.problems, 'does not paint');
+    });
+
+    test('and one dropped on top of the floor is refused too', () => {
+      const bad = room(12, 10);
+      bad.decor[2 * 12 + 3] = GHOST;
+      is(check(bad, { cells: CELLS }).ok, false, 'refused');
+    });
+
+    test('the rule is the default, not something the caller has to remember', () => {
+      const bad = room(12, 10);
+      bad.ground[15] = GHOST;
+      is(check(bad).ok, false, 'refused with no options at all');
+      is(check(bad, { cells: CELLS, allowed: null }).ok, true, 'and allowed through only when asked');
+    });
+
+    test('nothing from the rows of monsters, weapons and potions is on offer', () => {
+      const offered = PAINTABLE.filter((n) => n > 95);
+      if (offered.length) throw new Error(`the palette offers ${offered.join(', ')}`);
+      for (const tile of [84, 86, 92, 108, 110, 113, 121, 122, 129]) {
+        is(isPaintable(tile), false, `tile ${tile}`);
+      }
+      is(isPaintable(48), true, 'the floor the town is paved with');
+      is(isPaintable(90), true, 'a chest');
+    });
+
     // ------------------------------------------------------------ the file
 
     test('the file it writes can be read back as the same map', () => {
@@ -234,6 +277,15 @@
           const result = check(town, { cells: CELLS });
           is(result.ok, true, 'ok — ' + result.problems.join(' / '));
           if (result.floor < 200) throw new Error(`only ${result.floor} squares reachable`);
+        });
+
+        // The palette is a list of numbers, and shortening it is a one-line
+        // change. This is the row that goes red if that line takes a tile the
+        // town is standing on.
+        test('the town is made only of tiles the map maker still offers', () => {
+          const used = new Set([...town.ground, ...town.decor.filter((n) => n >= 0)]);
+          const gone = [...used].filter((n) => !isPaintable(n));
+          if (gone.length) throw new Error(`the town uses ${gone.join(', ')}, which the palette dropped`);
         });
       })
       .catch((err) => test('the town that ships is a place', () => { throw err; }))

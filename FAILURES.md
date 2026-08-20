@@ -950,3 +950,26 @@ because the join is what puts somebody back in `here`.
 When something looks wrong on screen, find the exact place that string or number can be produced —
 that usually names the bug before you have read anything else. And when you write `x || make(x)`, ask
 what it means if `x` is missing *because it was deliberately removed a moment ago*.
+
+## 2026-08-20 — I put a whole dungeon sheet in a children's tool without looking at it
+**Lesson:** A16 (tiles) / part 3 (the map maker)
+**What it produced:** `drawSheet()` in the map maker drew the vendored atlas in one line —
+`ctx.drawImage(atlas.img, 0, 0)` — and let you click any of its 132 squares. That is the obvious way
+to build a palette, and it is what "the tile sheet down one side" in `PLAN.md` asked for.
+**Why it was wrong:** I never looked at the picture. `vendor/kenney/tiny-dungeon.png` is a
+dungeon-crawler set, and its lower third is a cast: a wizard, a skeleton, a green ghost, a red devil,
+a spider, potions and wands. I shipped all of it into a tool built for a ten-year-old, in a game whose
+own design says every creature on screen is a person. The owner opened the editor and said so in one
+sentence.
+**How I caught it:** I did not — it was reported. What I should have done takes two minutes: render
+the atlas at 5× with the cell number written on every square and *look at it*. Doing that afterwards
+is how the list of what to keep got written, and it also turned up the two carved demon faces at 19
+and 20, which nobody had mentioned and which no amount of reading `main.js` would have found.
+**The fix:** `src/tiles.js`, one list of the 81 cells the map maker offers, enforced twice — the
+palette does not draw the others, and `check()` refuses a map containing one *by default*, because
+the palette is not the gate. The text box is: anybody can paste a map in, and an AI asked for a
+spooky room will write one. The vendored file is left exactly as Kenney published it, and the tile
+numbers keep their gaps, because the numbers are what goes in the map.
+**Worth telling students:** an asset is content, and content is a decision. You cannot review a
+picture by reading the code that draws it. If your program shows somebody a file you have not looked
+at, you have not chosen what your program shows — and "it came with the pack" is not a choice either.

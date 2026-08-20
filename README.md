@@ -65,7 +65,10 @@ account details ever reach this page, because a page that is served to everybody
 secret; you sign in as yourself and it becomes a pull request. It is also the piece meant to be used
 *with* an AI: copy the map's text, ask Claude to put a pillar in the middle, paste it back, look at
 what happened. The map maker works with no network too — everything but the one GitHub button, which
-says so and tells you what to do instead.
+says so and tells you what to do instead. It paints **places**: floors, walls, doors and furniture.
+The tile sheet it comes from is a dungeon set with monsters, weapons and potions in it, and
+`src/tiles.js` is the list of what this tool will and will not draw — the map checker refuses the
+rest as well, so pasting one in does not get round it.
 
 **Install it on your phone.** The live site is a proper PWA: open it and use your browser's "Add to
 Home Screen". It then opens like an app, with no browser bar, **and it works with no network** — the
@@ -98,6 +101,7 @@ src/ui/scale.js     how big the interface is, and how far the art is zoomed, on 
 src/ui/glyphs.js    the pixel glyphs — the three moves, three faces, and the ⚙
 src/ui/bubbles.js   name plates and head bubbles, as DOM over the canvas
 src/map-check.js    is this map a place? — shared by the map maker and its tests
+src/tiles.js        which pictures a map may be made of, and which are left out
 editor/             the map maker: paint a map, check it, propose it as a pull request
 tests/*.test.html   tests you open in a browser
 demos/NN-name/      one standalone demo per lesson: open its index.html and look at it

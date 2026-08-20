@@ -382,6 +382,23 @@ designed out rather than policed. A pull request is different — somebody has t
 person is the moderator. Worth saying out loud, because it is the honest difference between "you may
 send six phrases" and "you may send a map".
 
+**The sheet has monsters in it; the palette does not.** `vendor/kenney/tiny-dungeon.png` is a
+dungeon-crawler set, and its bottom third is a cast: a wizard, a skeleton, a ghost, a red devil, a
+spider, potions, wands and swords. `src/tiles.js` is the list of the 81 pictures the map maker will
+actually paint with — floors, walls, doors, stairs, furniture and the three chests — and the reasons
+are two. It was asked for plainly: no magic, no ghosts, nothing occult. And it would hold anyway,
+because in Kakkoi every creature on screen is a *person*, one sprite per player; a monster painted
+into the floor is something you can walk through and cannot talk to, which is a worse lie than
+leaving it out.
+
+The rule is enforced twice, and the second time is the one that matters. The palette does not draw
+the other squares, so there is nothing to look at and nothing to click — but the palette is not the
+gate. `check()` refuses a map that contains one, by default, with no option to pass, because the
+route that matters is the text box: **anybody can paste a map in, and an AI asked for "a spooky room"
+will happily write one.** The vendored sheet itself is untouched — `vendor/` holds other people's
+work exactly as they published it, and a file we quietly edited is a file nobody can check — and the
+tile numbers are left alone too, gaps and all, because the numbers are what ends up in the file.
+
 **The map maker works with no network, and says so when it has none.** `sw.js` precaches `editor/`
 along with the game: a tile sheet, a flood fill and a text box need nothing from the outside, and a
 child on a train should be able to build a room. Exactly one thing there does need the network — the

@@ -21,6 +21,7 @@
  */
 import { loadAtlas, drawTile } from '../src/sprites.js';
 import { check, toJson, slug, MIN_SIDE, MAX_SIDE } from '../src/map-check.js';
+import { PAINTABLE, isPaintable } from '../src/tiles.js';
 import { plan, blankUrl, longWay, pathFor } from './submit.js';
 
 const ATLAS = '../vendor/kenney/tiny-dungeon.png';
@@ -147,18 +148,35 @@ function draw() {
   text.value = toJson(map);
 }
 
+/** The last tile the palette offers, and so how much of the sheet it shows. */
+const LAST_TILE = Math.max(...PAINTABLE);
+const sheetRows = () => Math.floor(LAST_TILE / atlas.cols) + 1;
+
 function drawSheet() {
   const ctx = sheet.getContext('2d');
-  const scale = 1;
-  sheet.width = atlas.cols * CELL;
-  sheet.height = atlas.rows * CELL;
+  const wide = atlas.cols * CELL;
+  const tall = sheetRows() * CELL;
+  sheet.width = wide;
+  sheet.height = tall;
   ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, sheet.width, sheet.height);
-  ctx.drawImage(atlas.img, 0, 0);
+  ctx.clearRect(0, 0, wide, tall);
+  ctx.drawImage(atlas.img, 0, 0, wide, tall, 0, 0, wide, tall);
+
+  // The sheet is a dungeon set and has monsters, weapons and potions in the
+  // bottom rows. This tool paints places, not creatures (`src/tiles.js` says
+  // which, and why), so those squares are rubbed straight back out: there is
+  // nothing to look at and nothing to click. The numbering is untouched — tile
+  // 48 is still the fourth row, first square — because the numbers are what
+  // ends up in the file, and renumbering them to close the gaps would make the
+  // palette and the map disagree.
+  for (let n = 0; n < sheetRows() * atlas.cols; n++) {
+    if (isPaintable(n)) continue;
+    ctx.clearRect((n % atlas.cols) * CELL, Math.floor(n / atlas.cols) * CELL, CELL, CELL);
+  }
 
   // A ring around every tile that has been called a wall, and a full box around
   // the one being painted with.
-  for (let n = 0; n < atlas.cols * atlas.rows; n++) {
+  for (let n = 0; n < sheetRows() * atlas.cols; n++) {
     const x = (n % atlas.cols) * CELL;
     const y = Math.floor(n / atlas.cols) * CELL;
     if (isWall(n)) {
@@ -172,7 +190,6 @@ function drawSheet() {
       ctx.strokeRect(x + 1, y + 1, CELL - 2, CELL - 2);
     }
   }
-  void scale;
 }
 
 // ------------------------------------------------------------------- clicks
@@ -206,7 +223,11 @@ for (const done of ['pointerup', 'pointercancel']) {
 sheet.addEventListener('pointerdown', (e) => {
   const { col, row } = squareFrom(e, sheet, CELL);
   const n = row * atlas.cols + col;
-  if (n < 0 || n >= atlas.cols * atlas.rows) return;
+  if (n < 0 || n >= sheetRows() * atlas.cols) return;
+  if (!isPaintable(n)) {
+    tileHint.textContent = 'That square is empty on purpose — see below.';
+    return;
+  }
   tool.tile = n;
   tool.mode = 'paint';
   paintTools();

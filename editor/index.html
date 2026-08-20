@@ -34,8 +34,15 @@
         <button id="spawnBtn" class="btn-outline" type="button" aria-pressed="false">Start</button>
         <button id="eraseBtn" class="btn-outline" type="button" aria-pressed="false">Rub out</button>
       </div>
-      <canvas id="sheet" width="192" height="176"></canvas>
+      <canvas id="sheet" width="192" height="128"></canvas>
       <p class="hint" id="tileHint">Tile 0</p>
+      <!-- The sheet is a dungeon set: its last rows are monsters, weapons and
+           potions, and this tool does not paint those. See src/tiles.js. -->
+      <p class="hint">
+        Some squares are blank on purpose. This is a map maker, so it paints
+        the <b>place</b> — floors, walls, doors, furniture — and nothing that is
+        alive, armed or magic.
+      </p>
       <div class="tool-row">
         <label class="field">Wide <input id="mapW" type="number" min="8" max="96" value="28"></label>
         <label class="field">Tall <input id="mapH" type="number" min="8" max="96" value="20"></label>

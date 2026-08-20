@@ -13,6 +13,7 @@
  * walking the map the way the player would.
  */
 import { createWorld } from './world.js';
+import { paintable } from './tiles.js';
 
 /** As big as a map may be. Past this it is not a room, it is a wallpaper. */
 export const MAX_SIDE = 96;
@@ -22,13 +23,19 @@ export const MIN_SIDE = 8;
 export const MIN_FLOOR = 12;
 
 /**
- * check(map, { cells }) -> { ok, problems: [...], reachable: Set<index>, floor }
+ * check(map, { cells, allowed }) -> { ok, problems: [...], reachable: Set<index>, floor }
  *
  * `cells` is how many pictures the atlas has, so a tile number that is not in
- * the sheet can be named. Everything is a *problem*, never an exception: a map
- * being wrong is the ordinary case here, and the editor prints the list.
+ * the sheet can be named. `allowed` is the shorter list of the ones a map may
+ * actually use (`tiles.js`), and it defaults to that list on purpose: this is
+ * the gate every map goes through, including one an AI wrote and somebody
+ * pasted in, so the rule has to hold without anybody remembering to ask for it.
+ * Pass `allowed: null` to check a map's shape without that rule.
+ *
+ * Everything is a *problem*, never an exception: a map being wrong is the
+ * ordinary case here, and the editor prints the list.
  */
-export function check(map, { cells = Infinity } = {}) {
+export function check(map, { cells = Infinity, allowed = paintable } = {}) {
   const problems = [];
   const say = (what) => problems.push(what);
 
@@ -62,6 +69,17 @@ export function check(map, { cells = Infinity } = {}) {
     if (bad >= 0) {
       say(`The ${layer} layer has ${list[bad]} at column ${bad % width}, row ${Math.floor(bad / width)}, ` +
           `and the tile sheet only goes up to ${cells - 1}.`);
+      continue;
+    }
+    // And of the pictures that do exist, the ones a map is allowed to be made
+    // of. The sheet has monsters in it; a map does not get to have any.
+    if (allowed) {
+      const off = list.findIndex((n) => n >= 0 && !allowed.has(n));
+      if (off >= 0) {
+        say(`The ${layer} layer has tile ${list[off]} at column ${off % width}, row ${Math.floor(off / width)}. ` +
+            `The map maker does not paint that one: it draws places — floors, walls, doors and furniture — ` +
+            `and nothing alive, armed or magic. Pick a tile from the palette instead.`);
+      }
     }
   }
 

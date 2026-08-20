@@ -5,8 +5,9 @@ it existed, so that the expensive decisions were made in prose where they are ch
 
 **Status: M5, M6 and M7 are built.** What was decided here is what shipped, with the recommended
 answers taken for every open question, and `DESIGN.md` now carries the design of each as it actually
-turned out. Two things below did not survive contact with the code, and both are marked **[changed]**
-where they appear: Aniki's lives, and the new area. The rest of this document stands as written.
+turned out. Three things below did not survive contact with the code, and each is marked **[changed]**
+where they appear: Aniki's lives, the new area, and the map maker's palette. The rest of this
+document stands as written.
 
 Read `DESIGN.md` first if you have not: it is the record of why the game is what it is, and this plan
 is bound by it.
@@ -227,6 +228,13 @@ map in the middle. Click to paint, drag to draw a line of wall, pick the ground 
 layer, drop the spawn point, name it. Load the town to see how it was made, or start empty. When it
 looks right, press **Check** and then **Submit**, and you are taken to GitHub with your map ready to
 propose. Cyril reviews it. If he merges it, your map is in the game everybody plays.
+
+**[changed] The tile sheet is not offered whole.** "The tile sheet down one side" was written without
+looking hard enough at what is in it: `tiny-dungeon.png` has a wizard, a skeleton, a ghost, a red
+devil, potions and wands in its lower rows. None of that is going in a map — it was asked for
+plainly, and it is also wrong for a game where every creature on screen is a player. `src/tiles.js`
+now lists the 81 pictures the palette offers, the rest are not drawn at all, and `check()` refuses a
+map that uses one so that pasting JSON in does not go round the palette.
 
 ### How the submit button works, and why it is the interesting part
 
