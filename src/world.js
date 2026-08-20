@@ -13,13 +13,29 @@
 
 const EPS = 0.0001;   // keeps a box that ends exactly on a tile line out of the next tile
 
+/**
+ * How many screen pixels one art pixel is, in the world's own coordinates.
+ *
+ * This is the size of the coordinate space itself — the player's box,
+ * `walkSpeed`, `challengeReachPx`, every saved position and every position that
+ * goes over the wire are all measured in world pixels, which are art pixels
+ * times this. It is a constant on purpose and must stay one: two browsers that
+ * disagreed about it would disagree about where everybody is standing. How far
+ * the art is zoomed in on THIS screen is a different number, and it lives in
+ * `ui/scale.js`.
+ *
+ * Named here rather than left as a bare 2 because `render.js` needs the same
+ * number before there is a world to read it from — see `fitCanvas`.
+ */
+export const WORLD_SCALE = 2;
+
 export async function loadWorld(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`map ${url}: ${response.status}`);
   return createWorld(await response.json());
 }
 
-export function createWorld(data, scale = 2) {
+export function createWorld(data, scale = WORLD_SCALE) {
   const solid = new Set(data.solid || []);
   const tile = data.tileSize * scale;   // one tile on screen, in pixels
 

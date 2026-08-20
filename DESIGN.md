@@ -395,6 +395,28 @@ It is now **100% of both**: the canvas is the screen, and every control floats o
 - **The phrase row never wraps.** `nowrap` and a font that shrinks with the viewport; at 390px all six
   fit on one line, and the horizontal scroll is only a safety net for something narrower than a phone.
 
+## The loading screen is the screen
+
+`index.html` gives the canvas `width="640" height="480"`, and until `main.js` resizes it that is what
+it is: a small pale box in the middle of a dark page. That resize used to happen after the map, the
+two atlases and the save had loaded **and** after the first-run name and monster cards had been
+answered — so every player's first sight of the game was a 640×480 rectangle floating in the middle
+of their screen, with the name card on top of it.
+
+`fitCanvas()` now runs at the top of `boot()`, before anything is awaited. Nothing has been drawn into
+the canvas yet, so there is nothing to redraw: this is a size, and it costs one call. It defaults to
+`WORLD_SCALE`, the same constant `createWorld()` defaults to, which is what lets it run before there
+is a world to ask.
+
+`applyScale()` moved with it, and that half is the bigger bug: every length in `game.css` is a `rem`,
+so until the unit is set the cards are measured against the browser's default 16px rather than the
+9–15 this window is entitled to. The first thing a new player ever saw was the one screen not drawn to
+the game's own scale.
+
+One `fit()` now serves both halves of the session — it takes the camera and the player when they
+exist, and the resize and orientation listeners are registered beside it, so a phone rotated while the
+name card is up is handled the same as one rotated mid-game.
+
 ## One unit, and a zoom — but only one of them touches the world
 
 The interface used to be sized in `px` and the art was always ×2. Both are now decided from the size of
@@ -481,16 +503,28 @@ the domain root on online.kakkoi.dev and to `/kakkoi-online/` in a fork, without
 written down. Theme and background are `#0c0c12`, the colour the canvas already is, so the splash and
 the status bar match the game rather than flashing white in front of it.
 
-**The icons are the game's own art.** Sunmane the lion — cell 156 of
-`vendor/opengameart/tiny-creatures.png` — scaled up from 16px with smoothing OFF and centred on
-`#0c0c12`. Nothing new was imported and nothing was drawn: the icon on the home screen is a sprite
-from the game. They live in `icons/`, at 192 and 512, plus 180 for iOS. Every scale is a whole
-multiple of 16 or the pixels stop being square.
+**The icons are one drawing on a 16×16 grid.** They were Sunmane the lion, cell 156 of
+`vendor/opengameart/tiny-creatures.png`, scaled up from the sheet — the icon on the home screen was
+literally a sprite from the game, which is a nice thing to be able to say and a poor thing to look at
+in a browser tab. A creature sprite is drawn to be seen at ×2 on a floor with other creatures beside
+it, not at 16 pixels square on its own. The mark is now a monster head drawn for this job: gold on
+`#191927` with the same black edge the interface uses, so the tab and the game read as one thing.
+
+It is drawn once at 16×16 and multiplied by whole numbers — ×32 to 512, ×12 to 192 — so every edge
+lands on a pixel boundary at every size. Drawing at 512 and shrinking to 32 gives you a soft icon, and
+soft on a pixel game reads as a mistake rather than as small. `favicon.svg` is the same drawing as
+flat rectangles with `shape-rendering: crispEdges`, and it is first in `<head>`, so a browser that
+understands it stays sharp on a high-density screen instead of scaling the 32px PNG; the two PNGs are
+there for the browsers that do not.
+
+**Why a head and not the three moves.** The obvious mark for a rock-paper-scissors game is the triad,
+and at 16 pixels three glyphs get about five pixels each and turn to mush. One head with two eyes
+survives the size it will actually be seen at.
 
 The two **maskable** variants exist because Android crops an icon to whatever shape the launcher
-likes. The safe area is a circle of 80% of the square, so the animal has to fit the square inscribed
-in that circle — 0.8/√2 ≈ 0.566 of the side, rounded down to a multiple of 16: 96px inside 192, 288px
-inside 512. Without that, the launcher crops the lion's head off.
+likes. The safe area is a circle of 80% of the square, so the head has to fit the square inscribed in
+that circle — the drawing sits inside the middle 78% of the tile, and everything outside it is
+background the launcher is welcome to eat. Without that, the launcher crops the head off.
 
 **`sw.js`** caches the app shell. It answers with the cached page for exactly two navigations — the
 scope root, which is `start_url`, and `./index.html` — and for nothing else. The first version answered

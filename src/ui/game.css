@@ -395,6 +395,12 @@ p { text-wrap: pretty; }
 #controls.is-gone { opacity: 0; }
 .help-line[hidden] { display: none; }
 
+/* Before `ui/help.js` has put its two lines in — which is to say for the whole
+   of loading — this is an empty box with a border and a background, and it drew
+   as a little rectangle floating over the loading screen. Same rule the HUD
+   badges already use for the same reason. */
+#controls:empty { display: none; }
+
 @media (prefers-reduced-motion: reduce) { #controls { transition: none; } }
 
 /* -------------------------------------------------- name plates and bubbles */

@@ -7,6 +7,7 @@
  * map means you never see past the end of the world.
  */
 import { drawTile } from './sprites.js';
+import { WORLD_SCALE } from './world.js';
 
 /**
  * Make the canvas exactly as big as the space it has been given.
@@ -33,9 +34,14 @@ import { drawTile } from './sprites.js';
  * Resizing a canvas resets its 2D context — including `imageSmoothingEnabled`
  * and any transform — so that is set again here, every time, rather than once at
  * boot.
+ *
+ * `scale` is `world.scale`, and it defaults to `WORLD_SCALE` — the same constant
+ * the world itself defaults to — so this can be called before the map has
+ * finished loading. That is what makes the loading screen the size of the screen
+ * instead of a 640x480 box in the middle of it.
  */
-export function fitCanvas({ canvas, ctx, box, world, zoom = 1 }) {
-  const step = world.scale * zoom;
+export function fitCanvas({ canvas, ctx, box, scale = WORLD_SCALE, zoom = 1 }) {
+  const step = scale * zoom;
   const fit = (available) => {
     const wanted = Math.floor(available);
     return Math.max(step, wanted - (wanted % step));

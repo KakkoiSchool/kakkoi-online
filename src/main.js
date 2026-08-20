@@ -71,8 +71,42 @@ async function loadJSON(url) {
 async function boot() {
   say('loading…');
 
-  // The very first thing this window does is claim the game from any older
-  // window of the same browser. It is fired here, before the atlases, because
+  // The screen is the screen from the first paint.
+  //
+  // The canvas is 640x480 in the markup, and until this runs that is exactly
+  // what it is: a small pale box in the middle of a dark page, sitting there
+  // for the whole of loading and behind the name-and-monster cards on top of
+  // it. Nothing has been drawn into it yet, so there is nothing to redraw —
+  // this is only a size, and it costs one call to make the loading screen the
+  // size of the game.
+  //
+  // `applyScale` goes with it, and that half matters more than it looks: every
+  // length in `game.css` is a `rem`, so until the unit is set the first-run
+  // cards are measured against the browser's default 16px instead of the 9-15
+  // this window is entitled to. The first thing a new player ever sees was the
+  // one screen not drawn to the game's own scale.
+  //
+  // `camera` does not exist yet — it needs the map. Once it does, the same
+  // function keeps it centred, which is what a rotate or a drag needs.
+  const view = { zoom: 1 };
+  let camera = null;
+  let follow = null;
+
+  const fit = () => {
+    view.zoom = applyScale(arena).zoom;
+    fitCanvas({ canvas, ctx, box: arena, zoom: view.zoom });
+    if (camera) camera.follow(follow);
+  };
+  fit();
+
+  // A phone rotating, a window being dragged, the URL bar sliding away: all of
+  // them change the box, and all of them arrive here — during loading and the
+  // first-run questions as much as in the game.
+  addEventListener('resize', fit);
+  addEventListener('orientationchange', fit);
+
+  // Before anything is loaded, this window claims the game from any older window
+  // of the same browser. It is fired here, before the atlases, because
   // the answer only takes a few hundred milliseconds and loading takes longer —
   // by the time the map is parsed the handover has already landed or timed out.
   const session = createSession();
@@ -119,29 +153,19 @@ async function boot() {
 
   const player = spawn(world, identity);
 
-  // The canvas takes the whole arena, and the arena is the whole screen. Sized
-  // before the camera is made, because the camera centres on half of what fits.
-  //
   // How big the interface is and how far the art is zoomed in are one decision,
   // taken in `ui/scale.js` from the size of the box, and taken again on every
   // resize. `view.zoom` is screen pixels per world pixel; the world's own
   // coordinates never change, so a phone and a desktop still agree about where
   // everybody is standing — see the note in `ui/scale.js`.
-  const view = { zoom: 1 };
-  const fit = () => {
-    view.zoom = applyScale(arena).zoom;
-    fitCanvas({ canvas, ctx, box: arena, world, zoom: view.zoom });
-  };
+  //
+  // The camera is made after the canvas has a size, because it centres on half
+  // of what fits; from here on `fit()` centres it again on every resize.
+  camera = createCamera(canvas, world, view);
+  follow = player;
   fit();
 
-  const camera = createCamera(canvas, world, view);
-  camera.follow(player);
   const mapLayer = createMapLayer();
-
-  // A phone rotating, a window being dragged, the URL bar sliding away: all of
-  // them change the box, and all of them arrive here.
-  addEventListener('resize', () => { fit(); camera.follow(player); });
-  addEventListener('orientationchange', () => { fit(); camera.follow(player); });
 
   const input = createInput(canvas);
   const speed = Number(tuning.walkSpeed) || 150;
