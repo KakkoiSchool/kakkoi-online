@@ -8,7 +8,13 @@
   <!-- Installable on a phone's home screen: a manifest, an icon, and a service
        worker that caches the game so it opens with no network. See sw.js. -->
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./icons/icon-192.png" sizes="192x192" type="image/png">
+  <!-- The tab icon. Order matters: a browser that understands the SVG takes the
+       first line and stays sharp on a high-density screen; older ones fall
+       through to the PNGs, which are drawn on the same 16x16 grid rather than
+       shrunk from the big one. See icons/ and DESIGN.md. -->
+  <link rel="icon" href="./icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="./icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="./icons/favicon-16.png" sizes="16x16" type="image/png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
   <!-- The standard name first. The `apple-` one is kept beside it because older
        iOS reads only that, and Chrome warns about it alone. -->

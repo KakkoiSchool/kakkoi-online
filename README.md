@@ -60,7 +60,7 @@ PASS/FAIL rows. No test runner, no npm.
 index.html          canvas + the UI shell
 manifest.webmanifest  makes it installable on a phone's home screen
 sw.js               caches the app shell so the game opens offline. BUMP ITS CACHE VERSION
-icons/              the home-screen icons, made from the game's own lion sprite
+icons/              the tab icon and the home-screen icons, one drawing on a 16x16 grid
 src/main.js         boot and wiring only — everything else is one idea per file
 src/loop.js         the requestAnimationFrame loop
 src/net.js          the only file that knows trystero exists

@@ -28,7 +28,7 @@
  * This never touches `localStorage`. Saved characters are not ours to clear.
  */
 
-const CACHE = 'kakkoi-online-v9';
+const CACHE = 'kakkoi-online-v10';
 
 /**
  * Every file the game loads, by hand. `./` and `./index.html` are both here on
@@ -104,6 +104,10 @@ const SHELL = [
   './icons/icon-192-maskable.png',
   './icons/icon-512-maskable.png',
   './icons/apple-touch-icon.png',
+  // The tab icon, all three of it: without these an offline load has no icon.
+  './icons/favicon.svg',
+  './icons/favicon-32.png',
+  './icons/favicon-16.png',
 ];
 
 /** The precache list as absolute URLs, for matching an incoming request against. */
