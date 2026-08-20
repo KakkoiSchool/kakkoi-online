@@ -28,7 +28,7 @@
  * This never touches `localStorage`. Saved characters are not ours to clear.
  */
 
-const CACHE = 'kakkoi-online-v13';
+const CACHE = 'kakkoi-online-v14';
 
 /**
  * Every file the game loads, by hand. `./` and `./index.html` are both here on
@@ -62,6 +62,8 @@ const SHELL = [
   './src/duel.js',
   './src/npc.js',
   './src/spectate.js',
+  './src/looks.js',
+  './src/wins.js',
   './src/audio.js',
   './src/battle/rules.js',
   './src/ui/onboarding.js',
@@ -73,6 +75,7 @@ const SHELL = [
   './src/ui/scale.js',
   './src/ui/glyphs.js',
   './src/ui/bubbles.js',
+  './src/ui/chest.js',
 
   // trystero, and only the files it actually pulls in.
   './vendor/trystero/nostr.js',
@@ -89,6 +92,7 @@ const SHELL = [
 
   './data/maps/town.json',
   './data/monsters.json',
+  './data/cosmetics.json',
   './data/tuning.json',
 
   // The six effects and the loop, exactly as src/audio.js names them.

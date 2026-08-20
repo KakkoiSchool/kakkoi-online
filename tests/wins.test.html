@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakkoi Online — wins and chests</title>
+  <style>
+    body { font: 14px/1.6 system-ui, sans-serif; margin: 2rem; background: #1b1b22; color: #e8e8ef; }
+    h1 { font-size: 1.2rem; }
+    #summary { font-weight: 700; margin-bottom: 1rem; }
+    .row { font-family: ui-monospace, monospace; }
+    .pass { color: #7ee081; }
+    .fail { color: #ff7b72; }
+  </style>
+</head>
+<body>
+  <h1>wins, chests and what you are wearing</h1>
+  <p>Open this file through Live Server (not <code>file://</code>) — it loads modules.</p>
+  <div id="summary">running…</div>
+  <div id="rows"></div>
+
+  <!-- This page writes to the real localStorage, under the game's own trophy
+       key, and clears it before every test. Open the game afterwards and your
+       chests are as they were: the key is rewritten from nothing each time. -->
+  <script type="module">
+    import { createWins } from '../src/wins.js';
+    import { createLooks, BARE } from '../src/looks.js';
+    import { TROPHY_KEY } from '../src/save.js';
+
+    const rows = document.querySelector('#rows');
+    let passed = 0;
+    let failed = 0;
+
+    function test(name, body) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      localStorage.removeItem(TROPHY_KEY);
+      try {
+        body();
+        passed++;
+        row.classList.add('pass');
+        row.textContent = `PASS  ${name}`;
+      } catch (err) {
+        failed++;
+        row.classList.add('fail');
+        row.textContent = `FAIL  ${name} — ${err.message}`;
+      }
+      rows.append(row);
+    }
+
+    function is(actual, expected, what) {
+      if (actual !== expected) throw new Error(`${what}: expected ${expected}, got ${actual}`);
+    }
+
+    /** The four chests, in the shape data/cosmetics.json has. */
+    const LOOKS = [
+      { id: 1, name: 'Deep', wins: 2, kind: 'tint', hue: 155 },
+      { id: 2, name: 'Shades', wins: 4, kind: 'overlay', pixels: [[-2, 0, 5, 1, '#14141f']] },
+      { id: 3, name: 'Ember', wins: 6, kind: 'tint', hue: -32 },
+    ];
+
+    /** The views a duel emits, in the order it emits them. */
+    const won = { state: 'fighting', phase: 'over', outcome: { how: 'you' } };
+    const lost = { state: 'fighting', phase: 'over', outcome: { how: 'them' } };
+    const left = { state: 'fighting', phase: 'over', outcome: { how: 'gone' } };
+    const walking = { state: 'walking', phase: 'idle' };
+    const fighting = { state: 'fighting', phase: 'choosing' };
+
+    // ------------------------------------------------------------- counting
+
+    test('winning a duel is one win', () => {
+      const wins = createWins({ looks: LOOKS });
+      wins.saw(fighting);
+      wins.saw(won);
+      wins.saw(walking);
+      is(wins.count, 1, 'wins');
+    });
+
+    test('a duel that is still on the screen is not counted again', () => {
+      // The panel stays up after the last round, and every repaint is another
+      // view of the same ending.
+      const wins = createWins({ looks: LOOKS });
+      wins.saw(won);
+      wins.saw(won);
+      wins.saw(won);
+      is(wins.count, 1, 'wins');
+    });
+
+    test('two duels in a row are two wins', () => {
+      const wins = createWins({ looks: LOOKS });
+      wins.saw(won); wins.saw(walking);
+      wins.saw(won); wins.saw(walking);
+      is(wins.count, 2, 'wins');
+    });
+
+    test('losing, and being walked out on, are not wins', () => {
+      const wins = createWins({ looks: LOOKS });
+      wins.saw(lost); wins.saw(walking);
+      wins.saw(left); wins.saw(walking);
+      is(wins.count, 0, 'wins');
+    });
+
+    // --------------------------------------------------------------- chests
+
+    test('a chest is waiting at the number of wins it says', () => {
+      const wins = createWins({ looks: LOOKS });
+      wins.saw(won); wins.saw(walking);
+      is(wins.waiting, 0, 'after one win');
+      wins.saw(won); wins.saw(walking);
+      is(wins.waiting, 1, 'after two');
+      is(wins.count, 2, 'wins');
+    });
+
+    test('a chest has to be opened before the look is unlocked', () => {
+      const wins = createWins({ looks: LOOKS });
+      wins.saw(won); wins.saw(walking);
+      wins.saw(won); wins.saw(walking);
+      is(wins.has(1), false, 'unlocked before opening');
+      is(wins.open().id, 1, 'what was inside');
+      is(wins.has(1), true, 'unlocked after opening');
+      is(wins.open(), null, 'a second open with nothing waiting');
+    });
+
+    test('chests arrive in order and none is skipped', () => {
+      const wins = createWins({ looks: LOOKS });
+      for (let i = 0; i < 6; i++) { wins.saw(won); wins.saw(walking); }
+      is(wins.count, 6, 'wins');
+      is(wins.waiting, 3, 'chests waiting');
+      is(wins.open().name, 'Deep', 'first');
+      is(wins.open().name, 'Shades', 'second');
+      is(wins.open().name, 'Ember', 'third');
+    });
+
+    test('starting past a threshold still owes the chest', () => {
+      // Somebody who edited their save, or came back after a version where the
+      // chest did not exist yet.
+      localStorage.setItem(TROPHY_KEY, JSON.stringify({ wins: 5, unlocked: [], wearing: 0 }));
+      const wins = createWins({ looks: LOOKS });
+      is(wins.count, 5, 'wins');
+      wins.saw(won); wins.saw(walking);
+      is(wins.waiting, 3, 'all three thresholds it is now past');
+    });
+
+    test('how far to the next chest', () => {
+      const wins = createWins({ looks: LOOKS });
+      is(wins.next, 2, 'from nothing');
+      wins.saw(won); wins.saw(walking);
+      is(wins.next, 1, 'after one');
+      localStorage.setItem(TROPHY_KEY, JSON.stringify({ wins: 99, unlocked: [], wearing: 0 }));
+      is(createWins({ looks: LOOKS }).next, 0, 'when there is nothing left to find');
+    });
+
+    // -------------------------------------------------------------- wearing
+
+    test('you can only wear what you have won', () => {
+      const wins = createWins({ looks: LOOKS });
+      is(wins.wear(2), false, 'a look nobody has earned');
+      is(wins.wearing, BARE, 'still bare');
+      wins.saw(won); wins.saw(walking); wins.saw(won); wins.saw(walking);
+      wins.open();
+      is(wins.wear(1), true, 'the one that was opened');
+      is(wins.wearing, 1, 'wearing it');
+      is(wins.wear(BARE), true, 'and taking it off again');
+      is(wins.wearing, BARE, 'bare');
+    });
+
+    test('what you are wearing is still there next time', () => {
+      const first = createWins({ looks: LOOKS });
+      first.saw(won); first.saw(walking); first.saw(won); first.saw(walking);
+      first.open();
+      first.wear(1);
+      const later = createWins({ looks: LOOKS });
+      is(later.count, 2, 'wins');
+      is(later.wearing, 1, 'still wearing it');
+      is(later.has(1), true, 'still unlocked');
+    });
+
+    test('a look this build has never heard of is not worn', () => {
+      // A save from a later version, or an edited one.
+      localStorage.setItem(TROPHY_KEY, JSON.stringify({ wins: 9, unlocked: [1, 99], wearing: 99 }));
+      const wins = createWins({ looks: LOOKS });
+      is(wins.wearing, BARE, 'wearing');
+      is(wins.has(99), false, 'unlocked');
+      is(wins.has(1), true, 'the real one survived');
+    });
+
+    test('a trophy key full of nonsense costs the chests and nothing else', () => {
+      localStorage.setItem(TROPHY_KEY, 'not json at all');
+      const wins = createWins({ looks: LOOKS });
+      is(wins.count, 0, 'wins');
+      is(wins.wearing, BARE, 'wearing');
+      wins.saw(won); wins.saw(walking);
+      is(wins.count, 1, 'and it counts from there');
+    });
+
+    // ---------------------------------------------------------------- looks
+
+    test('an overlay is moved onto the face it is worn on', () => {
+      const looks = createLooks({ looks: LOOKS, atlas: { loaded: false } });
+      const [[x, y, w, h, colour]] = looks.overlayFor(2, { face: { x: 10, y: 6 } });
+      is(x, 8, 'x, from a -2 offset on a face at 10');
+      is(y, 6, 'y');
+      is(w, 5, 'width');
+      is(h, 1, 'height');
+      is(colour, '#14141f', 'colour');
+    });
+
+    test('a creature with no face anchor wears no overlay', () => {
+      const looks = createLooks({ looks: LOOKS, atlas: { loaded: false } });
+      is(looks.overlayFor(2, {}), null, 'without an anchor');
+      is(looks.overlayFor(2, null), null, 'without a creature at all');
+    });
+
+    test('a look nobody has heard of is painted as nothing', () => {
+      // This is what a peer running a newer build looks like from here, and it
+      // must not be an error.
+      const atlas = { loaded: false, img: null, cell: 16, cols: 10 };
+      const looks = createLooks({ looks: LOOKS, atlas });
+      is(looks.atlasFor(404), atlas, 'the sheet is the ordinary one');
+      is(looks.overlayFor(404, { face: { x: 8, y: 8 } }), null, 'and nothing is painted');
+      is(looks.has(404), false, 'and we know we do not have it');
+    });
+
+    test('a tint does not ask the sheet for pixels until somebody wears it', () => {
+      const looks = createLooks({ looks: LOOKS, atlas: { loaded: false } });
+      is(looks.tints, 0, 'sheets recoloured at the start');
+      looks.atlasFor(2);                       // an overlay: no recolouring
+      is(looks.tints, 0, 'after asking for an overlay');
+    });
+
+    localStorage.removeItem(TROPHY_KEY);
+    const summary = document.querySelector('#summary');
+    summary.textContent = `${passed} passed, ${failed} failed`;
+    summary.className = failed ? 'fail' : 'pass';
+  </script>
+</body>
+</html>

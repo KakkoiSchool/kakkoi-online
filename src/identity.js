@@ -59,12 +59,20 @@ export function createIdentity(monsters) {
      * an older save that has it inside still counts.
      */
     safetySeen: loadSafetySeen() || saved?.safety === true,
+    /**
+     * What we are wearing, as a look id from `data/cosmetics.json`, or 0 for
+     * none. It is NOT read from the save here: chests live in their own key,
+     * beside the safety card, because they belong to the person rather than to
+     * the character — `main.js` sets this from `wins.js` once that is loaded.
+     */
+    look: 0,
 
     get chosen() { return identity.monster >= 0 && identity.name.length > 0; },
     get creature() { return monsters.find((m) => m.id === identity.monster) || monsters[0]; },
 
     setName(raw) { identity.name = cleanName(raw); },
     setMonster(id) { identity.monster = id; },
+    setLook(id) { identity.look = Number.isInteger(id) && id > 0 ? id : 0; },
   };
 
   if (saved && !known) console.warn('save named monster', saved.monster, '— not in this build, asking again');

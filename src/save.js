@@ -36,6 +36,17 @@ export const SAFETY_KEY = 'kakkoi-online-safety';
  */
 export const LEARNED_KEY = 'kakkoi-online-learned';
 
+/**
+ * Duels won, chests opened, and what is being worn — in its own key, for the
+ * third time and the same reason. A hundred duels is a fact about the person at
+ * the keyboard; "Start over" asks for a new name and a new animal and must not
+ * take the hundred duels with them.
+ *
+ * There is nothing to stop anybody editing this. There is no server to check it
+ * against, so a win is a claim — see the note at the top of `src/wins.js`.
+ */
+export const TROPHY_KEY = 'kakkoi-online-trophies';
+
 function fresh() { return null; }
 
 /** Read the save. Returns null when there is nothing usable. */
@@ -147,8 +158,39 @@ export function writeLearned(learned) {
 }
 
 /**
- * Throw the character away. The safety and learned keys are left alone on
- * purpose — see the notes on them above.
+ * What has been won. Anything unreadable means "nothing yet", which costs
+ * somebody their chests and is still better than refusing to start.
+ */
+export function loadTrophies() {
+  try {
+    const data = JSON.parse(localStorage.getItem(TROPHY_KEY) || '{}');
+    const wins = Number(data.wins);
+    return {
+      wins: Number.isInteger(wins) && wins >= 0 ? wins : 0,
+      unlocked: Array.isArray(data.unlocked) ? data.unlocked.filter(Number.isInteger) : [],
+      wearing: Number.isInteger(data.wearing) ? data.wearing : 0,
+    };
+  } catch {
+    return { wins: 0, unlocked: [], wearing: 0 };
+  }
+}
+
+export function writeTrophies(trophies) {
+  try {
+    localStorage.setItem(TROPHY_KEY, JSON.stringify({
+      wins: trophies.wins,
+      unlocked: trophies.unlocked,
+      wearing: trophies.wearing,
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Throw the character away. The safety, learned and trophy keys are left alone
+ * on purpose — see the notes on them above.
  */
 export function clearSave() {
   try { localStorage.removeItem(KEY); } catch { /* nothing we can do */ }

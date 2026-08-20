@@ -131,6 +131,8 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
       /** believing it. Set and expired by `src/spectate.js`. */
       fight: '',
       fightUntil: 0,
+      /** Which look they are wearing, or 0 for none. See `src/looks.js`. */
+      look: 0,
       history: [],
       seenAt: performance.now(),
     };
@@ -254,6 +256,20 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     else dropped.name++;
 
     applyMonster(peer, data.monster);
+    applyLook(peer, data.look);
+  });
+
+  /**
+   * Somebody has changed what they are wearing. Registered here rather than in
+   * a module of its own because a look is part of a peer's appearance, which is
+   * this file's business, and it is four lines.
+   */
+  action('look');
+  messageHandlers.push((kind, payload, id) => {
+    if (kind !== 'look') return;
+    const peer = peers.get(id);
+    if (!peer) { dropped.gone++; return; }
+    applyLook(peer, payload?.l);
   });
 
   onMove((data, id) => {
@@ -289,6 +305,18 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
    * random slice of the sheet — or crash — we count it and leave the peer as
    * whatever they were.
    */
+  /**
+   * A look is a small whole number and nothing else. We do NOT check it against
+   * a list here: `looks.js` paints an id it does not know as nothing at all, and
+   * a peer running a newer build with a fifth chest in it should not have their
+   * whole greeting refused over a hat.
+   */
+  function applyLook(peer, id) {
+    if (!Number.isInteger(id) || id < 0 || id > 999) { dropped.message++; return false; }
+    peer.look = id;
+    return true;
+  }
+
   function applyMonster(peer, id) {
     const monster = Number.isInteger(id) ? monsters.find((m) => m.id === id) : undefined;
     if (!monster) { dropped.monster++; return false; }
@@ -300,7 +328,19 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
   // ---------------------------------------------------------------- talking
 
   function greeting() {
-    return { name: identity.name, monster: identity.monster };
+    return { name: identity.name, monster: identity.monster, look: identity.look || 0 };
+  }
+
+  /**
+   * Tell the room what we are wearing, now that it has changed.
+   *
+   * A look is in the greeting, which everybody gets on arrival, so this is only
+   * for the moment somebody opens a chest or changes their mind — a handful of
+   * packets in a session. It deliberately does NOT ride in the position packet:
+   * that goes out ten times a second and ISSUES.md #1 is a phone getting hot.
+   */
+  function sendLook() {
+    send('look', { l: identity.look || 0 });
   }
 
   /** Whole pixels: half a pixel of a peer's position is not worth the bytes. */
@@ -406,6 +446,7 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     /** Register a kind now so its first arrival is not a surprise. */
     expect: (kind) => { action(kind); },
     send,
+    sendLook,
     sendPosition,
     follow,
     update,

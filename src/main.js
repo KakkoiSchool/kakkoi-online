@@ -25,6 +25,9 @@ import { createChatBar } from './ui/chatbar.js';
 import { createDuel } from './duel.js';
 import { createNpc } from './npc.js';
 import { createSpectate, duelFaces } from './spectate.js';
+import { loadLooks, createLooks, BARE } from './looks.js';
+import { createWins } from './wins.js';
+import { openChest, showWardrobe } from './ui/chest.js';
 import { createAudio } from './audio.js';
 import { createDuelScreen } from './ui/duel-screen.js';
 import { createSession } from './session.js';
@@ -116,15 +119,24 @@ async function boot() {
   const dungeon = loadAtlas('./vendor/kenney/tiny-dungeon.png', { cell: 16, cols: 12 });
   const creatures = loadAtlas('./vendor/opengameart/tiny-creatures.png', { cell: 16, cols: 10 });
 
-  const [world, monsters, tuning] = await Promise.all([
+  const [world, monsters, tuning, cosmetics] = await Promise.all([
     loadWorld('./data/maps/town.json'),
     loadMonsters('./data/monsters.json'),
     loadJSON('./data/tuning.json'),
+    loadLooks('./data/cosmetics.json'),
     dungeon.ready,
     creatures.ready,
   ]);
 
   const identity = createIdentity(monsters);
+
+  // What can be worn, and what has been earned. `wins` is the counting and the
+  // chests; `looks` is the painting. Neither knows about the other, and the
+  // identity carries the answer to "what am I wearing" so that `net.js` can put
+  // it in a greeting without either of them being involved.
+  const looks = createLooks({ looks: cosmetics, atlas: creatures });
+  const wins = createWins({ looks: cosmetics });
+  identity.setLook(wins.wearing);
 
   // If an older window answered, what it sent is newer than anything on disk:
   // it was standing somewhere at the moment we knocked, and the save is written
@@ -204,6 +216,14 @@ async function boot() {
     showSafetyCard({ root: overlay });
   });
 
+  // Everything that has been won, and everything that has not been won yet.
+  document.querySelector('#looksBtn').addEventListener('click', async () => {
+    settings.close();
+    await showWardrobe({ root: overlay, wins, looks, identity, atlas: creatures });
+    identity.setLook(wins.wearing);
+    net.sendLook();
+  });
+
   // A lone player has to be able to tell an empty world from a broken one, so
   // this always says something — and says the lonely case kindly, because it
   // is going to be the usual case.
@@ -250,6 +270,19 @@ async function boot() {
   duel.onSound((name) => audio.play(name));
   duel.onNotice((text) => { say(text); setTimeout(() => { if (statusEl.textContent === text) say(''); }, 4000); });
   duel.onChange(() => { if (duel.state !== 'walking') hideNearby(); });
+
+  // Every duel that ends with us winning is one more towards a chest. `wins`
+  // watches the same view the screen draws, and counts the ending once.
+  //
+  // The chest itself waits until the fight is over and the world is back: a
+  // reward that lands on top of the last round would cover the thing it was for.
+  duel.onChange(async (view) => {
+    wins.saw(view);
+    if (view.state !== 'walking' || !wins.waiting || overlay.hidden === false) return;
+    await openChest({ root: overlay, wins, looks, identity, atlas: creatures });
+    identity.setLook(wins.wearing);
+    net.sendLook();
+  });
 
   // Somebody out there has started talking duel to us.
   net.onLink((link) => duel.receive(link));
@@ -311,6 +344,9 @@ async function boot() {
     if (e.target instanceof HTMLElement && (e.target.tagName === 'INPUT' || e.target.isContentEditable)) return;
     startFight();
   });
+
+  /** The record for a monster id, for the cosmetics that need to know a face. */
+  const monsterOf = (id) => monsters.find((m) => m.id === id) || monsters[0];
 
   /**
    * What goes over somebody's head.
@@ -396,11 +432,14 @@ async function boot() {
       // Everyone in the room, sorted by how far down the screen their feet are,
       // so a monster standing in front of another one is drawn in front of it.
       const cast = [
-        { id: 'you', body: player, name: identity.name, self: true },
-        { id: npc.id, body: npc.body, name: npc.name, self: false },
+        { id: 'you', body: player, name: identity.name, self: true, look: identity.look, monster: identity.creature },
+        { id: npc.id, body: npc.body, name: npc.name, self: false, look: BARE, monster: monsterOf(npc.monster) },
         ...net.peers()
           .filter((peer) => peer.x !== null)
-          .map((peer) => ({ id: peer.id, body: peer.body, name: peer.name, said: peer.said, self: false })),
+          .map((peer) => ({
+            id: peer.id, name: peer.name, said: peer.said, body: peer.body, self: false,
+            look: peer.look, monster: monsterOf(peer.monster),
+          })),
       ].sort((a, b) => (a.body.y + a.body.h) - (b.body.y + b.body.h));
 
       const now = performance.now();
@@ -410,7 +449,11 @@ async function boot() {
       const tagged = [];
 
       for (const who of cast) {
-        const drawn = drawActor(ctx, creatures, who.body, camera, world.scale);
+        // The sheet is the one this look calls for — a tint has its own,
+        // recoloured once and kept — and the overlay is whatever is painted on
+        // top of it, already moved onto this creature's face.
+        const drawn = drawActor(ctx, looks.atlasFor(who.look), who.body, camera, world.scale,
+                                looks.overlayFor(who.look, who.monster));
         const middleX = drawn.x + drawn.sprite / 2;
         // An arrow over whoever the "Challenge" button is currently about.
         if (near && who.id === near.id) drawMarker(ctx, middleX, drawn.y - 16, now);
@@ -548,7 +591,7 @@ async function boot() {
   // A handle for verification, and for the stages that come next.
   globalThis.game = {
     world, player, camera, identity, monsters, input, tuning, flush,
-    net, chat, duel, npc, audio, session, resume, settings, help, fit, spectate, loop,
+    net, chat, duel, npc, audio, session, resume, settings, help, fit, spectate, loop, wins, looks,
     get paused() { return !session.active; },
     /** Who the Challenge button is about right now, or null. */
     get near() { return near; },

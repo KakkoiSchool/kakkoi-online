@@ -875,6 +875,54 @@ p { text-wrap: pretty; }
 /* Nothing sits under an animal but its name: the animal you pick has no effect
    on a duel, so any badge under it would say otherwise. */
 
+/* ------------------------------------------------- chests and the wardrobe */
+
+/* The same grid the monster picker uses, and deliberately so: choosing what you
+   are wearing is the same kind of choice as choosing who you are. */
+.look-grid { grid-template-columns: repeat(3, 1fr); }
+
+/* A look nobody has won yet is shown, not hidden — greyed, with the price under
+   it. Three empty spaces are what the next hundred duels are for. */
+.monster-card.is-locked {
+  opacity: 0.42;
+  cursor: default;
+  background: var(--void);
+}
+
+.monster-card.is-locked .monster-swatch { filter: grayscale(1); }
+.monster-card.is-locked:hover { background: var(--void); }
+
+/* The chest itself: three beats, and this is the first one. Square, gold and
+   shut, in the same black edge as everything else. */
+.chest-stage {
+  display: grid;
+  place-items: center;
+  min-height: 7rem;
+  margin: 0.9rem 0 0.2rem;
+}
+
+.chest-box {
+  width: 4.5rem;
+  height: 3.4rem;
+  background: var(--gold);
+  border: var(--line);
+  box-shadow: var(--lift-lg), inset 0 0.5rem 0 #e0b74a;
+  animation: chest-shake 1.4s ease-in-out infinite;
+}
+
+@keyframes chest-shake {
+  0%, 82%, 100% { transform: translate(0, 0) rotate(0deg); }
+  86%           { transform: translate(-0.12rem, 0) rotate(-2deg); }
+  92%           { transform: translate(0.12rem, 0) rotate(2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) { .chest-box { animation: none; } }
+
+/* The reward is drawn at four times life size, from the same sheet and through
+   the same looks.js the world uses — a preview painted another way could lie. */
+.chest-stage .monster-swatch { width: 6rem; height: 6rem; }
+.chest-later { min-height: max(3rem, 44px); padding: 0 1.1rem; }
+
 /* -------------------------------------------------- the paused window card */
 
 #paused[hidden] { display: none; }

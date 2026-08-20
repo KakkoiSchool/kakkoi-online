@@ -277,6 +277,41 @@ dice about a third of the time so he never becomes predictable himself.
 five duel messages ride one trystero action, because a duel is one conversation and one action keeps
 it in order. `net.js` is still the only file that has heard of trystero.
 
+## Chests, and what a reward is allowed to be (M5)
+
+Four chests, at 10, 25, 50 and 100 duels won, and every one of them holds **a look and nothing else**.
+The animal you pick already changes nothing in a fight (see "There is no element, anywhere"), and the
+moment a hat wins rounds the game is a different game. `data/cosmetics.json` owns the four numbers,
+so balancing is an edit.
+
+**Counted in your own browser, and cheatable, and said so.** There is nowhere else to count a win and
+nobody to check one. A child who edits `localStorage` gets a crown. That is the same trade the game
+already takes for positions and moves, it is written in the README under "No server means", and there
+is deliberately no checksum: a lock whose key is taped to it teaches something false. What it teaches
+instead is the real thing — *what can and cannot be enforced without a referee.*
+
+**Wins against Flint count**, because this game usually has one person in it and a reward loop that
+needed other people would be locked for most players most of the time. **Chests survive "Start
+over"**, in their own `localStorage` key beside the safety card and the hints: a hundred duels is a
+fact about the person, not about the character whose name they are changing.
+
+**No new art was downloaded for any of it.** A *tint* rotates the hue of every pixel of the creature's
+own sprite — the whole sheet recoloured once into an offscreen canvas, then kept — which works on all
+six animals without anybody drawing anything six times, and is the plainest demonstration of the fact
+that a picture is a list of numbers. An *overlay* is a short list of rectangles painted on top, from
+the same kind of data `ui/glyphs.js` already draws the three moves with.
+
+**Where a face is, is data.** The six animals look different ways: the lion at you, the elephant and
+the deer to the right. A fixed rectangle would put sunglasses on an elbow, so each monster carries a
+`face` anchor in `data/monsters.json` — the middle of its eyes, read off the sheet pixel by pixel —
+and every overlay is measured from there. All six were checked against all four looks, in one picture.
+
+**A look crosses the wire in the greeting**, which everybody already gets on arrival, plus one `look`
+message for the moment somebody opens a chest or changes their mind. It is deliberately **not** in the
+position packet: that goes out ten times a second and ISSUES.md #1 is a phone getting hot. An id this
+build has never heard of is painted as nothing rather than refused — a peer running a newer build with
+a fifth chest in it should not lose their whole greeting over a hat.
+
 ## Watching somebody else's duel
 
 A duel is a private conversation — `duel.js` talks down one `link` to one opponent — and for a while

@@ -1,0 +1,53 @@
+{
+  "_comment": "What is inside the four chests. Every one of them is a LOOK and nothing else: a duel is rock, paper, scissors, so the animal you picked is already a costume (decision-log row 53), and a reward that changed a fight would undo the one promise the duel makes. Numbers here are balance and belong in data/, not in code — move `wins` and nobody has to touch src/wins.js.",
+
+  "_kinds": "A `tint` rotates the hue of every pixel of the creature's own sprite, so it costs no new art and works on all six animals. An `overlay` paints a short list of rectangles ON TOP, in art pixels, positioned relative to that creature's `face` anchor in data/monsters.json — [dx, dy, width, height, colour], where dx and dy are counted from the middle of its eyes. That is why the anchor exists: the six animals face different ways, and a fixed rectangle would put sunglasses on an elbow.",
+
+  "looks": [
+    {
+      "id": 1,
+      "name": "Deep",
+      "wins": 10,
+      "kind": "tint",
+      "hue": 155,
+      "saturate": 1.05,
+      "blurb": "The colours of somewhere colder."
+    },
+    {
+      "id": 2,
+      "name": "Shades",
+      "wins": 25,
+      "kind": "overlay",
+      "pixels": [
+        [-2, 0, 5, 1, "#14141f"],
+        [-2, 1, 2, 1, "#14141f"],
+        [1, 1, 2, 1, "#14141f"],
+        [-2, 0, 1, 1, "#8f8fae"]
+      ],
+      "blurb": "You cannot see what they are about to play."
+    },
+    {
+      "id": 3,
+      "name": "Ember",
+      "wins": 50,
+      "kind": "tint",
+      "hue": -32,
+      "saturate": 1.35,
+      "blurb": "Warmer than anything else in the plaza."
+    },
+    {
+      "id": 4,
+      "name": "Crown",
+      "wins": 100,
+      "kind": "overlay",
+      "pixels": [
+        [-2, -4, 5, 1, "#ffd76a"],
+        [-2, -5, 1, 1, "#ffd76a"],
+        [0, -5, 1, 1, "#ffd76a"],
+        [2, -5, 1, 1, "#ffd76a"],
+        [-2, -3, 5, 1, "#8a6a1f"]
+      ],
+      "blurb": "A hundred duels. Everyone can see it."
+    }
+  ]
+}

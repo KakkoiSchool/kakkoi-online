@@ -187,7 +187,7 @@ function paintTiles(ctx, world, atlas, camera, width, height) {
  */
 export const BOB_HZ = 7;
 
-export function drawActor(ctx, atlas, actor, camera, scale) {
+export function drawActor(ctx, atlas, actor, camera, scale, overlay = null) {
   const sprite = atlas.cell * scale;
   const bob = actor.moving && Math.floor(actor.walked * BOB_HZ) % 2 === 1 ? -scale : 0;
   const x = actor.x + actor.w / 2 - sprite / 2 - camera.x;
@@ -212,15 +212,35 @@ export function drawActor(ctx, atlas, actor, camera, scale) {
     ctx.scale(-1, 1);
     ctx.imageSmoothingEnabled = false;   // still off on the other side of the flip
     drawTile(ctx, atlas, actor.cell, -sprite / 2, y, scale);
+    // Inside the flip, so a pair of sunglasses turns around with the face it is
+    // on rather than sliding off the back of the head.
+    paintOverlay(ctx, overlay, -sprite / 2, y, scale);
     ctx.restore();
   } else {
     drawTile(ctx, atlas, actor.cell, x, y, scale);
+    paintOverlay(ctx, overlay, x, y, scale);
   }
 
   // The name plate and the bubble are text, and they are DOM now — see
   // src/ui/bubbles.js. They are placed from the numbers returned here, and are
   // never mirrored, whichever way the monster is looking.
   return { x, y, sprite, flipped };
+}
+
+/**
+ * Whatever this one is wearing, painted on top of it.
+ *
+ * The rectangles arrive in ART pixels with the sprite's own top-left corner as
+ * the origin — `looks.js` has already moved them onto this creature's face —
+ * so the only thing to do here is multiply by the scale the sprite was drawn
+ * at. Whole numbers in, whole numbers out.
+ */
+function paintOverlay(ctx, overlay, x, y, scale) {
+  if (!overlay) return;
+  for (const [px, py, w, h, colour] of overlay) {
+    ctx.fillStyle = colour;
+    ctx.fillRect(Math.round(x + px * scale), Math.round(y + py * scale), w * scale, h * scale);
+  }
 }
 
 /**

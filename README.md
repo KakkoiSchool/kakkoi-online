@@ -16,6 +16,11 @@ fight from across the plaza, too: what each fighter has chosen, and who won, app
 Nobody else online? **Flint** is always standing in the plaza, and he fights exactly the way a person
 does — he even remembers what you like playing and leans against it.
 
+**Chests** open at 10, 25, 50 and 100 duels won: a colour, a pair of shades, another colour, a crown.
+They are looks and nothing else — the animal you picked already changes nothing in a fight, and a
+reward that changed one would undo the only promise the duel makes. Everyone else sees what you are
+wearing; the ⚙ menu's **Looks** is where you change it.
+
 ## Run it
 
 **Plain JavaScript, no build step.** There is nothing to install and nothing to compile — the files
@@ -52,9 +57,9 @@ Home Screen". It then opens like an app, with no browser bar, **and it works wit
 world, your saved character and Flint are all cached. Other players are the one thing offline cannot
 give you, because finding them needs a real connection.
 
-**Tests** are web pages: open `tests/rules.test.html`, `tests/net.test.html` and
-`tests/spectate.test.html` through the same server and read the PASS/FAIL rows. No test runner, no
-npm.
+**Tests** are web pages: open `tests/rules.test.html`, `tests/net.test.html`,
+`tests/spectate.test.html` and `tests/wins.test.html` through the same server and read the PASS/FAIL
+rows. No test runner, no npm.
 
 ## How it fits together
 
@@ -69,6 +74,8 @@ src/net.js          the only file that knows trystero exists
 src/duel.js         the challenge state machine and the rounds
 src/npc.js          Flint — answers the same questions a peer does, so duel.js cannot tell
 src/spectate.js     what the room is told about a duel, so bystanders can watch it
+src/wins.js         duels won, chests earned, and what is being worn
+src/looks.js        a look painted onto a sprite: a hue turned, or pixels on top
 src/battle/rules.js PURE rules: the rock-paper-scissors triangle — imports nothing, fully testable
 src/ui/game.css     the whole look: one stylesheet, no component library under it
 src/ui/scale.js     how big the interface is, and how far the art is zoomed, on this device
