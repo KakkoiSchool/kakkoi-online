@@ -15,6 +15,9 @@
     <h1>Map maker</h1>
     <label class="field">Name <input id="name" type="text" maxlength="40" value="A new place"></label>
     <span class="grow"></span>
+    <!-- Filled in only when the browser says there is no network: the map maker
+         works without one, and the one button that does not says so itself. -->
+    <span id="net" class="badge" hidden></span>
     <button id="checkBtn" class="btn-outline" type="button">Check</button>
     <button id="submitBtn" class="btn" type="button">Propose it on GitHub</button>
   </header>

@@ -28,7 +28,7 @@
  * This never touches `localStorage`. Saved characters are not ours to clear.
  */
 
-const CACHE = 'kakkoi-online-v16';
+const CACHE = 'kakkoi-online-v17';
 
 /**
  * Every file the game loads, by hand. `./` and `./index.html` are both here on
@@ -73,11 +73,24 @@ const SHELL = [
   './src/ui/paused.js',
   './src/ui/settings.js',
   './src/ui/help.js',
+  './src/map-check.js',
   './src/ui/scale.js',
   './src/ui/glyphs.js',
   './src/ui/bubbles.js',
   './src/ui/chest.js',
   './src/ui/boss-screen.js',
+
+  // The map maker. It is not the game, and it is cached anyway: a map is made
+  // with a tile sheet and a flood fill, neither of which needs a network, and
+  // the one thing that does — proposing it on GitHub — says so for itself when
+  // there is nothing to reach. `./editor/` and `./editor/index.html` are both
+  // here for the same reason `./` and `./index.html` are: two cache keys, and a
+  // link to a folder asks for the first one.
+  './editor/',
+  './editor/index.html',
+  './editor/editor.css',
+  './editor/main.js',
+  './editor/submit.js',
 
   // trystero, and only the files it actually pulls in.
   './vendor/trystero/nostr.js',

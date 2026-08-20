@@ -382,6 +382,15 @@ designed out rather than policed. A pull request is different — somebody has t
 person is the moderator. Worth saying out loud, because it is the honest difference between "you may
 send six phrases" and "you may send a map".
 
+**The map maker works with no network, and says so when it has none.** `sw.js` precaches `editor/`
+along with the game: a tile sheet, a flood fill and a text box need nothing from the outside, and a
+child on a train should be able to build a room. Exactly one thing there does need the network — the
+button that hands the map to GitHub — so that one button is disabled and explains itself, and the
+report says what is not lost: press **Copy**, keep the text, paste it back later. The game's own
+badge does the same, because "Just you here for now" is true and misleading in the same breath when
+what has really happened is that nobody can find you. Both use `navigator.onLine`, which only means
+*a* connection exists, so both are worded as "your browser says" and neither is treated as proof.
+
 ## Chests, and what a reward is allowed to be (M5)
 
 Four chests, at 10, 25, 50 and 100 duels won, and every one of them holds **a look and nothing else**.

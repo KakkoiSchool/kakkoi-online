@@ -64,7 +64,8 @@ then **Propose it on GitHub**, which opens GitHub's own new-file page with your 
 account details ever reach this page, because a page that is served to everybody cannot keep a
 secret; you sign in as yourself and it becomes a pull request. It is also the piece meant to be used
 *with* an AI: copy the map's text, ask Claude to put a pillar in the middle, paste it back, look at
-what happened.
+what happened. The map maker works with no network too — everything but the one GitHub button, which
+says so and tells you what to do instead.
 
 **Install it on your phone.** The live site is a proper PWA: open it and use your browser's "Add to
 Home Screen". It then opens like an app, with no browser bar, **and it works with no network** — the

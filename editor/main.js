@@ -325,9 +325,41 @@ function runCheck() {
   return result;
 }
 
+// ---------------------------------------------------------------- the network
+//
+// Everything on this page works with no network at all — the tile sheet, the
+// town, the flood fill and the file are all here already, and `sw.js` keeps
+// them. Exactly one thing needs to reach the outside world, and it is the
+// button that hands the map to GitHub. So that is the only thing that stops,
+// and it says why rather than opening a tab onto a browser error page.
+//
+// `navigator.onLine` is not a promise that the internet works — it means the
+// device has *a* connection, so it can say yes on a wifi that goes nowhere.
+// That is why the wording below is "your browser says", and why the button is
+// still allowed to try when it says yes: this is a warning, not a gate.
+
+const netBadge = document.querySelector('#net');
+const submitBtn = document.querySelector('#submitBtn');
+
+function showNet() {
+  const off = !navigator.onLine;
+  netBadge.hidden = !off;
+  netBadge.textContent = off ? 'Offline' : '';
+  submitBtn.disabled = off;
+  submitBtn.title = off
+    ? 'Your browser says there is no network. The map maker still works — this one button cannot.'
+    : '';
+}
+
+addEventListener('online', showNet);
+addEventListener('offline', showNet);
+showNet();
+
 // ------------------------------------------------------------------ propose
 
-document.querySelector('#submitBtn').addEventListener('click', () => {
+submitBtn.addEventListener('click', () => {
+  if (!navigator.onLine) { sayOffline(); return; }
+
   const result = runCheck();
   if (!result.ok) return;
 
@@ -345,6 +377,16 @@ document.querySelector('#submitBtn').addEventListener('click', () => {
   ]);
   open(made.url, '_blank', 'noopener');
 });
+
+/** What you can still do with a map you cannot propose yet. */
+function sayOffline() {
+  say('bad', 'You are offline', [
+    'Your browser says there is no network, so this map cannot go to GitHub right now.',
+    'Nothing is lost. Press Copy below and keep the text somewhere — you can paste it back in with '
+      + '"Read it back" later, or straight into GitHub when you are connected.',
+    'Everything else here still works: the tiles, the town, Check, all of it.',
+  ]);
+}
 
 function say(kind, heading, lines) {
   report.hidden = false;

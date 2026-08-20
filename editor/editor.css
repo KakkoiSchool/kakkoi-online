@@ -35,6 +35,23 @@ body.editor {
 #bar .grow { flex: 1 1 auto; }
 #bar button { min-height: max(2.6rem, 40px); }
 
+/* The offline chip. Rose, because it is the one thing on this page that has
+   stopped working — and it sits next to the button it has stopped. */
+#net[hidden] { display: none; }
+
+#net {
+  gap: 0.35rem;
+  color: var(--rose);
+  border-color: #000;
+}
+
+#net::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--rose);
+}
+
 .field {
   display: inline-flex;
   align-items: center;

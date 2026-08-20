@@ -230,14 +230,28 @@ async function boot() {
   // A lone player has to be able to tell an empty world from a broken one, so
   // this always says something — and says the lonely case kindly, because it
   // is going to be the usual case.
+  //
+  // With no network at all it says so instead. "Just you here for now" is true
+  // and misleading in the same breath — it sounds like an empty town, when what
+  // has actually happened is that nobody can find you. The game itself carries
+  // on: the world, your monster and Flint are all cached, and other players are
+  // the one thing being offline takes away.
   const showOnline = () => {
     const others = net.count();
+    if (!navigator.onLine && others === 0) {
+      hudOnline.textContent = 'No network — nobody can find you';
+      hudOnline.classList.add('is-offline');
+      return;
+    }
+    hudOnline.classList.remove('is-offline');
     hudOnline.textContent = others === 0
       ? 'Just you here for now'
       : `${others + 1} here — you and ${others === 1 ? '1 other' : `${others} others`}`;
   };
   net.onPeerJoin(showOnline);
   net.onPeerLeave(showOnline);
+  addEventListener('online', showOnline);
+  addEventListener('offline', showOnline);
   showOnline();
 
   // ------------------------------------------------------------------ sound

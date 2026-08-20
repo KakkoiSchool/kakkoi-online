@@ -291,6 +291,10 @@ p { text-wrap: pretty; }
 
 #hud-online:empty::before { display: none; }
 
+/* The same square, in the colour of a thing that has stopped. */
+#hud-online.is-offline { color: var(--rose); }
+#hud-online.is-offline::before { background: var(--rose); }
+
 /* ------------------------------------------------------ settings, behind a ⚙ */
 
 #settingsBtn {
