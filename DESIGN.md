@@ -367,6 +367,44 @@ Two details that are not obvious:
   save at once" stops being a state that exists. A paused window that is later resumed reloads, so it
   comes back as whatever character now exists — never as the one that was deleted.
 
+## Locking a phone must not end the game
+
+Locking the phone, waiting, and unlocking it left the game on screen and unable to move; only
+reloading the page brought it back. Two things were wrong, and they are the same shape: **the loop is
+a chain of single callbacks, and anything that breaks one link ends it for good.**
+
+- **A frame that threw took the loop with it.** `requestAnimationFrame(frame)` was the line *after*
+  `update()` and `render()`, so one exception anywhere in the game — a save to a full disk, a sound
+  the browser did not like after an interruption — meant the next frame was never asked for. The last
+  picture stays on the screen, which looks exactly like a crash and can only be fixed by reloading.
+  The ask now happens whatever the frame did, and the error is reported once rather than thirty times
+  a second. This is the rule `audio.js` already stated for a refused sound: write it down, and never
+  break the frame it happened in.
+- **`resume()` refused to do anything when it believed it was already running** — and after a phone
+  freezes a page, that belief is exactly what is wrong: the frame we were waiting for was thrown away
+  with the rest of the page's pending work. It now always re-arms, and `schedule()` cancels before it
+  requests, so asking twice cannot leave two loops running at double speed.
+
+The third thing is the one that cannot be fixed by handling an event, because the problem is that the
+event may not come. `visibilitychange` was the only signal listened for. A browser may instead fire a
+lifecycle `resume` when it thaws a frozen page, or `pageshow` when it restores one from the
+back/forward cache, or `focus`, or several of them in an order of its own choosing. All of them now
+mean the same thing and `wake()` is safe to call as often as they arrive — and behind them all,
+`loop.js` keeps a **watchdog**: every two seconds it checks the one thing that actually matters, which
+is that a visible game is drawing. If it is not, it asks for a frame. A `setInterval` is the right
+instrument precisely because it is not the thing that is broken — timers keep arriving when
+`requestAnimationFrame` has stopped.
+
+The invariant that watchdog encodes is worth stating on its own: **a visible window that has not
+handed the game away is always running.** So `pause()` is an optimisation that holds while the page is
+hidden, not a lock — a visible page that somehow ends up paused starts drawing again within a couple
+of seconds, which is the desired behaviour and the whole point. `stop()`, which is what a window does
+when a newer one takes the game, is a lock: it stays stopped.
+
+Measured before and after on the reported sequence — lock, wait, and hand the page back with **no
+event of any kind** — the old build moves 0 px and the new one moves 87. Hidden still draws nothing,
+so the battery fix in ISSUES.md #1 is untouched.
+
 ## Nothing on this page is allowed to move the world
 
 The "Challenge *name*" prompt appears and disappears constantly as you walk past people. It was

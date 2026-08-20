@@ -896,3 +896,32 @@ the help line moved down a row: both re-measured at 320x568, 360x640, 390x780, 7
 **Worth telling students:** "it looks a bit off" is a real bug report, and usually a measurable one.
 Also: if you have decided your design lives on whole pixels, that applies to the gaps between letters
 too — a rule that only covers the things you remembered to apply it to is not a rule.
+
+## 2026-08-20 — lock the phone, unlock it, and the game is a photograph
+**Lesson:** A12 (the loop)
+**What it produced:** a game loop where each frame asks for the next one, plus a `visibilitychange`
+handler that paused it when the page was hidden and resumed it when it came back. Both parts read
+correctly and both were tested in a browser tab.
+**Why it was wrong:** a chain of single callbacks has exactly one link in flight, and two ordinary
+events break it. First, `requestAnimationFrame(frame)` was the line *after* `update()` and `render()`,
+so any exception in any part of the game ended the loop permanently — the last frame stays on the
+screen and only a reload brings it back. Second, `resume()` began with `if (running) return`, and
+after a phone freezes a page that belief is precisely what is wrong: the pending frame was thrown away
+with everything else, the flag still says "running", and resume declines to help. On top of both, the
+code waited for one specific event to say "you are back", and which event a phone sends —
+`visibilitychange`, a lifecycle `resume`, `pageshow`, `focus`, some, none — is not a thing to bet on.
+**How I caught it:** the owner reported it from a real phone. Reproducing it needed the *sequence*
+rather than the events: overriding `document.hidden`, dispatching the lock, and then handing the page
+back **silently**. Old build: 0 px of movement. That test is what proved the fix, because it does not
+depend on any event arriving.
+**The fix:** ask for the next frame whatever the frame did, and report a throwing frame once instead
+of thirty times a second; make `resume()` always re-arm, with a `cancelAnimationFrame` first so that
+asking twice cannot start two loops; treat `visibilitychange`, `freeze`, `resume`, `pageshow` and
+`focus` as the same message; and behind all of them a two-second watchdog that checks the only thing
+that matters — a visible game should be drawing — and asks for a frame when it is not. A `setInterval`
+is the right instrument for that precisely because it is not the thing that broke.
+**Worth telling students:** when you write code that reacts to an event, ask what happens if the event
+never arrives. Here the answer was "the game is over until you reload", and a browser tab — where the
+event always arrives — could never have shown it. The fix that lasts is not handling one more event
+name; it is checking the state you actually care about, on a clock that is independent of the thing
+that failed.

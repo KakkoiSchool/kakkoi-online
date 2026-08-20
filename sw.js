@@ -28,7 +28,7 @@
  * This never touches `localStorage`. Saved characters are not ours to clear.
  */
 
-const CACHE = 'kakkoi-online-v11';
+const CACHE = 'kakkoi-online-v12';
 
 /**
  * Every file the game loads, by hand. `./` and `./index.html` are both here on

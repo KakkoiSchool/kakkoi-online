@@ -443,15 +443,32 @@ async function boot() {
 
   const flush = () => (session.active && !leaving ? persist(identity, player) : false);
   addEventListener('pagehide', flush);
+
+  // Going away, and coming back.
+  //
   // A hidden tab should cost nothing. Saves are flushed, the position broadcast
   // stops, and the loop stops asking for frames — a phone in a pocket was
   // redrawing the world and sending its position ten times a second, which is
   // how a game makes a phone hot for no reason at all. We do NOT leave the room:
   // glancing at another app should not make you vanish for everybody else.
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { flush(); net.sleep(); loop.pause(); }
-    else { loop.resume(); net.wake(); }
-  });
+  //
+  // Coming back is the half that was wrong. Locking a phone and unlocking it
+  // left the game on screen and unable to move, until the page was reloaded.
+  // `visibilitychange` was the only thing listened for, and it is not the only
+  // thing that happens: a phone may freeze the page while it is away and thaw it
+  // with a lifecycle `resume`, a browser may restore it from the back/forward
+  // cache with `pageshow`, and the order they arrive in — or whether they arrive
+  // at all — is a matter of opinion between browsers. So every one of them means
+  // the same thing here, `wake()` is safe to call as often as they like, and
+  // `loop.js` keeps its own watchdog for the case where none of them arrives.
+  const sleep = () => { flush(); net.sleep(); loop.pause(); };
+  const wake = () => { if (document.hidden) return; loop.resume(); net.wake(); };
+
+  document.addEventListener('visibilitychange', () => (document.hidden ? sleep() : wake()));
+  document.addEventListener('freeze', sleep);     // about to be put away for good
+  document.addEventListener('resume', wake);      // …and thawed again
+  addEventListener('pageshow', wake);             // restored from the bfcache
+  addEventListener('focus', wake);                // tapped back into
 
   // ------------------------------------------------------- one window at a time
   const paused = createPausedCard({ root: document.querySelector('#paused'), onResume: resume });
@@ -531,7 +548,7 @@ async function boot() {
   // A handle for verification, and for the stages that come next.
   globalThis.game = {
     world, player, camera, identity, monsters, input, tuning, flush,
-    net, chat, duel, npc, audio, session, resume, settings, help, fit, spectate,
+    net, chat, duel, npc, audio, session, resume, settings, help, fit, spectate, loop,
     get paused() { return !session.active; },
     /** Who the Challenge button is about right now, or null. */
     get near() { return near; },
