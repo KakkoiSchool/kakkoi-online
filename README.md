@@ -109,6 +109,12 @@ Three rules that shape the codebase:
 Fork, deploy to `your-name.github.io/kakkoi-online/`, and **you can still play with everyone else** —
 peers find each other through a public relay, not through this domain. Your copy, same world.
 
+## What is next
+
+`PLAN.md` is the design for **stage 4** — chests of cosmetic rewards, Aniki the hourly boss, and a
+level editor whose Submit button opens a pull request. Written before the code, with the arguments
+and the open questions in it.
+
 ## Plan and docs
 
 Design rationale, technical spec, lesson track and asset provenance live in the school repo:

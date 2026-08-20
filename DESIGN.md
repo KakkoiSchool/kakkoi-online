@@ -35,6 +35,12 @@ and invented AI mistakes, and students notice immediately.
 | M3 | duel: FSM, three moves, local AI | A22–A24 |
 | M3.5 | NPCs: townsfolk, tutor, trainer ladder | A25–A26 |
 | M4 | audio, polish, "you're the only one here", NAT diagnostic | A27–A28 |
+| M5 | chests, cosmetics, the `look` message | A30–A32 |
+| M6 | the level editor, map validation, the PR button | A33–A35 |
+| M7 | Aniki, the raid, the achievement, a second map | A36–A38 |
+
+M5 to M7 are **planned, not built** — the argument for them, with the decisions and the open
+questions, is in `PLAN.md`. Their lesson numbers are provisional.
 
 A10 deploys to the live URL **before M0**, so every milestone lands in public.
 
