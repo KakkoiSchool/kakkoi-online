@@ -244,6 +244,47 @@ dice about a third of the time so he never becomes predictable himself.
 five duel messages ride one trystero action, because a duel is one conversation and one action keeps
 it in order. `net.js` is still the only file that has heard of trystero.
 
+## Watching somebody else's duel
+
+A duel is a private conversation — `duel.js` talks down one `link` to one opponent — and for a while
+that meant a duel was invisible to everybody except the two people in it. You could walk past two
+players mid-fight and see two monsters standing perfectly still. The interface could already draw a
+move or a face over a head; nothing was feeding it.
+
+`src/spectate.js` adds one broadcast, and it is the smallest one that works: **each fighter tells the
+room what is over their own head** — one of six pictures (`think`, the three moves, `win`, `lose`), as
+an index into a list both ends already have. Not who they are fighting, not the score, not the state
+machine. A bystander draws each peer's own report over that peer, which needs no agreement about
+whose duel is whose and stays right when two duels are running at once. It is the same shape as
+`chat.js`: what crosses the wire is a number, the words live on both machines already, and a number
+this build does not recognise is counted in `net.dropped` and thrown away.
+
+**The public view is not the private one.** `duelFaces()` says `think` for both sides while a round is
+being chosen *even when a move has been committed*. The private view knows your move the instant you
+pick it, and putting it over your head would show it to everyone in the plaza before your opponent
+has answered — a worse leak than the one `DESIGN.md` already accepts, because it needs no edited
+client to read. The moves become public at the reveal, which is the moment worth watching, and the
+win/lose faces at the end, when there is a result to react to.
+
+**Flint has to be carried.** Every browser runs its own copy of the computer opponent, so nobody
+else's copy knows he is in a fight. A player duelling Flint sends his face alongside their own, and
+everyone paints it onto their own Flint; his face is cleared by the player who claimed him and by
+nobody else, or the next person to finish a duel anywhere would wipe it mid-fight. Two people
+fighting him at the same moment leaves the room showing whichever arrived last, which is wrong and is
+the cheapest wrong answer available — the alternative is a second identity for a character who only
+exists locally.
+
+**What it costs.** A packet when the picture changes and at no other time: ten for a four-round duel,
+measured, against the ten a second the position broadcast is already sending. A face nobody repeats
+is forgotten after twenty seconds, which is insurance rather than the mechanism — every way a duel can
+end sends a clear, and a closed tab takes its peer record with it.
+
+**Tested without a network.** `tests/spectate.test.html` wires two `spectate` instances to each other
+through a fake room, so both halves of the real code are exercised — what one browser says and what
+another does with it — with no relay involved. Fifteen rows: the reveal rule, a draw, both endings,
+somebody walking out, the Flint case, a latecomer being caught up, junk being dropped and counted, and
+the hold expiring.
+
 ## Sound (stage 3)
 
 Six short effects and one music loop, plain `Audio` elements, no Web Audio graph and no library.
@@ -595,6 +636,12 @@ look. It is deliberately not a banner or a call to action.
   nothing scrolling at every size above; nothing scrolls the page anywhere; the 7 rules tests still
   pass; and the game still boots with the browser offline, from a v9 cache holding 53 files including
   the fonts and the three new modules
+- **Verified for watching a duel** (2026-08-20): `tests/spectate.test.html`, 15 passing, two `spectate`
+  instances wired to each other through a fake room; and in the live game, a real duel against Flint
+  broadcasting exactly ten packets — `think/think`, then each reveal, then `lose/win`, then the clear —
+  with the six pictures confirmed to land as glyph bubbles over the right head. The one thing this
+  machine cannot do is two real browsers: the relays are blocked by its network policy, so **the
+  wire itself is still unproven on this feature** and wants a second device before it is believed
 - **Verified across the zoom boundary**: resized 390x780 → 1280x800 → 375x667, which takes the art zoom
   from 1 to 2 and back. The player's position (742, 558) and the world's size (1536x1152) do not move —
   which is the whole reason the zoom is a transform and not `world.scale`

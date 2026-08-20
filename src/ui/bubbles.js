@@ -12,7 +12,9 @@
  * a phrase, a move (the same pixel glyph the duel buttons use), or a face — won
  * the round, lost the round, still thinking. That means a duel is legible from
  * the world: you can walk past two people mid-fight and see what happened
- * without opening anything.
+ * without opening anything. WHICH of those to show is not decided here — this
+ * file draws what it is handed; `src/spectate.js` works out what the room may
+ * see and hears the same from everybody else.
  *
  * **Placement.** A bubble sits above its own head, measured after it is in the
  * page, and clamped to the top of the world so it can never leave the screen. It
@@ -127,33 +129,4 @@ function kindClass(bubble) {
   if (bubble === 'lose') return ' is-lose';
   if (bubble === 'think') return ' is-think';
   return '';
-}
-
-/**
- * What one side of a duel should be showing over its head.
- *
- * `side` is `'you'` or `'them'`, and `view` is exactly what `duel.view()`
- * returns — so the world's version of a duel is derived from the same state the
- * duel screen draws and cannot drift from it.
- *
- * The reveal rule is the view's, not ours: `view.theirMove` is null until the
- * round resolves, so a bubble cannot show a move that the panel is still
- * holding back. Before that, the most a bubble can say about the other side is
- * that they are thinking.
- */
-export function duelBubble(view, side) {
-  if (!view || view.state !== 'fighting') return null;
-  const mine = side === 'you';
-
-  if (view.phase === 'choosing') return 'think';
-  if (view.phase === 'waiting') {
-    return mine ? (view.myMove || 'think') : 'think';
-  }
-
-  // Resolved, or the duel is over on the round that ended it.
-  const last = view.last;
-  if (!last) return mine ? view.myMove || null : null;
-  if (last.winner === 'nobody') return 'think';
-  const won = mine ? last.winner === 'you' : last.winner === 'them';
-  return won ? 'win' : 'lose';
 }

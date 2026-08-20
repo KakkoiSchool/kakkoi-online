@@ -16,7 +16,7 @@ import { loadWorld } from './world.js';
 import { createCamera, fitCanvas, createMapLayer, drawMap, drawActor, drawMarker } from './render.js';
 import { applyScale } from './ui/scale.js';
 import { installGlyphs } from './ui/glyphs.js';
-import { drawTags, duelBubble } from './ui/bubbles.js';
+import { drawTags } from './ui/bubbles.js';
 import { createIdentity, loadMonsters, persist } from './identity.js';
 import { askIdentity, showSafetyCard, showHowToPlay, confirmReset } from './ui/onboarding.js';
 import { joinRoom } from './net.js';
@@ -24,6 +24,7 @@ import { createChat } from './chat.js';
 import { createChatBar } from './ui/chatbar.js';
 import { createDuel } from './duel.js';
 import { createNpc } from './npc.js';
+import { createSpectate, duelFaces } from './spectate.js';
 import { createAudio } from './audio.js';
 import { createDuelScreen } from './ui/duel-screen.js';
 import { createSession } from './session.js';
@@ -253,6 +254,10 @@ async function boot() {
   // Somebody out there has started talking duel to us.
   net.onLink((link) => duel.receive(link));
 
+  // …and everybody who is not in this duel gets to watch it. One broadcast, of
+  // one picture, whenever the picture changes — see src/spectate.js.
+  const spectate = createSpectate({ net, duel, npc });
+
   const reach = Number(tuning.challengeReachPx) || 64;
   const middle = (body) => ({ x: body.x + body.w / 2, y: body.y + body.h / 2 });
 
@@ -312,22 +317,20 @@ async function boot() {
    *
    * A phrase if they have just said one — one of ours, looked up by number, so
    * there is no path from the network to a string on this screen. Otherwise
-   * their side of the duel: the move they have committed to, or a face once the
-   * round is decided.
+   * whatever their duel is showing.
    *
-   * The duel half only ever applies to the two people IN the duel, because
-   * nobody else is told that it is happening: a duel is a private conversation
-   * between two peers and the room hears none of it. So a bystander walking past
-   * two people fighting still sees two people standing still. Making that
-   * visible needs the room to be told, which is a change to the protocol and not
-   * to this file — it is written down in ISSUES.md rather than guessed at here.
+   * Our own fight is drawn from our own copy of it, for both heads in it: it is
+   * on this machine already and a round is not worth a round trip. Everybody
+   * else's comes off the wire, where each fighter reports their own head — and
+   * Flint's, when it is Flint they are fighting, because every browser runs its
+   * own copy of him and nobody else's knows he is busy.
    */
-  function bubbleFor(who, fight) {
+  function bubbleFor(who, faces) {
     const said = who.self ? player.said : who.said;
     if (said) return said;
-    if (who.self) return duelBubble(fight, 'you');
-    if (fight.them && who.id === fight.them.id) return duelBubble(fight, 'them');
-    return null;
+    if (who.self) return faces.you;
+    if (who.id === spectate.against) return faces.them;
+    return spectate.faceOf(who.id) || null;
   }
 
   let sinceSave = 0;
@@ -371,6 +374,7 @@ async function boot() {
       const now = performance.now();
       net.update(now, dt);
       chat.update(now);
+      spectate.update(now);
 
       sinceSave += dt * 1000;
       if (sinceSave >= saveEvery) { sinceSave = 0; persist(identity, player); }
@@ -400,7 +404,7 @@ async function boot() {
       ].sort((a, b) => (a.body.y + a.body.h) - (b.body.y + b.body.h));
 
       const now = performance.now();
-      const fight = duel.view();
+      const faces = duelFaces(duel.view());
       // What goes over each head, collected here and handed to the DOM layer in
       // one call: names and bubbles are text, and text belongs in elements.
       const tagged = [];
@@ -421,7 +425,7 @@ async function boot() {
           sx: middleX * view.zoom,
           sy: (who.body.y + who.body.h - drawn.sprite - camera.y) * view.zoom,
           sprite: drawn.sprite * view.zoom,
-          bubble: bubbleFor(who, fight),
+          bubble: bubbleFor(who, faces),
         });
       }
 
@@ -527,7 +531,7 @@ async function boot() {
   // A handle for verification, and for the stages that come next.
   globalThis.game = {
     world, player, camera, identity, monsters, input, tuning, flush,
-    net, chat, duel, npc, audio, session, resume, settings, help, fit,
+    net, chat, duel, npc, audio, session, resume, settings, help, fit, spectate,
     get paused() { return !session.active; },
     /** Who the Challenge button is about right now, or null. */
     get near() { return near; },

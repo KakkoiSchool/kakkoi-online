@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakkoi Online — watching a duel</title>
+  <style>
+    body { font: 14px/1.6 system-ui, sans-serif; margin: 2rem; background: #1b1b22; color: #e8e8ef; }
+    h1 { font-size: 1.2rem; }
+    #summary { font-weight: 700; margin-bottom: 1rem; }
+    .row { font-family: ui-monospace, monospace; }
+    .pass { color: #7ee081; }
+    .fail { color: #ff7b72; }
+  </style>
+</head>
+<body>
+  <h1>watching somebody else's duel</h1>
+  <p>Open this file through Live Server (not <code>file://</code>) — it loads a module.</p>
+  <div id="summary">running…</div>
+  <div id="rows"></div>
+
+  <!-- The thing being tested here is what one browser tells the room about its
+       duel, and what another browser does with it. Both halves are `spectate.js`,
+       so the test wires TWO of them together through a fake room: whatever one
+       sends is delivered to the other, exactly as trystero would. No network, no
+       relay, and the code under test is the code that ships.
+
+       What this deliberately does not cover is trystero itself — that is vendored
+       and already carrying chat phrases through the same door. -->
+  <script type="module">
+    import { createSpectate, duelFaces, SHOWN } from '../src/spectate.js';
+
+    const rows = document.querySelector('#rows');
+    let passed = 0;
+    let failed = 0;
+
+    function test(name, body) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      try {
+        body();
+        passed++;
+        row.classList.add('pass');
+        row.textContent = `PASS  ${name}`;
+      } catch (err) {
+        failed++;
+        row.classList.add('fail');
+        row.textContent = `FAIL  ${name} — ${err.message}`;
+      }
+      rows.append(row);
+    }
+
+    function is(actual, expected, what) {
+      if (actual !== expected) throw new Error(`${what}: expected ${expected}, got ${actual}`);
+    }
+
+    // ---------------------------------------------------------------- fakes
+
+    const NPC = { id: 'npc:1' };
+
+    /** A room two spectators can shout across. */
+    function room() {
+      const members = new Map();          // id -> { onMessage, peers }
+      return {
+        join(id) {
+          const peers = new Map();        // everybody else, as peer records
+          const handlers = [];
+          const joiners = [];
+          const leavers = [];
+          const net = {
+            dropped: { message: 0 },
+            expect() {},
+            onMessage: (fn) => handlers.push(fn),
+            onPeerJoin: (fn) => joiners.push(fn),
+            onPeerLeave: (fn) => leavers.push(fn),
+            peer: (who) => peers.get(who),
+            peers: () => [...peers.values()],
+            send(kind, payload, to) {
+              for (const [other, member] of members) {
+                if (other === id) continue;             // never to ourselves
+                if (to && other !== to) continue;
+                member.deliver(kind, JSON.parse(JSON.stringify(payload)), id);
+              }
+            },
+          };
+          const member = {
+            net,
+            peers,
+            deliver(kind, payload, from) {
+              if (!peers.has(from)) peers.set(from, { id: from, fight: '', fightUntil: 0 });
+              for (const fn of handlers) fn(kind, payload, from);
+            },
+            arrive(who) {
+              if (!peers.has(who)) peers.set(who, { id: who, fight: '', fightUntil: 0 });
+              for (const fn of joiners) fn(peers.get(who));
+            },
+            /** A tab closing: the record goes, exactly as net.js does it. */
+            gone(who) {
+              const peer = peers.get(who);
+              peers.delete(who);
+              for (const fn of leavers) fn(who, peer);
+            },
+          };
+          members.set(id, member);
+          return member;
+        },
+      };
+    }
+
+    /** A duel that is wherever we put it, with the shape `duel.view()` returns. */
+    function duelStub() {
+      const changed = [];
+      const stub = {
+        state: 'walking',
+        phase: 'idle',
+        them: null,
+        last: null,
+        outcome: null,
+        onChange: (fn) => changed.push(fn),
+        view: () => ({
+          state: stub.state, phase: stub.phase, them: stub.them,
+          last: stub.last, outcome: stub.outcome,
+        }),
+        /** Put the duel somewhere and let everybody who cares hear about it. */
+        go(next) {
+          Object.assign(stub, next);
+          for (const fn of changed) fn(stub.view());
+        },
+      };
+      return stub;
+    }
+
+    const fighting = (them) => ({ state: 'fighting', phase: 'choosing', them, last: null, outcome: null });
+
+    // -------------------------------------------------- what the room may see
+
+    test('a move is not public until the reveal', () => {
+      // The private view knows our move the instant we pick it. The public one
+      // must not: it would be on our head, in the plaza, before our opponent
+      // has answered.
+      const chosen = { state: 'fighting', phase: 'waiting', them: { id: 'p2' }, myMove: 'rock', theyChose: false };
+      is(duelFaces(chosen).you, 'think', 'our own side while we wait');
+      is(duelFaces(chosen).them, 'think', 'their side while we wait');
+    });
+
+    test('the reveal shows both moves, on the heads that played them', () => {
+      const revealed = {
+        state: 'fighting', phase: 'resolved',
+        them: { id: 'p2' },
+        last: { round: 1, mine: 'rock', theirs: 'scissors', winner: 'you' },
+      };
+      is(duelFaces(revealed).you, 'rock', 'our move');
+      is(duelFaces(revealed).them, 'scissors', 'their move');
+    });
+
+    test('a drawn round shows the same move over both heads', () => {
+      const drawn = {
+        state: 'fighting', phase: 'resolved',
+        them: { id: 'p2' },
+        last: { round: 1, mine: 'paper', theirs: 'paper', winner: 'nobody' },
+      };
+      is(duelFaces(drawn).you, 'paper', 'our move');
+      is(duelFaces(drawn).them, 'paper', 'their move');
+    });
+
+    test('the end of a duel is a face on each side, and they disagree', () => {
+      const won = { state: 'fighting', phase: 'over', them: { id: 'p2' }, outcome: { how: 'you' } };
+      is(duelFaces(won).you, 'win', 'the winner');
+      is(duelFaces(won).them, 'lose', 'the loser');
+      const lost = { state: 'fighting', phase: 'over', them: { id: 'p2' }, outcome: { how: 'them' } };
+      is(duelFaces(lost).you, 'lose', 'the loser');
+      is(duelFaces(lost).them, 'win', 'the winner');
+    });
+
+    test('somebody walking out of a duel is not a victory', () => {
+      const gone = { state: 'fighting', phase: 'over', them: { id: 'p2' }, outcome: { how: 'gone' } };
+      is(duelFaces(gone).you, null, 'our side');
+      is(duelFaces(gone).them, null, 'their side');
+    });
+
+    test('nobody in a duel has anything over their head', () => {
+      is(duelFaces({ state: 'walking', phase: 'idle' }).you, null, 'walking about');
+      is(duelFaces(null).you, null, 'no view at all');
+    });
+
+    // ------------------------------------------- one browser telling another
+
+    test('a duel between two people is visible to a third', () => {
+      const r = room();
+      const one = r.join('p1');
+      const two = r.join('p2');
+      const watcher = r.join('p3');
+
+      const duelOne = duelStub();
+      const duelTwo = duelStub();
+      createSpectate({ net: one.net, duel: duelOne, npc: NPC });
+      createSpectate({ net: two.net, duel: duelTwo, npc: NPC });
+      const eyes = createSpectate({ net: watcher.net, duel: duelStub(), npc: NPC });
+
+      duelOne.go(fighting({ id: 'p2' }));
+      duelTwo.go(fighting({ id: 'p1' }));
+      is(eyes.faceOf('p1'), 'think', 'the challenger is thinking');
+      is(eyes.faceOf('p2'), 'think', 'the challenged is thinking');
+
+      duelOne.go({ phase: 'resolved', last: { round: 1, mine: 'rock', theirs: 'scissors', winner: 'you' } });
+      duelTwo.go({ phase: 'resolved', last: { round: 1, mine: 'scissors', theirs: 'rock', winner: 'them' } });
+      is(eyes.faceOf('p1'), 'rock', 'what p1 played');
+      is(eyes.faceOf('p2'), 'scissors', 'what p2 played');
+
+      duelOne.go({ phase: 'over', outcome: { how: 'you' } });
+      duelTwo.go({ phase: 'over', outcome: { how: 'them' } });
+      is(eyes.faceOf('p1'), 'win', 'the winner');
+      is(eyes.faceOf('p2'), 'lose', 'the loser');
+    });
+
+    test('walking away clears the face for everybody else', () => {
+      const r = room();
+      const one = r.join('p1');
+      const watcher = r.join('p3');
+      const duel = duelStub();
+      createSpectate({ net: one.net, duel, npc: NPC });
+      const eyes = createSpectate({ net: watcher.net, duel: duelStub(), npc: NPC });
+
+      duel.go(fighting({ id: 'p9' }));
+      is(eyes.faceOf('p1'), 'think', 'mid-duel');
+      duel.go({ state: 'walking', phase: 'idle', them: null, last: null, outcome: null });
+      is(eyes.faceOf('p1'), '', 'back in the world');
+    });
+
+    test('a fight against Flint is visible, because his side rides along', () => {
+      const r = room();
+      const one = r.join('p1');
+      const watcher = r.join('p3');
+      const duel = duelStub();
+      createSpectate({ net: one.net, duel, npc: NPC });
+      const eyes = createSpectate({ net: watcher.net, duel: duelStub(), npc: NPC });
+
+      duel.go(fighting({ id: NPC.id }));
+      is(eyes.faceOf('p1'), 'think', 'the player');
+      is(eyes.faceOf(NPC.id), 'think', 'Flint, who nobody else can see is busy');
+
+      duel.go({ phase: 'resolved', last: { round: 1, mine: 'paper', theirs: 'rock', winner: 'you' } });
+      is(eyes.faceOf('p1'), 'paper', 'the player');
+      is(eyes.faceOf(NPC.id), 'rock', 'Flint');
+
+      duel.go({ state: 'walking', phase: 'idle', them: null, last: null, outcome: null });
+      is(eyes.faceOf(NPC.id), '', 'Flint, once the fight is over');
+    });
+
+    test('a tab that closes mid-duel takes Flint\u2019s face with it', () => {
+      const r = room();
+      const one = r.join('p1');
+      const watcher = r.join('p3');
+      const duel = duelStub();
+      createSpectate({ net: one.net, duel, npc: NPC });
+      const eyes = createSpectate({ net: watcher.net, duel: duelStub(), npc: NPC });
+
+      duel.go(fighting({ id: NPC.id }));
+      is(eyes.faceOf(NPC.id), 'think', 'while they are fighting him');
+      watcher.gone('p1');
+      is(eyes.faceOf(NPC.id), '', 'once they have gone');
+    });
+
+    test('the room is told once per change, not once per frame', () => {
+      const r = room();
+      const one = r.join('p1');
+      const watcher = r.join('p3');
+      const duel = duelStub();
+      createSpectate({ net: one.net, duel, npc: NPC });
+      createSpectate({ net: watcher.net, duel: duelStub(), npc: NPC });
+
+      let packets = 0;
+      const real = one.net.send;
+      one.net.send = (...args) => { packets++; return real(...args); };
+
+      duel.go(fighting({ id: 'p2' }));
+      is(packets, 1, 'after the first change');
+      duel.go({ phase: 'choosing' });              // the same picture again
+      duel.go({ phase: 'waiting' });               // still `think` on both sides
+      is(packets, 1, 'after two changes that show the same thing');
+      duel.go({ phase: 'resolved', last: { round: 1, mine: 'rock', theirs: 'rock', winner: 'nobody' } });
+      is(packets, 2, 'after a change that shows something new');
+    });
+
+    test('somebody who walks in mid-duel is caught up at once', () => {
+      const r = room();
+      const one = r.join('p1');
+      const duel = duelStub();
+      createSpectate({ net: one.net, duel, npc: NPC });
+      duel.go(fighting({ id: 'p2' }));
+
+      const latecomer = r.join('p3');
+      const eyes = createSpectate({ net: latecomer.net, duel: duelStub(), npc: NPC });
+      is(eyes.faceOf('p1'), '', 'before anybody notices them');
+      one.arrive('p3');                            // p1 sees p3 join
+      is(eyes.faceOf('p1'), 'think', 'as soon as they are seen to arrive');
+    });
+
+    // ---------------------------------------------------------------- doubt
+
+    test('a number that is not one of the six is dropped and counted', () => {
+      const r = room();
+      const watcher = r.join('p3');
+      const eyes = createSpectate({ net: watcher.net, duel: duelStub(), npc: NPC });
+
+      for (const junk of [99, -2, 1.5, '1', null, {}, undefined, NaN]) {
+        watcher.deliver('fight', { m: junk }, 'p1');
+      }
+      is(eyes.faceOf('p1'), '', 'nothing was believed');
+      is(watcher.net.dropped.message, 8, 'every one of them counted');
+
+      watcher.deliver('fight', { m: SHOWN.indexOf('win') }, 'p1');
+      is(eyes.faceOf('p1'), 'win', 'and a real one still lands');
+    });
+
+    test('junk in the half about Flint does not take the honest half with it', () => {
+      const r = room();
+      const watcher = r.join('p3');
+      const eyes = createSpectate({ net: watcher.net, duel: duelStub(), npc: NPC });
+      watcher.deliver('fight', { m: SHOWN.indexOf('rock'), n: 42 }, 'p1');
+      is(eyes.faceOf('p1'), 'rock', 'the player, which was fine');
+      is(eyes.faceOf(NPC.id), '', 'Flint, which was not');
+      is(watcher.net.dropped.message, 1, 'counted once');
+    });
+
+    test('a face nobody repeats is forgotten rather than worn forever', () => {
+      const r = room();
+      const watcher = r.join('p3');
+      const eyes = createSpectate({ net: watcher.net, duel: duelStub(), npc: NPC });
+      watcher.deliver('fight', { m: SHOWN.indexOf('win'), n: SHOWN.indexOf('lose') }, 'p1');
+      is(eyes.faceOf('p1'), 'win', 'while it is fresh');
+
+      eyes.update(performance.now() + 19000);
+      is(eyes.faceOf('p1'), 'win', 'nineteen seconds later');
+      eyes.update(performance.now() + 21000);
+      is(eyes.faceOf('p1'), '', 'twenty-one seconds later');
+      is(eyes.faceOf(NPC.id), '', 'and Flint with it');
+    });
+
+    const summary = document.querySelector('#summary');
+    summary.textContent = `${passed} passed, ${failed} failed`;
+    summary.className = failed ? 'fail' : 'pass';
+  </script>
+</body>
+</html>

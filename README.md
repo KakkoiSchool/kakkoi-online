@@ -10,7 +10,8 @@ You pick a name and one of six monsters, and you are in a dungeon. You walk arou
 else who has the page open walking around it too, and you talk to them in six set phrases. Walk up to
 one of them and a **Challenge** button appears: a duel is **rock, paper, scissors**, first to three
 rounds. Rock beats scissors, scissors beats paper, paper beats rock. Each player picks; when both have
-picked, the two moves are shown side by side and the round is scored.
+picked, the two moves are shown side by side and the round is scored. You can watch somebody else's
+fight from across the plaza, too: what each fighter has chosen, and who won, appears over their head.
 
 Nobody else online? **Flint** is always standing in the plaza, and he fights exactly the way a person
 does — he even remembers what you like playing and leans against it.
@@ -51,8 +52,8 @@ Home Screen". It then opens like an app, with no browser bar, **and it works wit
 world, your saved character and Flint are all cached. Other players are the one thing offline cannot
 give you, because finding them needs a real connection.
 
-**Tests** are a web page: open `tests/rules.test.html` through the same server and read the
-PASS/FAIL rows. No test runner, no npm.
+**Tests** are web pages: open `tests/rules.test.html` and `tests/spectate.test.html` through the same
+server and read the PASS/FAIL rows. No test runner, no npm.
 
 ## How it fits together
 
@@ -66,6 +67,7 @@ src/loop.js         the requestAnimationFrame loop
 src/net.js          the only file that knows trystero exists
 src/duel.js         the challenge state machine and the rounds
 src/npc.js          Flint — answers the same questions a peer does, so duel.js cannot tell
+src/spectate.js     what the room is told about a duel, so bystanders can watch it
 src/battle/rules.js PURE rules: the rock-paper-scissors triangle — imports nothing, fully testable
 src/ui/game.css     the whole look: one stylesheet, no component library under it
 src/ui/scale.js     how big the interface is, and how far the art is zoomed, on this device

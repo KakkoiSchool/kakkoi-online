@@ -28,7 +28,7 @@
  * This never touches `localStorage`. Saved characters are not ours to clear.
  */
 
-const CACHE = 'kakkoi-online-v10';
+const CACHE = 'kakkoi-online-v11';
 
 /**
  * Every file the game loads, by hand. `./` and `./index.html` are both here on
@@ -61,6 +61,7 @@ const SHELL = [
   './src/chat.js',
   './src/duel.js',
   './src/npc.js',
+  './src/spectate.js',
   './src/audio.js',
   './src/battle/rules.js',
   './src/ui/onboarding.js',

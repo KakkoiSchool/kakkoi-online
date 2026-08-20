@@ -116,6 +116,10 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
       said: '',
       saidIndex: -1,
       saidUntil: 0,
+      /** What their duel is showing over their head, and when to stop */
+      /** believing it. Set and expired by `src/spectate.js`. */
+      fight: '',
+      fightUntil: 0,
       history: [],
       seenAt: performance.now(),
     };

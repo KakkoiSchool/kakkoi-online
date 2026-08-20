@@ -125,25 +125,7 @@ subscriptions succeed and whether any ICE candidates are exchanged.
 
 ---
 
-## 3. A duel is invisible to everybody except the two people in it
-
-**Status:** OPEN, not a bug — a thing the new interface can show and the protocol cannot yet feed.
-
-`src/ui/bubbles.js` can put a move, or a won/lost/thinking face, in the bubble over somebody's head,
-and `main.js` fills that in from `duel.view()`. That covers the two people in the duel and nobody
-else, because nobody else is told: a duel is a private conversation between two peers (`net.linkTo`),
-and the room hears none of it. Since the duel screen covers the world for both of those two, the duel
-bubbles are currently drawn where almost nobody can see them.
-
-Making "walk past two people fighting and see what happened" true needs the room to be told that a
-duel is happening and, at the reveal, what each side played — a new broadcast, on top of a position
-already going out ten times a second, in a game with an open heat issue (#1 above). That is a protocol
-decision, not a rendering one. Worth doing when there is a reason to believe more than two people are
-ever in the room at once.
-
----
-
-## 4. Old service worker caches are not always deleted
+## 3. Old service worker caches are not always deleted
 
 **Status:** OPEN, low severity, but it makes every other bug harder to diagnose.
 
