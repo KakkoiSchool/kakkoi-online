@@ -1,0 +1,446 @@
+From f048b97c9506123f81206b38108570eb99dce4cd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 5 Sep 2026 18:32:19 +0000
+Subject: [PATCH] Make the search answer exactly, stop copying the repetition
+ map, and add contempt
+
+- The transposition cache stored a node's value after an alpha-beta cutoff
+  as if it were exact; at depth 4 that changed the chosen move in 2 of 60
+  sampled positions. It now stores exact/lower/upper flags and a bound
+  narrows the window. Over the same 60 positions the cached search equals
+  the uncached one equals the old uncached one. 1.48x faster than the
+  shipped engine over twelve depth-4 positions.
+- The search shares the root's repetition map read-only and counts
+  repetition along its own path (applyLegalAction(..., false)); the search
+  no longer slows as a game lengthens (1.9x -> 1.00x at 150 entries).
+- A draw is worth CONTEMPT (60) against the side choosing. Sharp-vs-Sharp
+  repetition draws: 14 of 16 -> 11 of 16; at 300 they become 100-move
+  games, so the rest is the game's. Sharp's moves change on purpose.
+- DECISIONS.md: the occupant patch's 1.2x did not reproduce on a quiet
+  CPU and is withdrawn; the record says so.
+
+CACHE v43 -> v44.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ DECISIONS.md       |  48 ++++++++++++-------
+ src/bot.js         | 112 +++++++++++++++++++++++++++++++++------------
+ src/rules.js       |  26 ++++++-----
+ sw.js              |   2 +-
+ test/bot.test.js   |  65 ++++++++++++++++++++++++++
+ test/rules.test.js |   9 ++++
+ 6 files changed, 204 insertions(+), 58 deletions(-)
+
+diff --git a/DECISIONS.md b/DECISIONS.md
+index 18ce58a..84d202b 100644
+--- a/DECISIONS.md
++++ b/DECISIONS.md
+@@ -296,16 +296,18 @@ Three things were wrong, all of them in the hottest loop in the app:
+    it thirty-odd times per node made the bot slower the longer the game ran — for a map the legality
+    filter never reads. This step was then made redundant by step 3, which removed those clones
+    altogether, and the "share it when the copy is a throwaway" path it introduced was dead code
+-   until it was deleted. **What remains: `applyLegalAction` still copies the map once per node**, so
+-   the search still slows as a game lengthens — measured at 1.9× the time with a 150-entry map
+-   against an empty one, at depth 4. The Log line that said it no longer degrades was wrong.
++   for a while. It has a real caller now: **the search shares the root's map read-only**
++   (`applyLegalAction(position, action, false)`) and counts repetition from that map plus the keys
++   on its own path. Before that, `applyLegalAction` still copied the map once per node and the
++   search ran 1.9× slower with a 150-entry map than with an empty one; it is 1.00× now.
+ 3. **Legality cloned an entire position to ask a question about the board.** It is `boardAfter` plus
+    `boardInCheck` now — one `slice` of the board. That is safe because **occupants are frozen shared
+    values**: exactly eight exist (`occupantOf`), every board points at them, and a write throws.
+    It was a comment ("occupants are replaced, never mutated, everywhere in this engine") first; the
+-   comment was true and unenforced, and enforcing it also let `clonePosition` stop spreading sixteen
+-   objects per node, which is another 1.2× on the search. `test/rules.test.js` pins the identity
+-   sharing and the throw. `attacksSquare` answers on the first hit instead of building an array to
++   comment was true and unenforced. Enforcing it also let `clonePosition` stop spreading sixteen
++   objects per node; a first measurement called that 1.2×, and a re-measurement on a quiet CPU found
++   no difference, so the enforcement is the point and the speed is not. `test/rules.test.js` pins
++   the identity sharing and the throw. `attacksSquare` answers on the first hit instead of building an array to
+    call `.includes` on it.
+ 
+ **How this was made safe, and how to make the next one safe.** Every step was checked two ways: an
+@@ -322,12 +324,24 @@ without reference to `rules.js`, and agree through depth 5 (457,568). So they pi
+ says, not merely what the engine did.
+ 
+ **What the harness cannot see, by design.** Comparing against a frozen copy proves nothing about a
+-bug both copies share. The search's transposition cache is one: `search()` stores the value a node
+-returned after an alpha-beta cutoff — a bound, not the true value — and reads it back under a
+-different window. At depth 4 that changed the chosen move in 2 of 60 sampled positions against the
+-same search with the cache disabled. It never shows at depth 3, where no transposition can occur
+-within the tree, so Learning and Steady are unaffected; Sharp plays a move its own search would not
+-choose about one time in thirty. Not a regression from the speedup, and not fixed here.
++bug both copies share. The search's transposition cache was one: it stored the value a node returned
++after an alpha-beta cutoff — a bound, not the true value — and read it back under a different window.
++At depth 4 that changed the chosen move in 2 of 60 sampled positions against the same search with
++the cache disabled. **The cache now stores what kind of value it holds** (exact, lower or upper
++bound) and a bound narrows the window instead of answering. Checked three ways over the same 60
++positions: the new search with its cache equals the new search without it, equals the old search
++without its cache — the move it should always have chosen. `test/bot.test.js` keeps two of those
++positions. With the bound flags the search also prunes more: 1.48× faster than the shipped engine
++over twelve depth-4 positions on a quiet CPU.
++
++**The bot has contempt.** A draw is worth `CONTEMPT` (60, a fifth of a knight) against the side
++choosing, so it repeats a position only when it is worse off than that. Sixteen Sharp-vs-Sharp games
++from every king placement: 14 repetition draws before, 11 after, and with contempt raised to 300 the
++draws become six 100-move games with no result. So the drawishness is mostly the game's, not the
++search's: on a 4×4 board where a drop may not give check, the side with nothing better to do can
++usually hold. Steady (depth 3) is unaffected: 6–6 with four games past 100 moves. **This changes
++the moves the bot plays on purpose**; the 30-move fingerprint from the speedup work no longer
++applies, perft is untouched, and the equivalence checks above were run with contempt at 0.
+ 
+ ## Testing
+ 
+@@ -372,11 +386,9 @@ Honest list of what is not done and what cannot be checked from a sandbox:
+   confirm it.
+ - **A takeback does not refund clock time**, on purpose. It restarts the mover's clock at the moment
+   of the takeback.
+-- **Sharp plays itself to a draw.** Sixteen self-play games at depth 4 from every king placement:
+-  fourteen ended in threefold repetition, mean 27 moves. At depth 3, none did (7–6 with three games
+-  past 100 moves). The search scores a draw as 0 and equal material as roughly 0, so it shuffles.
+-  A contempt term, or scoring repetition below the static evaluation, would change how the hardest
+-  opponent feels more than any further speed-up.
++- **Sharp against itself is still drawish**: 11 repetition draws in 16 with contempt, and pushing
++  contempt further only lengthens the games. See "The search". Whether the opening is a forced draw
++  is unknown; the state space (~1.2 billion positions) is past a quick retrograde solve.
+ 
+ ---
+ 
+@@ -384,6 +396,8 @@ Honest list of what is not done and what cannot be checked from a sandbox:
+ 
+ Newest first. One line per decision that changed how the app behaves.
+ 
++- The search's cache stores bound flags and answers exactly; the repetition map is shared along the
++  search path instead of copied per node; the bot has contempt for draws. Sharp's moves change.
+ - A move carries the mover's clocks and the receiver adopts them within a tolerance; a flag is a
+   message; both king placements are timed. The receiving side used to charge nobody.
+ - A time loss is reported as a time loss, not a resignation; the clock stops when the opponent
+diff --git a/src/bot.js b/src/bot.js
+index c515ee0..fd08581 100644
+--- a/src/bot.js
++++ b/src/bot.js
+@@ -6,7 +6,6 @@ import {
+   ROOK,
+   WHITE,
+   applyLegalAction,
+-  getResult,
+   isInCheck,
+   legalActionsUnchecked,
+   positionKey,
+@@ -15,17 +14,30 @@ import {
+ const VALUES = { [KING]: 0, [ROOK]: 500, [BISHOP]: 320, [KNIGHT]: 300 };
+ const MATE = 1_000_000;
+ 
+-/** Deterministic alpha-beta search. A Web Worker can call this without UI coupling. */
+-export function chooseAction(position, { depth = 4 } = {}) {
++/**
++ * What a draw is worth to the bot: a fifth of a knight against it. Without
++ * this a draw scored 0 and equal material scored about 0, so the hardest
++ * setting shuffled into threefold repetition fourteen games out of sixteen
++ * against itself. With it the bot takes a draw only when it is worse off than
++ * this, which is what a player expects of an opponent.
++ */
++export const CONTEMPT = 60;
++
++const EXACT = 0, LOWER = 1, UPPER = 2;
++
++/**
++ * Deterministic alpha-beta search. A Web Worker can call this without UI
++ * coupling. `contempt` and `useCache` exist so tests can pin the search
++ * against a reference; callers leave them alone.
++ */
++export function chooseAction(position, { depth = 4, contempt = CONTEMPT, useCache = true } = {}) {
+   const actions = orderActions(position, legalActionsUnchecked(position));
+   if (!actions.length) return null;
+-  const player = position.turn;
+-  const cache = new Map();
++  const search = createSearch(position, contempt, useCache);
+   let bestAction = actions[0];
+   let bestScore = -Infinity;
+-
+   for (const action of actions) {
+-    const score = search(applyLegalAction(position, action), depth - 1, -Infinity, Infinity, player, cache);
++    const score = search(applyLegalAction(position, action, false), depth - 1, -Infinity, Infinity);
+     if (score > bestScore) {
+       bestScore = score;
+       bestAction = action;
+@@ -34,32 +46,74 @@ export function chooseAction(position, { depth = 4 } = {}) {
+   return bestAction;
+ }
+ 
+-function search(position, depth, alpha, beta, maximizingPlayer, cache) {
+-  const result = getResult(position);
+-  if (result) {
+-    if (result.type === 'draw') return 0;
+-    return result.winner === maximizingPlayer ? MATE + depth : -MATE - depth;
++/*
++ * One search, with what it carries between nodes.
++ *
++ * The repetition map is not copied per node any more — every position the
++ * search builds shares the root's map read-only, and repetition is counted
++ * from the root's map plus the keys on the current path. Copying it per node
++ * made the search slow down as a game lengthened (1.9× at 150 entries).
++ *
++ * The transposition cache stores what kind of value a node returned. After an
++ * alpha-beta cutoff a node's value is only a bound, and the old cache handed
++ * it back as exact under any window, which changed the chosen move at depth 4
++ * in two of sixty sampled positions. Now a bound narrows the window instead.
++ */
++function createSearch(root, contempt, useCache) {
++  const player = root.turn;
++  const rootCounts = root.repetitions;
++  const drawScore = -contempt;
++  const cache = new Map();
++  const path = [];
++
++  function terminal(position, key, actions) {
++    if (position.phase !== 'play') return null;
++    let seen = (rootCounts[key] ?? 0) + 1;
++    for (const ancestor of path) if (ancestor === key) seen += 1;
++    if (seen >= 3) return 'draw';
++    if (actions.length > 0) return null;
++    return isInCheck(position, position.turn) ? 'mate' : 'draw';
+   }
+-  if (depth <= 0) return evaluate(position, maximizingPlayer);
+ 
+-  const key = `${positionKey(position)}|${depth}|${maximizingPlayer}`;
+-  if (cache.has(key)) return cache.get(key);
++  return function search(position, depth, alpha, beta) {
++    const key = positionKey(position);
++    const actions = legalActionsUnchecked(position);
++    const end = terminal(position, key, actions);
++    if (end === 'draw') return drawScore;
++    if (end === 'mate') return position.turn === player ? -MATE - depth : MATE + depth;
++    if (depth <= 0) return evaluate(position, player);
+ 
+-  const maximizing = position.turn === maximizingPlayer;
+-  let value = maximizing ? -Infinity : Infinity;
+-  for (const action of orderActions(position, legalActionsUnchecked(position))) {
+-    const child = search(applyLegalAction(position, action), depth - 1, alpha, beta, maximizingPlayer, cache);
+-    if (maximizing) {
+-      value = Math.max(value, child);
+-      alpha = Math.max(alpha, value);
+-    } else {
+-      value = Math.min(value, child);
+-      beta = Math.min(beta, value);
++    const cacheKey = `${key}|${depth}`;
++    const hit = useCache ? cache.get(cacheKey) : undefined;
++    if (hit) {
++      if (hit.flag === EXACT) return hit.value;
++      if (hit.flag === LOWER) alpha = Math.max(alpha, hit.value);
++      else beta = Math.min(beta, hit.value);
++      if (alpha >= beta) return hit.value;
+     }
+-    if (beta <= alpha) break;
+-  }
+-  cache.set(key, value);
+-  return value;
++
++    const alphaAtEntry = alpha, betaAtEntry = beta;
++    const maximizing = position.turn === player;
++    let value = maximizing ? -Infinity : Infinity;
++    path.push(key);
++    for (const action of orderActions(position, actions)) {
++      const child = search(applyLegalAction(position, action, false), depth - 1, alpha, beta);
++      if (maximizing) {
++        value = Math.max(value, child);
++        alpha = Math.max(alpha, value);
++      } else {
++        value = Math.min(value, child);
++        beta = Math.min(beta, value);
++      }
++      if (beta <= alpha) break;
++    }
++    path.pop();
++    if (useCache) {
++      const flag = value <= alphaAtEntry ? UPPER : value >= betaAtEntry ? LOWER : EXACT;
++      cache.set(cacheKey, { value, flag });
++    }
++    return value;
++  };
+ }
+ 
+ function evaluate(position, player) {
+diff --git a/src/rules.js b/src/rules.js
+index 41bb6d0..1fbc64e 100644
+--- a/src/rules.js
++++ b/src/rules.js
+@@ -153,9 +153,14 @@ export function applyAction(position, action) {
+  * search that generated the move itself one line earlier: it doubled move
+  * generation at every node and allocated an `actionKey` string per candidate.
+  * Only the bot should use this.
++ *
++ * `countRepetition: false` hands back a position that shares the caller's
++ * repetition map instead of copying and extending it. The search passes it
++ * and counts repetition along its own path; the shared map must be treated
++ * as read-only by whoever receives such a position.
+  */
+-export function applyLegalAction(position, action) {
+-  return applyUnchecked(position, action, true);
++export function applyLegalAction(position, action, countRepetition = true) {
++  return applyUnchecked(position, action, countRepetition);
+ }
+ 
+ export function isSquareAttacked(position, square, byPlayer) {
+@@ -279,7 +284,7 @@ export function actionKey(action) {
+ }
+ 
+ function applyUnchecked(position, action, countRepetition) {
+-  const next = clonePosition(position);
++  const next = clonePosition(position, countRepetition);
+   const player = position.turn;
+ 
+   if (action.type === 'place-king') {
+@@ -382,14 +387,13 @@ function coordinates(square) {
+ }
+ 
+ /**
+- * The repetition map is copied here, once per applied action, and it grows by
+- * one entry per ply: a search late in a long game pays for that at every
+- * node. Measured at 1.9× the time of the same search with an empty map once
+- * the map holds 150 entries. Nothing shares it any more — the legality filter
+- * stopped cloning positions at all — so this is the remaining length-dependent
+- * cost in the engine, and it is documented in DECISIONS.md rather than fixed.
++ * The repetition map grows by one entry per ply, so copying it per applied
++ * action made a search late in a long game pay for it at every node — 1.9×
++ * the time with a 150-entry map. `copyRepetitions: false` shares it instead;
++ * the only caller is the search, which never writes to a shared map and
++ * counts repetition along its own path.
+  */
+-function clonePosition(position) {
++function clonePosition(position, copyRepetitions = true) {
+   return {
+     board: position.board.slice(),
+     banks: {
+@@ -398,7 +402,7 @@ function clonePosition(position) {
+     },
+     turn: position.turn,
+     phase: position.phase,
+-    repetitions: { ...position.repetitions },
++    repetitions: copyRepetitions ? { ...position.repetitions } : position.repetitions,
+   };
+ }
+ 
+diff --git a/sw.js b/sw.js
+index 3fe572b..966aa8c 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,7 +1,7 @@
+ // Bumped whenever anything in SHELL changes. The fetch handler below no longer
+ // depends on remembering to do it — it revalidates in the background — but a
+ // bump is still the only thing that refreshes every client on the same visit.
+-const CACHE = 'schness-v43';
++const CACHE = 'schness-v44';
+ const SHELL = [
+   './',
+   './index.html',
+diff --git a/test/bot.test.js b/test/bot.test.js
+index 4527a9c..11ecfe2 100644
+--- a/test/bot.test.js
++++ b/test/bot.test.js
+@@ -2,13 +2,18 @@ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { chooseAction } from '../src/bot.js';
+ import {
++  BISHOP,
+   BLACK,
+   KING,
+   ROOK,
+   WHITE,
+   actionKey,
++  applyAction,
++  createInitialPosition,
+   createPosition,
++  getResult,
+   legalActions,
++  positionKey,
+ } from '../src/rules.js';
+ 
+ test('the bot always returns a legal action', () => {
+@@ -34,3 +39,63 @@ test('the bot returns null when the game has no legal action', () => {
+   const game = createPosition({ board, banks: { [WHITE]: [], [BLACK]: [] }, turn: WHITE });
+   assert.equal(chooseAction(game, { depth: 2 }), null);
+ });
++
++const place = (pieces, { banks = { [WHITE]: [], [BLACK]: [] }, repetitions = {} } = {}) => {
++  const board = Array(16).fill(null);
++  for (const [square, owner, kind] of pieces) board[square] = { owner, piece: kind };
++  return createPosition({ board, banks, turn: WHITE, repetitions });
++};
++
++test('the transposition cache never changes the answer', () => {
++  // The old cache stored a node's value after an alpha-beta cutoff as if it
++  // were exact, and at depth 4 that changed the chosen move in 2 of 60 sampled
++  // positions. A bound now narrows the window instead. Depth 4 is the first
++  // depth at which a transposition can occur inside the tree, so it is the
++  // only depth that can catch this — hence a slow test, kept to two positions.
++  let seed = 4242;
++  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
++  let position = createInitialPosition();
++  let checked = 0;
++  for (let ply = 0; ply < 30 && checked < 2; ply += 1) {
++    const actions = legalActions(position);
++    if (!actions.length || getResult(position)) break;
++    if (position.phase === 'play' && ply % 6 === 4) {
++      checked += 1;
++      const cached = chooseAction(position, { depth: 4, contempt: 0 });
++      const exact = chooseAction(position, { depth: 4, contempt: 0, useCache: false });
++      assert.equal(actionKey(cached), actionKey(exact), `ply ${ply}: the cache changed the move`);
++    }
++    position = applyAction(position, actions[Math.floor(rnd() * actions.length)]);
++  }
++  assert.equal(checked, 2);
++});
++
++test('the search counts repetition along its own path without copying the map', () => {
++  // The root map is shared read-only by every position the search builds.
++  const start = place([[15, WHITE, KING], [0, BLACK, KING]], { banks: { [WHITE]: [ROOK], [BLACK]: [] } });
++  const before = JSON.stringify(start.repetitions);
++  chooseAction(start, { depth: 3 });
++  assert.equal(JSON.stringify(start.repetitions), before, 'the search wrote into the root map');
++  // And a repetition the search would complete is still seen as a draw: a
++  // king step that recreates a twice-seen position is a draw, so when white is
++  // down a rook the bot takes it, contempt or not.
++  const pieces = [[15, WHITE, KING], [0, BLACK, KING], [1, BLACK, ROOK]];
++  const drawMove = { type: 'move', from: 15, to: 14 };
++  const repeated = positionKey(applyAction(place(pieces), drawMove));
++  const down = place(pieces, { repetitions: { [repeated]: 2 } });
++  assert.equal(actionKey(chooseAction(down, { depth: 3 })), actionKey(drawMove));
++});
++
++test('with material level the bot declines a draw it used to shuffle into', () => {
++  // Sharp against itself ended in threefold repetition fourteen games out of
++  // sixteen: a draw scored 0 and level material scored about 0. Contempt makes
++  // a draw worth a fifth of a knight against the bot, so it repeats only when
++  // it is worse off than that. Bishops each; the king step to d3 completes a
++  // repetition.
++  const pieces = [[3, WHITE, KING], [14, BLACK, KING], [0, WHITE, BISHOP], [1, BLACK, BISHOP]];
++  const drawMove = { type: 'move', from: 3, to: 7 };
++  const repeated = positionKey(applyAction(place(pieces), drawMove));
++  const level = place(pieces, { repetitions: { [repeated]: 2 } });
++  assert.equal(actionKey(chooseAction(level, { depth: 2, contempt: 0 })), actionKey(drawMove), 'without contempt the draw is taken');
++  assert.notEqual(actionKey(chooseAction(level, { depth: 2 })), actionKey(drawMove), 'with contempt it is declined');
++});
+diff --git a/test/rules.test.js b/test/rules.test.js
+index 201b791..f884a99 100644
+--- a/test/rules.test.js
++++ b/test/rules.test.js
+@@ -243,6 +243,15 @@ test('occupants are frozen shared values, so sharing a board can never leak a wr
+   assert.equal(fromOutside.board[0], occupantOf(WHITE, KING), 'createPosition canonicalises what it is given');
+ });
+ 
++test('the search may apply an action without copying the repetition map', () => {
++  const start = applyAction(applyAction(createInitialPosition(), { type: 'place-king', to: 13 }), { type: 'place-king', to: 2 });
++  const move = legalActions(start)[0];
++  const shared = applyLegalAction(start, move, false);
++  assert.equal(shared.repetitions, start.repetitions, 'the map should be the same object');
++  assert.equal(positionKey(shared), positionKey(applyAction(start, move)), 'the board is still the same');
++  assert.equal(Object.keys(start.repetitions).length, 1, 'and nothing was written into it');
++});
++
+ test('the search shortcuts agree with the validating entry points', () => {
+   // The bot skips validation and re-derivation on paths where it produced the
+   // position itself. Skipping them may not change a single answer.
+-- 
+2.43.0
+
