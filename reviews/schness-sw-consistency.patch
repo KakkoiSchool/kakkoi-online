@@ -1,0 +1,121 @@
+From 1d7a2d2e68bd30c0ff0fb1286fd3f1390e288645 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 5 Sep 2026 18:49:10 +0000
+Subject: [PATCH] Serve navigations from the cache generation their modules
+ come from
+
+The shell pages were network-first while every module and stylesheet was
+cache-first, so the first visit after any deploy ran the new HTML on the
+old CSS and JS; the match page, which must never reload itself, ran a
+whole game that way. Navigations now come from the cache like everything
+else, revalidated in the background, and unknown paths fall through to the
+network as before.
+
+Verified in Chromium by serving one build, then another with CACHE bumped
+and markers in the HTML and the stylesheet. Old handler, first visit after
+the deploy: page B on stylesheet A. New handler: page A on stylesheet A,
+then page B on stylesheet B on the next visit.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ DECISIONS.md       | 11 +++++++++++
+ sw.js              | 30 ++++++++++++++++++++++++++++--
+ test/shell.test.js |  7 +++++++
+ 3 files changed, 46 insertions(+), 2 deletions(-)
+
+diff --git a/DECISIONS.md b/DECISIONS.md
+index 84d202b..d8cbee7 100644
+--- a/DECISIONS.md
++++ b/DECISIONS.md
+@@ -80,6 +80,15 @@ changes, because that is what makes the file differ and triggers a worker update
+   rather than invisible forever. Do not return it to plain `cached || fetch(...)`.
+ - **Only the lobby reloads itself** when a new worker takes over. The match page must never: a
+   reload there throws away a game in progress.
++- **One visit, one build.** The shell pages are served from the cache like their modules, with the
++  same background revalidation. They were network-first, so the first visit after any deploy ran the
++  new HTML on the old CSS and JS — and the match page, which cannot reload, ran a whole game that way.
++  Two of the eight commits in one session changed HTML and JS together. What remains: a new worker
++  still `skipWaiting()`s and claims open pages, so a match page's *later* fetches (the bot worker on
++  a takeback or a new game) can come from the newer build; the worker's message shape is the only
++  contract across that seam. Verified in Chromium by serving one build, then another with `CACHE`
++  bumped: the visit after the deploy showed the old page on the old stylesheet, and the next one the
++  new on the new, never a mix.
+ 
+ Guarded by `test/shell.test.js`. Offline must keep working after any change here — the whole shell
+ is cached and a full bot game plays with no network.
+@@ -396,6 +405,8 @@ Honest list of what is not done and what cannot be checked from a sandbox:
+ 
+ Newest first. One line per decision that changed how the app behaves.
+ 
++- Navigations are served from the cache generation their modules come from, so one visit is one
++  build.
+ - The search's cache stores bound flags and answers exactly; the repetition map is shared along the
+   search path instead of copied per node; the bot has contempt for draws. Sharp's moves change.
+ - A move carries the mover's clocks and the receiver adopts them within a tolerance; a flag is a
+diff --git a/sw.js b/sw.js
+index 966aa8c..f47dcc6 100644
+--- a/sw.js
++++ b/sw.js
+@@ -56,13 +56,39 @@ self.addEventListener('activate', (event) => {
+     .then(() => self.clients.claim()));
+ });
+ 
++/** The cached document for a navigation, or null for a path this app does not serve. */
++function shellPageFor(pathname) {
++  if (pathname.endsWith('/game.html')) return './game.html';
++  if (pathname.endsWith('/') || pathname.endsWith('/index.html')) return './index.html';
++  return null;
++}
++
+ self.addEventListener('fetch', (event) => {
+   if (event.request.method !== 'GET') return;
+   const url = new URL(event.request.url);
+   if (url.origin !== self.location.origin) return;
+   if (event.request.mode === 'navigate') {
+-    const fallback = url.pathname.endsWith('/game.html') ? './game.html' : './index.html';
+-    event.respondWith(fetch(event.request).catch(() => caches.match(fallback)));
++    // One visit, one build. The page used to be network-first while every
++    // module and stylesheet it loads was cache-first, so the first visit after
++    // any deploy ran the new HTML on the old CSS and JS — and the match page,
++    // which must never reload itself, ran a whole game that way. The shell
++    // pages now come from the same cache generation as their subresources and
++    // revalidate in the background like them; the CACHE bump rolls everyone
++    // forward, and the lobby's one reload picks it up on the same visit.
++    const shell = shellPageFor(url.pathname);
++    if (!shell) return;
++    event.respondWith(caches.match(shell).then((cached) => {
++      const network = fetch(event.request).then((response) => {
++        if (response.ok && response.type === 'basic') {
++          const copy = response.clone();
++          caches.open(CACHE).then((cache) => cache.put(shell, copy));
++        }
++        return response;
++      });
++      if (!cached) return network.catch(() => caches.match(shell));
++      event.waitUntil(network.catch(() => { /* offline: the cached page stands */ }));
++      return cached;
++    }));
+     return;
+   }
+   event.respondWith(caches.match(event.request).then((cached) => {
+diff --git a/test/shell.test.js b/test/shell.test.js
+index 90ac361..bb74ec5 100644
+--- a/test/shell.test.js
++++ b/test/shell.test.js
+@@ -480,6 +480,13 @@ test('a deploy reaches players who already have the app cached', async () => {
+   assert.match(sw, /caches\.open\(CACHE\)\.then\(\(cache\) => cache\.put\(/,
+     'nothing refreshes the cache in the background');
+   assert.match(sw, /const CACHE = 'schness-v(\d+)'/);
++  // One visit, one build: the document comes from the same cache generation
++  // as its modules. Network-first navigation meant the first visit after any
++  // deploy ran new HTML on old CSS and JS, and the match page cannot reload.
++  assert.match(sw, /const shell = shellPageFor\(url\.pathname\);/);
++  assert.match(sw, /event\.respondWith\(caches\.match\(shell\)\.then\(\(cached\) => \{/);
++  assert.doesNotMatch(sw, /respondWith\(fetch\(event\.request\)\.catch/,
++    'navigations are network-first again, so a visit can mix two builds');
+ });
+ 
+ test('only the lobby reloads itself when a new worker takes over', async () => {
+-- 
+2.43.0
+
