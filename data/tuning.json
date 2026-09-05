@@ -14,6 +14,8 @@
   "sfxVolume": 0.6,
   "stepVolume": 0.22,
   "posHz": 10,
+  "_posKeepaliveMs": "How often to repeat a position that has not changed. The broadcast above is skipped entirely while nobody is moving — see sendPosition in src/net.js — and this is how long that silence may last before we say it again anyway, for the sake of a packet that went missing.",
+  "posKeepaliveMs": 2000,
   "interpDelayMs": 150,
   "walkSpeed": 150,
   "saveEveryMs": 500,

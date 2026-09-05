@@ -16,10 +16,28 @@
  *      Anything else — the relays, anything a fork adds — goes straight to the
  *      network and is never cached, so nothing is ever served stale by accident.
  *   3. ONE CACHE, VERSIONED. `CACHE` has a version in its name and `activate`
- *      deletes every other cache this origin has. **Bump `CACHE` on every
+ *      deletes every OTHER cache in this game's family. **Bump `CACHE` on every
  *      deploy that changes any file below.** A worker that keeps serving an old
  *      cache is how a PWA becomes unfixable: the fix ships, and nobody ever
  *      receives it, because the stale copy is what answers.
+ *
+ *      It used to delete every cache on the origin, full stop, which is fine on
+ *      `online.kakkoi.dev` and wrong everywhere else: the README asks people to
+ *      fork this and deploy it to `their-name.github.io/kakkoi-online/`, and on
+ *      that origin every other thing they have ever put on GitHub Pages is a
+ *      neighbour. Installing this game should not empty somebody else's PWA.
+ *      So the sweep is limited to the `kakkoi-online-` family below.
+ *
+ *      SEEING TWO CACHES IS NOT PROOF THE SWEEP IS BROKEN. ISSUES.md #3 was
+ *      opened because `kakkoi-online-v2` was found sitting next to `-v5`, and
+ *      the ordinary explanation is the one to reach for first: `install` opens
+ *      the NEW cache and fills it, and `activate` — which is what deletes the
+ *      old ones — does not run until that has finished. In between, both are on
+ *      disk and both are supposed to be. Close the tab mid-install and they
+ *      stay that way until the next visit finishes the job. What the game now
+ *      does about it is show the answer instead of leaving it to be guessed at:
+ *      `src/build.js` asks this worker which version is actually answering, and
+ *      the settings panel prints it, on a phone with no console attached.
  *
  * What still needs the network: finding other players. Trystero's relays are
  * WebSockets to other origins, which never come near this file. Offline you get
@@ -28,7 +46,23 @@
  * This never touches `localStorage`. Saved characters are not ours to clear.
  */
 
-const CACHE = 'kakkoi-online-v18';
+/**
+ * Every cache this game has ever named. The sweep in `activate` deletes the
+ * ones that start with this and are not `CACHE`; anything else on the origin
+ * belongs to somebody else and is left alone.
+ */
+const FAMILY = 'kakkoi-online-';
+
+const CACHE = `${FAMILY}v19`;
+
+/**
+ * Where the install writes down how it went. It is a cache entry rather than a
+ * variable because a service worker is stopped and restarted whenever the
+ * browser feels like it, and a variable does not survive that; the cache does.
+ * It is not in `SHELL`, so `fetch` below never serves it — it is a note to
+ * ourselves, not a file.
+ */
+const RECEIPT = './__build-receipt';
 
 /**
  * Every file the game loads, by hand. `./` and `./index.html` are both here on
@@ -55,6 +89,7 @@ const SHELL = [
   './src/world.js',
   './src/render.js',
   './src/save.js',
+  './src/build.js',
   './src/identity.js',
   './src/session.js',
   './src/net.js',
@@ -140,15 +175,28 @@ self.addEventListener('install', (event) => {
   // about. `cache: 'reload'` skips the HTTP cache: precaching yesterday's copy
   // of a file we are installing today is the bug this whole file exists to
   // avoid.
+  //
+  // A miss used to be warned about and then forgotten, which meant a game with
+  // half a cache called itself installed and only disagreed later, on a train,
+  // with no way left to ask what had happened. The names now go in the receipt,
+  // so `src/build.js` can say "installed, 2 files missing" out loud.
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
+    const missing = [];
     await Promise.all(SHELL.map(async (path) => {
       try {
         await cache.add(new Request(path, { cache: 'reload' }));
       } catch (err) {
+        missing.push(path);
         console.warn(`sw: could not precache ${path} — ${err.message}`);
       }
     }));
+    await cache.put(RECEIPT, new Response(JSON.stringify({
+      version: CACHE,
+      installed: new Date().toISOString(),
+      files: SHELL.length,
+      missing: missing.sort(),
+    }), { headers: { 'content-type': 'application/json' } }));
     // Take over as soon as this worker is ready rather than waiting for every
     // tab to close. Paired with clients.claim() below, a deploy reaches players
     // on their next reload instead of their next browser restart.
@@ -159,10 +207,48 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const names = await caches.keys();
-    // Everything that is not the current version goes. Without this the old
-    // cache survives every deploy, and the stale copy is what answers.
-    await Promise.all(names.filter((name) => name !== CACHE).map((name) => caches.delete(name)));
+    // Every version of THIS game that is not the current one goes. Without this
+    // the old cache survives every deploy, and the stale copy is what answers.
+    // Caches belonging to anything else on the origin are not ours to delete —
+    // see rule 3 at the top.
+    const ours = names.filter((name) => name.startsWith(FAMILY) && name !== CACHE);
+    await Promise.all(ours.map((name) => caches.delete(name)));
+    if (ours.length) console.info(`sw: ${CACHE} is live; cleared ${ours.join(', ')}`);
     await self.clients.claim();
+  })());
+});
+
+/**
+ * "Which build is actually answering?"
+ *
+ * ISSUES.md #2 is two devices that cannot see each other, and the first thing
+ * to rule out is that one of them is still running an old cached copy with the
+ * old relay list in it. That check used to need a desktop, a cable and a
+ * console. It is one line in the settings panel now, and this is where the line
+ * gets its answer: the page posts a message, and the worker that is genuinely
+ * serving that page replies with its own version — not the version the page
+ * hopes it is on.
+ */
+self.addEventListener('message', (event) => {
+  if (event.data?.kakkoi !== 'build' || !event.source) return;
+  event.waitUntil((async () => {
+    let receipt = null;
+    try {
+      const cache = await caches.open(CACHE);
+      const hit = await cache.match(RECEIPT);
+      if (hit) receipt = await hit.json();
+    } catch (err) {
+      console.warn('sw: could not read the install receipt —', err.message);
+    }
+    const names = await caches.keys();
+    event.source.postMessage({
+      kakkoi: 'build',
+      version: CACHE,
+      receipt,
+      // Anything of ours that outlived an activate. Normally empty; two entries
+      // during an install that has not finished, which is not a fault.
+      leftovers: names.filter((name) => name.startsWith(FAMILY) && name !== CACHE),
+    });
   })());
 });
 

@@ -125,6 +125,14 @@
              the last row of a settings panel, not a call to action. -->
         <a id="learnLink" class="btn-outline" href="https://school.kakkoi.dev/ai-lessons.html"
            target="_blank" rel="noopener">Learn to build this</a>
+        <!-- What this copy of the game actually is: which cached build is
+             answering, which relays are open, and who this browser is to
+             everybody else. It is the last row and it is deliberately dull to
+             look at, because it is not for playing with — it is for the moment
+             two people on two phones cannot see each other and somebody has to
+             find out why, without a laptop between them. See ISSUES.md #2 and
+             #3, src/build.js, and the note in src/main.js. -->
+        <p id="about" class="settings-note" aria-live="polite"></p>
       </div>
     </div>
 
@@ -145,22 +153,12 @@
 
   <script type="module" src="./src/main.js"></script>
 
-  <!-- Registering the worker is three lines and does not belong in a module of
-       its own. It is deliberately the LAST thing that happens and it is wrapped
-       in a catch: a service worker is an improvement to a game that already
-       works, so nothing about it is allowed to stop the game starting.
-
-       Only over https or localhost. Everywhere else `navigator.serviceWorker`
-       is simply not there, and asking for it would throw for no good reason —
-       so we look before we leap, and say nothing when the answer is no. -->
-  <script>
-    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-      addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch((err) => {
-          console.warn('sw: not registered —', err.message);
-        });
-      });
-    }
-  </script>
+  <!-- Registering the worker used to be three inline lines here, with a comment
+       saying it did not deserve a module of its own. That was true while all it
+       did was register. It now also has to be able to say WHICH cached build is
+       answering — see src/build.js, and ISSUES.md #2, where confirming that on
+       two phones is the check that would settle the whole issue. So it is a
+       module, `main.js` calls it, and the same rule still holds: nothing about
+       caching is allowed to stop the game starting. -->
 </body>
 </html>

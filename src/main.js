@@ -37,6 +37,7 @@ import { createPausedCard } from './ui/paused.js';
 import { createSettings } from './ui/settings.js';
 import { createHelp } from './ui/help.js';
 import { writeSave, clearSave, writeSafetySeen } from './save.js';
+import { createBuild, buildWords } from './build.js';
 
 const canvas = document.querySelector('#world');
 if (!canvas) throw new Error('no #world canvas in index.html');
@@ -48,6 +49,13 @@ ctx.imageSmoothingEnabled = false;   // pixel art: never smooth it
 // in the corner is an <svg><use> pointing into it, and it is in the page from
 // the moment this module runs.
 installGlyphs();
+
+// The service worker, and the one question it can answer that nobody else can:
+// which cached build is actually serving this device. Registered at module
+// scope, before `boot()` starts awaiting things, because it waits for `load`
+// and `load` is not going to wait for us. See src/build.js.
+const build = createBuild();
+build.register();
 
 const arena = document.querySelector('#arena');
 const tags = document.querySelector('#tags');
@@ -199,10 +207,44 @@ async function boot() {
   createChatBar({ root: document.querySelector('#chatbar'), chat });
 
   // ------------------------------------------------------ the small furniture
+  // ------------------------------------------------ what copy of this is this
+  //
+  // The last row of the settings panel, and the only part of the interface that
+  // is not for playing. Two of the three things in ISSUES.md are hard to
+  // investigate for the same reason: a device running a months-old cached build
+  // looks exactly like one running today's. Issue #2 says in bold to confirm the
+  // cache version on both devices before testing, and both devices are phones.
+  //
+  // So it is on the screen: which build is answering, how many relays are up,
+  // and who this browser is to everybody else. Read when the panel opens rather
+  // than at boot, because at boot no relay has connected and the answer would be
+  // "0 of 6" for everybody, forever.
+  const aboutEl = document.querySelector('#about');
+
+  async function showAbout() {
+    if (!aboutEl) return;
+    aboutEl.textContent = 'Looking…';
+    const state = await build.describe();
+    const relays = net.relays();
+    const open = relays.filter((relay) => relay.open).length;
+    aboutEl.textContent = [
+      buildWords(state),
+      `Relays: ${open} of ${relays.length} answering.`,
+      `This browser is ${net.selfId.slice(0, 8)} to everybody else.`,
+    ].join(' ');
+  }
+
+  // A newer worker has taken this page over, so what is on screen is the old
+  // build and a reload is the whole fix. We say so instead of reloading: this
+  // could land in the middle of a duel, and a game that restarts itself under
+  // somebody is a worse bug than the one being fixed.
+  build.onUpdate(() => say('A new version has arrived — reload when you are ready.'));
+
   const settings = createSettings({
     button: document.querySelector('#settingsBtn'),
     panel: document.querySelector('#settings'),
     install: document.querySelector('#installBtn'),
+    onOpen: showAbout,
   });
   const help = createHelp({ root: document.querySelector('#controls'), world });
 
@@ -690,6 +732,7 @@ async function boot() {
   globalThis.game = {
     world, player, camera, identity, monsters, input, tuning, flush,
     net, chat, duel, npc, audio, session, resume, settings, help, fit, spectate, loop, wins, looks, boss,
+    build, showAbout,
     get paused() { return !session.active; },
     /** Who the Challenge button is about right now, or null. */
     get near() { return near; },

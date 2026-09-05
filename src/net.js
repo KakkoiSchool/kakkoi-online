@@ -23,7 +23,7 @@
  * ago, sliding between the two samples either side of that moment. Being an
  * eyeblink behind is invisible; teleporting is not.
  */
-import { joinRoom as trysteroJoin, selfId } from '../vendor/trystero/nostr.js';
+import { joinRoom as trysteroJoin, selfId, getRelaySockets } from '../vendor/trystero/nostr.js';
 import { cleanName } from './identity.js';
 
 /**
@@ -346,13 +346,57 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
   /** Whole pixels: half a pixel of a peer's position is not worth the bytes. */
   let lastBox = { x: 0, y: 0 };
   let lastSent = null;
+  let lastSentAt = 0;
   let timer = null;
 
+  /**
+   * How often to repeat a position that has not changed. See `sendPosition`.
+   */
+  const keepAlive = number(tuning.posKeepaliveMs, 2000);
+
+  /** Positions we did not send because they said nothing new. Honest in a lesson. */
+  const saved = { positions: 0 };
+
+  /**
+   * Say where we are — unless we have already said exactly that.
+   *
+   * The broadcast runs `posHz` times a second whether or not anybody has moved,
+   * and in this game people stand still a great deal: reading the phrase bar,
+   * deciding who to challenge, and — the big one — the whole length of a duel,
+   * where `main.js` refuses to move the player at all and the position cannot
+   * change by definition. Every one of those was ten identical packets a second
+   * to every peer in the mesh, each one encoded, chunked and pushed down a data
+   * channel at both ends. ISSUES.md #1 is a phone getting hot, and its first
+   * suspect is the WebRTC mesh at `posHz` 10.
+   *
+   * So a packet that would repeat the last one is not sent. Nothing downstream
+   * needs it: `sampleAt` in this same file already draws a peer with no newer
+   * sample exactly where their last one put them, which is the correct answer
+   * for somebody standing still.
+   *
+   * It is still repeated every `posKeepaliveMs`, for the two cases where
+   * silence and stillness are not the same thing: a packet that went missing on
+   * the way, and a peer whose idea of where we are is older than our idea of
+   * where we are. Twice a second becomes once every two seconds, which is a
+   * twentieth of the traffic and still five times more often than anyone needs.
+   *
+   * A packet aimed at ONE peer — the greeting pair sent the moment somebody
+   * joins — always goes. They have never heard from us; "you already know this"
+   * is exactly what is not true about them.
+   */
   function sendPosition(box, to) {
     if (!box) return null;
     const packet = { x: Math.round(box.x), y: Math.round(box.y), m: identity.monster };
-    sendMove(packet, to);
-    if (!to) lastSent = packet;
+    if (to) { sendMove(packet, to); return packet; }
+
+    const now = performance.now();
+    const same = lastSent && lastSent.x === packet.x && lastSent.y === packet.y &&
+                 lastSent.m === packet.m;
+    if (same && now - lastSentAt < keepAlive) { saved.positions++; return null; }
+
+    sendMove(packet);
+    lastSent = packet;
+    lastSentAt = now;
     return packet;
   }
 
@@ -387,6 +431,35 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
 
   function send(kind, payload, to) {
     return action(kind).send(payload, to);
+  }
+
+  /**
+   * Which noticeboards are actually answering, right now.
+   *
+   * ISSUES.md #2 — two devices that never see each other — has three candidate
+   * causes and no way to tell them apart from inside the game. This is the one
+   * that can be checked without a second device: if the relays are not open,
+   * nobody is going to find you and the answer is the network, not the game.
+   * `src/main.js` prints "6 of 6 relays" in the settings panel, which is a thing
+   * a child can read down a phone to somebody in another town.
+   *
+   * This is the only file allowed to know trystero exists, so the socket list is
+   * flattened to `{ url, open }` here and nothing outside learns what a relay is
+   * made of.
+   */
+  function relays() {
+    let sockets = {};
+    try {
+      sockets = getRelaySockets() || {};
+    } catch (err) {
+      console.warn('net: could not read the relay sockets —', err.message);
+    }
+    return RELAYS.map((url) => {
+      // Browsers normalise `wss://host` to `wss://host/`; trystero keys them by
+      // whichever string it was handed, so look for both.
+      const socket = sockets[url] || sockets[`${url}/`];
+      return { url, open: socket?.readyState === WebSocket.OPEN };
+    });
   }
 
   // ------------------------------------------------------------ drawing them
@@ -436,6 +509,7 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     roomId,
     room,
     dropped,
+    saved,
     onPeerJoin: (fn) => joinHandlers.push(fn),
     onPeerLeave: (fn) => leaveHandlers.push(fn),
     onPosition: (fn) => positionHandlers.push(fn),
@@ -446,6 +520,7 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     /** Register a kind now so its first arrival is not a surprise. */
     expect: (kind) => { action(kind); },
     send,
+    relays,
     sendLook,
     sendPosition,
     follow,
