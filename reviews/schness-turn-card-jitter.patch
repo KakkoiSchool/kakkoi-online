@@ -1,0 +1,198 @@
+From 14f000d7c3a9eb9e5b3d69e4bcfc0427429a59c7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 5 Sep 2026 18:47:13 +0000
+Subject: [PATCH] Hold the turn card at one height so a tap never moves the
+ board
+
+Selecting a piece grew the turn card by up to 90px as its guidance text and
+the Deselect button appeared, then shrank it again on the next tap. On a
+phone that pushed the reserve out from under the finger that had just tapped
+it; on desktop the card shares a grid row with the opponent's reserve, so the
+board itself dropped and came back on every click.
+
+- The detail slot is reserved at three lines, the tallest live guidance
+  wraps to at any width the card is laid out at, and is never display:none.
+- Deselect sits beside the headline instead of adding a row.
+- The phone layout had trimmed the page's bottom padding to 5px along with
+  the top; the bottom gets 1rem back (the top stays trimmed for the board).
+- The borderless phone card loses 3px of vertical padding each side so a
+  390x844 screen still fits without scrolling.
+- CACHE bumped v43 -> v44; DECISIONS.md records the invariant; shell.test.js
+  guards it.
+
+Measured in Chromium at 320, 360, 390, 740x360 and 1280 wide: board, player
+rows and rail keep their coordinates through idle, board selection, reserve
+selection and king placement.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01S5c6TPdiR71NxbyNU1eTka
+---
+ DECISIONS.md       | 11 +++++++++++
+ src/main.js        |  3 ++-
+ styles.css         | 30 ++++++++++++++++++++++++++----
+ sw.js              |  2 +-
+ test/shell.test.js | 15 +++++++++++++++
+ 5 files changed, 55 insertions(+), 6 deletions(-)
+
+diff --git a/DECISIONS.md b/DECISIONS.md
+index 18ce58a..ae38ee3 100644
+--- a/DECISIONS.md
++++ b/DECISIONS.md
+@@ -263,6 +263,15 @@ turn while a toast and the Moves line said the same thing beside it. It shows co
+ king placement, being in check, what is selected — and nothing when there is nothing to add. When
+ the result overlay is up it is hidden entirely, or the ending is printed twice.
+ 
++**Its height does not depend on what it says.** The detail slot is reserved at three lines of text,
++the tallest live guidance wraps to at any width the card is laid out at, and the Deselect button
++shares the headline row. Before this, selecting a piece grew the card by up to 90px: on a phone the
++reserve moved out from under the finger that had just tapped it, and on desktop the card sits in the
++same grid row as the opponent's reserve, so the board itself dropped 50px on every click and came
++back on the next. Measured in Chromium at 320, 360, 390, 740×360 and 1280 wide: the board, the
++player rows and the rail keep the same coordinates through idle, selected-from-board,
++selected-from-reserve and king placement. Guarded by `test/shell.test.js`.
++
+ ### Chat belongs to a match, not to a mode
+ 
+ `mode` is already `'online'` from the moment the invite card goes up, so anything keyed off it alone
+@@ -384,6 +393,8 @@ Honest list of what is not done and what cannot be checked from a sandbox:
+ 
+ Newest first. One line per decision that changed how the app behaves.
+ 
++- The turn card holds one height whatever it says, so selecting a piece no longer shifts the board
++  or the reserve; the phone layout gets its bottom margin back.
+ - A move carries the mover's clocks and the receiver adopts them within a tolerance; a flag is a
+   message; both king placements are timed. The receiving side used to charge nobody.
+ - A time loss is reported as a time loss, not a resignation; the clock stops when the opponent
+diff --git a/src/main.js b/src/main.js
+index 375ea59..897c3d9 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -1330,8 +1330,9 @@ function render() {
+ function renderTurnCard(result) {
+   const { title, detail, waiting, pending } = turnCardContent(result);
+   turnTitle.textContent = title;
++  // Never hidden: the paragraph reserves its height (styles.css .turn-detail)
++  // so the card, and everything under it, stays put when the text comes and goes.
+   turnDetail.textContent = detail;
+-  turnDetail.hidden = !detail;
+   turnCard.classList.toggle('is-waiting', waiting);
+   // Distinct from is-waiting, which is also true once the game is over: this
+   // one means a turn is genuinely in flight, and is what the dot animates on.
+diff --git a/styles.css b/styles.css
+index 2deb6d7..ee9065e 100644
+--- a/styles.css
++++ b/styles.css
+@@ -80,7 +80,9 @@
+ @media(max-width:760px) {
+   .game-page {
+     padding-top: max(.35rem, env(safe-area-inset-top));
+-    padding-bottom: max(.35rem, env(safe-area-inset-bottom));
++    /* The top is trimmed for the board; the bottom is where the page ends, and
++       Undo / Resign sat 5px off the edge of the screen. */
++    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+   }
+ 
+   .game-page header {
+@@ -197,11 +199,23 @@
+   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+ }
+ 
+-/* The turn card names both legal action types every turn. */
++/*
++ * The turn card names both legal action types every turn — and never changes
++ * height while it does. Its detail went from nothing to three lines the moment
++ * a piece was selected, so every tap pushed the reserve out from under the
++ * finger, and on desktop moved the board itself. The detail slot is reserved
++ * at the tallest guidance it can hold, and the action button sits beside the
++ * headline instead of adding a row of its own.
++ */
+ .turn-card {
+   display: grid;
++  grid-template-columns: minmax(0, 1fr) auto;
++  grid-template-areas:
++    "headline action"
++    "detail detail";
++  align-items: center;
+   justify-items: start;
+-  gap: 7px;
++  gap: 7px 12px;
+   border: 1px solid var(--line);
+   border-radius: 9px;
+   background: var(--surface);
+@@ -209,6 +223,7 @@
+ }
+ 
+ .turn-headline {
++  grid-area: headline;
+   display: flex;
+   align-items: center;
+   gap: 8px;
+@@ -230,6 +245,11 @@
+ }
+ 
+ .turn-detail {
++  grid-area: detail;
++  /* Three lines: the longest live guidance ("… from your reserve is selected …")
++     wraps to three at every width the card is laid out at, phone rail or desktop
++     rail. Kept even when empty, so "Your turn" stands on the same card as the rest. */
++  min-height: calc(3 * 1.55em);
+   margin: 0;
+   color: var(--muted);
+   font-size: 13px;
+@@ -238,6 +258,8 @@
+ }
+ 
+ .turn-action {
++  grid-area: action;
++  justify-self: end;
+   border: 0;
+   background: none;
+   padding: 0;
+@@ -1560,7 +1582,7 @@
+   .turn-card:not(.review-card) {
+     border-color: transparent;
+     background: none;
+-    padding: 6px 2px;
++    padding: 3px 2px;
+   }
+ 
+   /*
+diff --git a/sw.js b/sw.js
+index 3fe572b..966aa8c 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,7 +1,7 @@
+ // Bumped whenever anything in SHELL changes. The fetch handler below no longer
+ // depends on remembering to do it — it revalidates in the background — but a
+ // bump is still the only thing that refreshes every client on the same visit.
+-const CACHE = 'schness-v43';
++const CACHE = 'schness-v44';
+ const SHELL = [
+   './',
+   './index.html',
+diff --git a/test/shell.test.js b/test/shell.test.js
+index 90ac361..b709f4b 100644
+--- a/test/shell.test.js
++++ b/test/shell.test.js
+@@ -555,3 +555,18 @@ test('only a turn still in flight animates, never a finished game', async () =>
+   assert.match(main, /function matchOver\(/);
+   assert.match(main, /active-player', position\.turn === humanColor && !matchOver/);
+ });
++
++test('the turn card keeps its height, so a tap never moves the board or the reserve', async () => {
++  const main = await readFile(resolve(root, 'src/main.js'), 'utf8');
++  const css = await readFile(resolve(root, 'styles.css'), 'utf8');
++  // The detail slot is reserved at three lines whether or not there is text,
++  // and the paragraph is never display:none — either would let the card shrink
++  // to a headline and grow back on the next click.
++  assert.match(css, /\.turn-detail\s*{[^}]*min-height:\s*calc\(3 \* 1\.55em\)/);
++  assert.doesNotMatch(main, /turnDetail\.hidden/);
++  // Deselect shares the headline row instead of adding one of its own.
++  assert.match(css, /\.turn-card\s*{[^}]*grid-template-areas:\s*"headline action"\s*"detail detail"/);
++  assert.match(css, /\.turn-action\s*{[^}]*grid-area:\s*action/);
++  // The phone layout trims the top for the board; the bottom still gets a margin.
++  assert.match(css, /\.game-page\s*{[^}]*padding-bottom:\s*max\(1rem, env\(safe-area-inset-bottom\)\)/);
++});
+-- 
+2.43.0
+
