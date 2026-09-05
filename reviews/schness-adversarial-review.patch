@@ -1,0 +1,559 @@
+From b57e38b4e450c6b87d844d02cb5b9f8c37cf464f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 5 Sep 2026 17:05:19 +0000
+Subject: [PATCH] Enforce the occupant invariant, report a time loss as one,
+ and ship a CSP
+
+- Occupants are eight frozen shared values (occupantOf); clonePosition and
+  boardAfter copy arrays only. A write throws. 1.2x on the depth-4 search,
+  perft to depth 5 and 11,944 differential positions unchanged.
+- The dead throwaway-clone parameter is gone; DECISIONS.md now says the
+  repetition map is still copied per node and the search still slows with
+  game length (1.9x at 150 entries).
+- A flag is reported as a time loss, not a resignation; the clock stops
+  when the opponent drops; a takeback restarts the mover's clock, resets
+  the animation counter and restarts the bot worker.
+- The peer path stores the engine's action object, not the peer's.
+- Both pages carry a meta CSP; test/security.test.js guards it and the
+  no-innerHTML rule. CACHE v41 -> v42.
+---
+ DECISIONS.md              | 64 +++++++++++++++++++++++++++++++++++----
+ game.html                 |  1 +
+ index.html                |  1 +
+ src/game-message.js       | 13 +++++++-
+ src/main.js               | 38 ++++++++++++++++++++---
+ src/rules.js              | 52 ++++++++++++++++++++-----------
+ sw.js                     |  2 +-
+ test/game-message.test.js | 17 +++++++++++
+ test/rules.test.js        | 19 ++++++++++++
+ test/security.test.js     | 49 ++++++++++++++++++++++++++++++
+ 10 files changed, 225 insertions(+), 31 deletions(-)
+ create mode 100644 test/security.test.js
+
+diff --git a/DECISIONS.md b/DECISIONS.md
+index da9e2dd..638d2c3 100644
+--- a/DECISIONS.md
++++ b/DECISIONS.md
+@@ -142,6 +142,20 @@ fast — the bot starting to think triggers one — and the next render throws t
+ mid-flight. It looks like it works (the class appears, `animate()` returns an object) and nothing
+ moves. Guarded by `test/shell.test.js`.
+ 
++### Both pages carry a Content-Security-Policy
++
++GitHub Pages cannot set headers, so it is a `<meta http-equiv>` on `index.html` and `game.html`, and
++the two must agree. `default-src 'self'` with `connect-src 'self' wss:` for the relays (a scheme, not
++hostnames — the relay list is append-only), `worker-src 'self'` for the bot, `media-src` for peer
++streams, no `unsafe-inline` anywhere. The app never needed inline anything: there is no `innerHTML`,
++no inline `<script>`, no inline handler, and `test/security.test.js` fails the moment one appears.
++
++Verified in Chromium: a bot game plays under it with the service worker active and the module worker
++answering, the lobby and the waiting card render, and the console reports no violation. **The online
++path is verified by the spec, not by a match** — WebSockets are governed by `connect-src`, WebRTC by
++nothing in CSP — because this sandbox cannot reach a relay. If online play ever fails with a CSP
++message in the console, that is the first place to look.
++
+ ### The board is bounded by the window, not just its width
+ 
+ `.board` is a square sized by width. On a short window that made it taller than the screen — a phone
+@@ -255,11 +269,19 @@ Three things were wrong, all of them in the hottest loop in the app:
+    something faster on the network path would find exactly these.
+ 2. **The repetition map was copied per candidate move.** It grows by one entry every ply, so cloning
+    it thirty-odd times per node made the bot slower the longer the game ran — for a map the legality
+-   filter never reads. `clonePosition` now shares it when the copy is a throwaway.
++   filter never reads. This step was then made redundant by step 3, which removed those clones
++   altogether, and the "share it when the copy is a throwaway" path it introduced was dead code
++   until it was deleted. **What remains: `applyLegalAction` still copies the map once per node**, so
++   the search still slows as a game lengthens — measured at 1.9× the time with a 150-entry map
++   against an empty one, at depth 4. The Log line that said it no longer degrades was wrong.
+ 3. **Legality cloned an entire position to ask a question about the board.** It is `boardAfter` plus
+-   `boardInCheck` now — one `slice` and shared occupant objects, because occupants are replaced and
+-   never mutated anywhere in this engine. `attacksSquare` answers on the first hit instead of
+-   building an array to call `.includes` on it.
++   `boardInCheck` now — one `slice` of the board. That is safe because **occupants are frozen shared
++   values**: exactly eight exist (`occupantOf`), every board points at them, and a write throws.
++   It was a comment ("occupants are replaced, never mutated, everywhere in this engine") first; the
++   comment was true and unenforced, and enforcing it also let `clonePosition` stop spreading sixteen
++   objects per node, which is another 1.2× on the search. `test/rules.test.js` pins the identity
++   sharing and the throw. `attacksSquare` answers on the first hit instead of building an array to
++   call `.includes` on it.
+ 
+ **How this was made safe, and how to make the next one safe.** Every step was checked two ways: an
+ equivalence harness comparing the live engine against a frozen copy over 21,215 positions from 400
+@@ -270,6 +292,18 @@ guarded entry points to depth 3. **Nothing else in the suite would catch an engi
+ plays a different game.** If you change the rules on purpose, recompute the perft numbers and say so
+ here.
+ 
++The perft numbers were later recounted by an implementation written from the rules dialog alone,
++without reference to `rules.js`, and agree through depth 5 (457,568). So they pin what the dialog
++says, not merely what the engine did.
++
++**What the harness cannot see, by design.** Comparing against a frozen copy proves nothing about a
++bug both copies share. The search's transposition cache is one: `search()` stores the value a node
++returned after an alpha-beta cutoff — a bound, not the true value — and reads it back under a
++different window. At depth 4 that changed the chosen move in 2 of 60 sampled positions against the
++same search with the cache disabled. It never shows at depth 3, where no transposition can occur
++within the tree, so Learning and Steady are unaffected; Sharp plays a move its own search would not
++choose about one time in thirty. Not a regression from the speedup, and not fixed here.
++
+ ## Testing
+ 
+ Pure modules get real unit tests. DOM behaviour that cannot be unit-tested is guarded by asserting
+@@ -308,6 +342,20 @@ Honest list of what is not done and what cannot be checked from a sandbox:
+   shows the rich install dialog both need hardware.
+ - **Sound design.** There are cues and they are off until asked for, but nothing here is composed;
+   it is the largest remaining gap in game feel and it cannot be judged from a sandbox.
++- **The clocks in an online match are two clocks, not one.** Each side charges the mover from the
++  moment it *sees* the previous move, so the receiver's view of the opponent's clock runs ahead by
++  one-way latency on every move — 50ms × 60 plies is three seconds, enough to flip a flag. The flag
++  itself is decided locally and never sent: one side can see a time loss while the other plays on,
++  and the move it then sends is applied over the finished game. The fix is for a move to carry the
++  mover's remaining time and for the receiver to adopt it; nothing here does that yet.
++- **A takeback does not refund clock time**, on purpose, and until this change it also charged the
++  next player for the time the other side had spent thinking. It now restarts the mover's clock at
++  the moment of the takeback.
++- **Sharp plays itself to a draw.** Sixteen self-play games at depth 4 from every king placement:
++  fourteen ended in threefold repetition, mean 27 moves. At depth 3, none did (7–6 with three games
++  past 100 moves). The search scores a draw as 0 and equal material as roughly 0, so it shuffles.
++  A contempt term, or scoring repetition below the static evaluation, would change how the hardest
++  opponent feels more than any further speed-up.
+ 
+ ---
+ 
+@@ -315,9 +363,13 @@ Honest list of what is not done and what cannot be checked from a sandbox:
+ 
+ Newest first. One line per decision that changed how the app behaves.
+ 
++- A time loss is reported as a time loss, not a resignation; the clock stops when the opponent
++  drops; a takeback restarts the mover's clock and the bot worker; both pages carry a CSP.
++- Occupants are frozen shared values, which enforces what step 3 of the search work assumed and
++  takes another fifth off the search.
+ - A wait that has gone on too long says what it cannot rule out, instead of implying patience.
+-- The bot search is 4.3× faster and no longer degrades as a game lengthens; move generation is
+-  pinned by perft counts.
++- The bot search is 4.3× faster; move generation is pinned by perft counts. (It still slows as a
++  game lengthens — see "The search".)
+ - The end of a match arrives — the veil fades, the card rises — instead of being there on the next
+   frame.
+ - The board exposes real rows and cells, and the rules dialog scrolls from a keyboard.
+diff --git a/game.html b/game.html
+index 28b73af..c6acffa 100644
+--- a/game.html
++++ b/game.html
+@@ -2,6 +2,7 @@
+ <html lang="en">
+ <head>
+   <meta charset="utf-8">
++  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' wss:; media-src 'self' blob: mediastream:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+   <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+   <meta name="theme-color" content="#111814" media="(prefers-color-scheme: dark)">
+diff --git a/index.html b/index.html
+index 8b56b04..bda022b 100644
+--- a/index.html
++++ b/index.html
+@@ -2,6 +2,7 @@
+ <html lang="en">
+ <head>
+   <meta charset="utf-8">
++  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self' wss:; media-src 'self' blob: mediastream:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+   <meta name="theme-color" content="#f3efe6" media="(prefers-color-scheme: light)">
+   <meta name="theme-color" content="#111814" media="(prefers-color-scheme: dark)">
+diff --git a/src/game-message.js b/src/game-message.js
+index 6e1804d..39ffaab 100644
+--- a/src/game-message.js
++++ b/src/game-message.js
+@@ -29,7 +29,7 @@ export function applyActionMessage(position, message) {
+  */
+ export function outcomeSummary({
+   position, timeline = [], history = [], humanColor,
+-  resigned = null, agreedDraw = false, opponentName = 'Your opponent',
++  resigned = null, onTime = false, agreedDraw = false, opponentName = 'Your opponent',
+ }) {
+   if (agreedDraw) {
+     return {
+@@ -37,6 +37,17 @@ export function outcomeSummary({
+       detail: `Neither side pressed on. The match ended on move ${moveCount(history)}.`,
+     };
+   }
++  if (resigned && onTime) {
++    // The clock, not a choice, ended it. Calling that a resignation misreports
++    // the game to the player who lost it and to the one who won it.
++    const mine = resigned === humanColor;
++    return {
++      eyebrow: 'Time',
++      headline: mine ? 'You ran out of time' : `${opponentName} ran out of time`,
++      tone: mine ? 'neutral' : 'win',
++      detail: `${mine ? 'Your' : 'Their'} clock hit zero on move ${moveCount(history)}. You can still walk back through it.`,
++    };
++  }
+   if (resigned) {
+     const mine = resigned === humanColor;
+     return {
+diff --git a/src/main.js b/src/main.js
+index edd3588..7959044 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -1,6 +1,6 @@
+ import {
+   BANK_PIECES, BLACK, BISHOP, KING, KNIGHT, ROOK, WHITE,
+-  applyAction, attackersOf, createInitialPosition, getResult, isInCheck, kingSquare,
++  actionKey, applyAction, attackersOf, createInitialPosition, getResult, isInCheck, kingSquare,
+   legalActions, opponent,
+ } from './rules.js';
+ import { colorName, pieceName, squareName } from './notation.js';
+@@ -129,6 +129,7 @@ let history = [];
+ let timeline = [position];
+ let reviewPly = null;
+ let resigned = null;
++let lostOnTime = false;
+ let outbox = [];
+ let sendFailed = false;
+ let reconnectDeadline = null;
+@@ -370,6 +371,10 @@ async function startOnlineSearch(gameId) {
+     network.onPeerStream(receivePeerStream);
+     network.onOpponentLeave(() => {
+       disconnected = true;
++      // Nobody can move now, so nobody's clock may run: before this, a timed
++      // game whose opponent dropped on your turn ended with you flagged.
++      stopClockTicking();
++      clockSince = null;
+       announce('Your opponent lost connection.');
+       stopMicrophone();
+       stopCamera();
+@@ -432,6 +437,7 @@ function beginOnlineMatch(color) {
+   reviewPly = null;
+   animatedPlies = 0;
+   resigned = null;
++  lostOnTime = false;
+   takebackPending = false;
+   agreedDraw = false;
+   drawOffered = false;
+@@ -668,10 +674,15 @@ function receivePeerAction(message) {
+   if (mode !== 'online' || disconnected || position.turn === humanColor) return;
+   try {
+     const before = position;
++    // The engine's own object for the action, not the peer's: the message
++    // matched a legal action by key, so `"5"` would have passed for `5` and
++    // then failed every `===` against a square from here on.
++    const wanted = actionKey(message.action);
++    const action = legalActions(before).find((candidate) => actionKey(candidate) === wanted);
+     position = applyActionMessage(before, message);
+-    history = recordAction(history, before, message.action, position);
++    history = recordAction(history, before, action, position);
+     timeline.push(position);
+-    lastAction = message.action;
++    lastAction = action;
+     selection = null;
+     reviewPly = null;
+     announceOpponentAction();
+@@ -700,6 +711,7 @@ function resetState(nextMode, color) {
+   reviewPly = null;
+   animatedPlies = 0;
+   resigned = null;
++  lostOnTime = false;
+   takebackPending = false;
+   agreedDraw = false;
+   drawOffered = false;
+@@ -989,8 +1001,16 @@ function takeBack(player) {
+   reviewPly = null;
+   thinking = false;
+   takebackPending = false;
+-  // Any reply already in flight from the worker no longer applies.
++  // Any reply already in flight from the worker no longer applies — and the
++  // worker itself is still searching the position we just left, so the next
++  // request would queue behind it. Start clean.
+   botRequest += 1;
++  if (mode === 'bot') {
++    worker.terminate();
++    worker = createWorker();
++  }
++  // The side now on move starts its clock from here; nothing is refunded.
++  if (clockSince !== null) clockSince = Date.now();
+   render();
+ }
+ 
+@@ -1162,6 +1182,7 @@ function startClockTicking() {
+       clock = spend(clock, running, Date.now() - clockSince);
+       clockSince = null;
+       resigned = running;
++      lostOnTime = true;
+       announce(`${running === humanColor ? 'You' : opponentLabel} ran out of time.`);
+       render();
+       return;
+@@ -1286,7 +1307,7 @@ function renderTurnCard(result) {
+ /** One sentence, generated from the finished position, over the live board. */
+ function renderResult() {
+   const summary = outcomeSummary({
+-    position, timeline, history, humanColor, resigned, agreedDraw, opponentName: opponentLabel,
++    position, timeline, history, humanColor, resigned, onTime: lostOnTime, agreedDraw, opponentName: opponentLabel,
+   });
+   if (!summary || resultDismissed || reviewPly !== null) {
+     resultOverlay.hidden = true;
+@@ -1519,6 +1540,13 @@ function turnCardContent(result) {
+   if (agreedDraw) {
+     return { title: 'Draw', detail: 'You and your opponent agreed to a draw.', waiting: true };
+   }
++  if (resigned && lostOnTime) {
++    return {
++      title: resigned === humanColor ? 'You ran out of time' : `${opponentLabel} ran out of time`,
++      detail: `The match ended on move ${moveCount(history)}. You can still walk back through it.`,
++      waiting: true,
++    };
++  }
+   if (resigned) {
+     return {
+       title: resigned === humanColor ? 'You resigned' : `${opponentLabel} resigned`,
+diff --git a/src/rules.js b/src/rules.js
+index d8c58ba..41bb6d0 100644
+--- a/src/rules.js
++++ b/src/rules.js
+@@ -20,6 +20,22 @@ const KNIGHT_STEPS = [
+ ];
+ const PIECE_CODE = { [KING]: 'K', [ROOK]: 'R', [BISHOP]: 'B', [KNIGHT]: 'N' };
+ 
++/*
++ * An occupant is a value, not an object with a life of its own. Exactly eight
++ * exist — one per owner and piece — and they are frozen, so every board shares
++ * them and a write to one throws (`'use strict'` is implicit in a module).
++ * That is what makes it safe for `boardAfter` and `clonePosition` to share
++ * occupants between boards: the invariant is enforced, not described.
++ */
++const OCCUPANTS = {};
++for (const owner of PLAYERS) {
++  for (const piece of PIECES) OCCUPANTS[`${owner}:${piece}`] = Object.freeze({ owner, piece });
++}
++
++export function occupantOf(owner, piece) {
++  return OCCUPANTS[`${owner}:${piece}`];
++}
++
+ export function opponent(player) {
+   return player === WHITE ? BLACK : WHITE;
+ }
+@@ -40,7 +56,7 @@ export function createInitialPosition() {
+ /** Create a checked position for tests, saved games, and network snapshots. */
+ export function createPosition({ board, banks, turn = WHITE, phase = 'play', repetitions = {} }) {
+   const position = {
+-    board: board.map((occupant) => occupant ? { ...occupant } : null),
++    board: board.map((occupant) => occupant ? occupantOf(occupant.owner, occupant.piece) : null),
+     banks: {
+       [WHITE]: [...banks[WHITE]],
+       [BLACK]: [...banks[BLACK]],
+@@ -263,11 +279,11 @@ export function actionKey(action) {
+ }
+ 
+ function applyUnchecked(position, action, countRepetition) {
+-  const next = clonePosition(position, countRepetition);
++  const next = clonePosition(position);
+   const player = position.turn;
+ 
+   if (action.type === 'place-king') {
+-    next.board[action.to] = { owner: player, piece: KING };
++    next.board[action.to] = occupantOf(player, KING);
+     if (position.phase === 'place-white-king') {
+       next.phase = 'place-black-king';
+       next.turn = BLACK;
+@@ -285,7 +301,7 @@ function applyUnchecked(position, action, countRepetition) {
+   } else if (action.type === 'drop') {
+     const bankIndex = next.banks[player].indexOf(action.piece);
+     next.banks[player].splice(bankIndex, 1);
+-    next.board[action.to] = { owner: player, piece: action.piece };
++    next.board[action.to] = occupantOf(player, action.piece);
+     next.turn = opponent(player);
+   }
+ 
+@@ -344,9 +360,9 @@ function squareAt(row, column) {
+ }
+ 
+ /**
+- * The board an action would leave behind, shared occupant objects and all —
+- * read-only, and only ever handed to `boardInCheck`. Occupants are replaced
+- * rather than mutated everywhere in this engine, so sharing them is safe.
++ * The board an action would leave behind — read-only, and only ever handed to
++ * `boardInCheck`. Occupants are frozen shared values (see `OCCUPANTS`), so
++ * copying the array is copying the board.
+  */
+ function boardAfter(position, action) {
+   const board = position.board.slice();
+@@ -354,9 +370,9 @@ function boardAfter(position, action) {
+     board[action.to] = board[action.from];
+     board[action.from] = null;
+   } else if (action.type === 'drop') {
+-    board[action.to] = { owner: position.turn, piece: action.piece };
++    board[action.to] = occupantOf(position.turn, action.piece);
+   } else {
+-    board[action.to] = { owner: position.turn, piece: KING };
++    board[action.to] = occupantOf(position.turn, KING);
+   }
+   return board;
+ }
+@@ -366,23 +382,23 @@ function coordinates(square) {
+ }
+ 
+ /**
+- * `countRepetition: false` means the caller is about to read the board and
+- * throw the position away — the legality filter, which does this once per
+- * candidate move. The repetition map is shared rather than copied there: it
+- * grows by one entry every ply, so copying it thirty times per search node
+- * made the bot slower the longer the game ran, for no reason at all. A
+- * position produced that way is read-only; nothing may write to its map.
++ * The repetition map is copied here, once per applied action, and it grows by
++ * one entry per ply: a search late in a long game pays for that at every
++ * node. Measured at 1.9× the time of the same search with an empty map once
++ * the map holds 150 entries. Nothing shares it any more — the legality filter
++ * stopped cloning positions at all — so this is the remaining length-dependent
++ * cost in the engine, and it is documented in DECISIONS.md rather than fixed.
+  */
+-function clonePosition(position, copyRepetitions = true) {
++function clonePosition(position) {
+   return {
+-    board: position.board.map((occupant) => occupant ? { ...occupant } : null),
++    board: position.board.slice(),
+     banks: {
+       [WHITE]: [...position.banks[WHITE]],
+       [BLACK]: [...position.banks[BLACK]],
+     },
+     turn: position.turn,
+     phase: position.phase,
+-    repetitions: copyRepetitions ? { ...position.repetitions } : position.repetitions,
++    repetitions: { ...position.repetitions },
+   };
+ }
+ 
+diff --git a/sw.js b/sw.js
+index 294d4bb..2b17d4f 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,7 +1,7 @@
+ // Bumped whenever anything in SHELL changes. The fetch handler below no longer
+ // depends on remembering to do it — it revalidates in the background — but a
+ // bump is still the only thing that refreshes every client on the same visit.
+-const CACHE = 'schness-v41';
++const CACHE = 'schness-v42';
+ const SHELL = [
+   './',
+   './index.html',
+diff --git a/test/game-message.test.js b/test/game-message.test.js
+index c5bf004..d6d9fdd 100644
+--- a/test/game-message.test.js
++++ b/test/game-message.test.js
+@@ -98,6 +98,23 @@ test('a resignation reports the move it ended on', () => {
+   assert.match(summary.detail, /You can still walk back through it/);
+ });
+ 
++test('losing on the clock is not reported as resigning', () => {
++  // The clock flag reuses the resignation state machine; the words must not.
++  const mine = outcomeSummary({
++    position: createInitialPosition(), history: [], humanColor: 'white',
++    resigned: 'white', onTime: true,
++  });
++  assert.equal(mine.eyebrow, 'Time');
++  assert.equal(mine.headline, 'You ran out of time');
++  assert.doesNotMatch(mine.headline + mine.detail, /resign/i);
++  const theirs = outcomeSummary({
++    position: createInitialPosition(), history: [], humanColor: 'white',
++    resigned: 'black', onTime: true, opponentName: 'Mira',
++  });
++  assert.equal(theirs.headline, 'Mira ran out of time');
++  assert.equal(theirs.tone, 'win');
++});
++
+ test('an agreed draw is distinct from a stalemate', () => {
+   const summary = outcomeSummary({
+     position: createInitialPosition(), history: [], humanColor: 'white', agreedDraw: true,
+diff --git a/test/rules.test.js b/test/rules.test.js
+index a98c77f..201b791 100644
+--- a/test/rules.test.js
++++ b/test/rules.test.js
+@@ -16,6 +16,7 @@ import {
+   isInCheck,
+   legalActions,
+   legalActionsUnchecked,
++  occupantOf,
+   positionKey,
+ } from '../src/rules.js';
+ 
+@@ -224,6 +225,24 @@ test('move generation counts exactly what it has always counted', () => {
+   assert.equal(perft(start, 4), 17896);
+ });
+ 
++test('occupants are frozen shared values, so sharing a board can never leak a write', () => {
++  // `boardAfter` and `clonePosition` copy arrays, not occupants. That is only
++  // safe while nothing ever mutates an occupant, and a comment saying so is
++  // not a guard. Every occupant is one of eight frozen values instead: two
++  // boards holding a white rook hold the same object, and a write throws.
++  const start = applyAction(createInitialPosition(), { type: 'place-king', to: 13 });
++  const next = applyAction(start, { type: 'place-king', to: 2 });
++  assert.equal(next.board[13], start.board[13], 'a clone should share the occupant, not copy it');
++  assert.equal(next.board[13], occupantOf(WHITE, KING));
++  assert.ok(Object.isFrozen(next.board[13]));
++  assert.throws(() => { next.board[13].piece = ROOK; }, TypeError);
++  const fromOutside = createPosition({
++    board: [piece(WHITE, KING), ...Array(14).fill(null), piece(BLACK, KING)],
++    banks: { [WHITE]: [], [BLACK]: [] },
++  });
++  assert.equal(fromOutside.board[0], occupantOf(WHITE, KING), 'createPosition canonicalises what it is given');
++});
++
+ test('the search shortcuts agree with the validating entry points', () => {
+   // The bot skips validation and re-derivation on paths where it produced the
+   // position itself. Skipping them may not change a single answer.
+diff --git a/test/security.test.js b/test/security.test.js
+new file mode 100644
+index 0000000..ce3c3ea
+--- /dev/null
++++ b/test/security.test.js
+@@ -0,0 +1,49 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { readdir, readFile } from 'node:fs/promises';
++import { fileURLToPath } from 'node:url';
++import { dirname, resolve } from 'node:path';
++
++const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
++const read = (file) => readFile(resolve(root, file), 'utf8');
++
++/**
++ * The XSS surface is closed by construction — peer text goes through
++ * `textContent` and nothing builds markup from strings — and that is one
++ * careless line from being untrue. This is the grep that keeps it true, and
++ * the CSP below is what catches the line this grep does not think of.
++ */
++test('nothing in the app builds DOM from a string', async () => {
++  const files = (await readdir(resolve(root, 'src'))).filter((file) => file.endsWith('.js'));
++  for (const file of files) {
++    const source = await read(`src/${file}`);
++    for (const sink of ['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'eval(', 'new Function(']) {
++      assert.ok(!source.includes(sink), `src/${file} uses ${sink}`);
++    }
++  }
++});
++
++test('both pages carry the same Content-Security-Policy, and nothing inline', async () => {
++  const policies = [];
++  for (const page of ['index.html', 'game.html']) {
++    const html = await read(page);
++    const meta = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/);
++    assert.ok(meta, `${page} ships no CSP`);
++    policies.push(meta[1]);
++    // GitHub Pages cannot set headers, so the policy has to live in the document.
++    assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>[^<]*\S[^<]*<\/script>/, `${page} has an inline script`);
++    assert.doesNotMatch(html, /\son[a-z]+="/i, `${page} has an inline event handler`);
++    assert.doesNotMatch(html, /<style[\s>]/, `${page} has an inline stylesheet`);
++  }
++  assert.equal(policies[0], policies[1], 'the two pages disagree about the policy');
++  const policy = policies[0];
++  // What the app needs and nothing else: modules and the worker from here, the
++  // relays over wss (the list is append-only, so a scheme, not hostnames),
++  // peer media as stream objects. No 'unsafe-inline' anywhere.
++  assert.match(policy, /default-src 'self'/);
++  assert.match(policy, /connect-src 'self' wss:/);
++  assert.match(policy, /worker-src 'self'/);
++  assert.match(policy, /media-src 'self' blob: mediastream:/);
++  assert.match(policy, /object-src 'none'/);
++  assert.doesNotMatch(policy, /unsafe-inline|unsafe-eval|\*/);
++});
+-- 
+2.43.0
+
