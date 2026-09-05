@@ -35,6 +35,24 @@ Established facts (reproduced; do not re-derive):
 - One predicted bug (stale animation counter after a takeback) turned out NOT to exist when
   checked in Chromium. Read, then verify, before fixing.
 
+## Progress since this was written (same session, later)
+
+Landed on KakkoiDev/schness and squash-merged into master as #41 (`5fdb281`): the counter-review
+patch and the one-clock patch. In flight or queued as patches in this directory, each a single
+commit that stacks on the previous one and passes `npm test`:
+
+| patch | plan item | tests | branch on schness |
+|---|---|---|---|
+| `schness-bot-fixes.patch` | 3: cache bound flags, shared repetition map, contempt | 145 | `claude/bot-search` (being landed) |
+| `schness-sw-consistency.patch` | 4: navigations from the same cache generation | 145 | not yet |
+| `schness-polish.patch` | 7 + 8: draws in the rules, result card is a dialog with Escape, aria-selected, dots stop at 3 loops | 147 | not yet |
+
+Apply them in that order on master with `git apply`; each was verified in Chromium (scripts in
+`schness-harness/`: `verify_clock.mjs`, `verify_sw.mjs`, `verify_polish.mjs`). Items 2 (surface
+matchmaking failure from the vendored trystero), 5 (rendezvous-hash the relays) and 6 (split the
+record) remain open; 2 and 5 touch the online path that no sandbox can exercise, so land them only
+with a real two-peer test in hand.
+
 ## Your first job
 
 Land the patch: create a branch from `d47c46c`, `git apply reviews/schness-adversarial-review.patch`,

@@ -1,0 +1,260 @@
+From a460eea965893de45fda33f8013c89b0f25829fa Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 5 Sep 2026 18:52:14 +0000
+Subject: [PATCH] Name the draws, make the result card a dialog, stop the dots
+ before five seconds
+
+- The rules dialog on both pages now says a game can end in stalemate or by
+  threefold repetition; the engine did both and the cards named both while
+  the rules said nothing. test/rules-copy.test.js keeps the pages agreeing.
+- The result card is role="dialog" and Escape dismisses it, returning focus
+  to the board. It is still not modal: "See that move" reads the board
+  behind it. The selected square carries aria-selected.
+- The waiting dots run three loops under both motion settings (3.3s and
+  4.5s), under the five seconds after which WCAG 2.2.2 wants a pause
+  control; the status text keeps saying "Listening". DECISIONS.md says what
+  replaced the earlier reasoning.
+
+Verified in Chromium: Escape hides the overlay and focuses the board,
+aria-selected="true" on the chosen square, computed iteration count 3 under
+both settings, and the sentence renders in the dialog. CACHE v44 -> v45.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ DECISIONS.md            | 31 +++++++++++++++++++++++++++----
+ game.html               |  5 +++--
+ index.html              |  3 ++-
+ src/main.js             | 13 ++++++++++++-
+ styles.css              |  7 +++++--
+ sw.js                   |  2 +-
+ test/rules-copy.test.js | 10 ++++++++++
+ test/shell.test.js      | 17 +++++++++++++++--
+ 8 files changed, 75 insertions(+), 13 deletions(-)
+
+diff --git a/DECISIONS.md b/DECISIONS.md
+index d8cbee7..7e52d5f 100644
+--- a/DECISIONS.md
++++ b/DECISIONS.md
+@@ -130,10 +130,17 @@ The waiting dots bounce — `translateY(-5px) scale(1.15)` on 6px dots. They wer
+ three separate times while the rule was present and correct, because a 5px dot rising 1.4px reads as
+ nothing at a glance; the amplitude is the feature, not a detail to tune down.
+ 
+-Under `reduce` those dots keep animating, but **only their opacity** — a cross-fade carries no
+-vestibular risk and is the substitution Apple's own guidance names. Reduced motion means no
+-movement, not a dead indicator on the one card whose entire job is to say "still listening". They
+-are hidden outright once no relay answers, so nothing implies progress on a search that has stalled.
++Under `reduce` those dots animate **only their opacity** — a cross-fade carries no vestibular risk
++and is the substitution Apple's own guidance names. Reduced motion means no movement, not a dead
++indicator. They are hidden outright once no relay answers, so nothing implies progress on a search
++that has stalled.
++
++**The dots stop after three loops, under both settings** (3.3s bouncing, 4.5s cross-fading). WCAG
++2.2.2 asks for a way to pause anything that moves for more than five seconds beside other content,
++and the dots sit beside the link field and two buttons; the "essential" exemption is for a loading
++phase during which nothing can be interacted with, which this is not. The earlier reasoning here —
++that the one card whose job is to say "still listening" should keep saying it — is carried by the
++status text, which keeps saying it after the dots come to rest.
+ 
+ Verified in Chromium under both settings by sampling computed `opacity` and `transform` over ~1.1s:
+ nine distinct transforms under `no-preference`, exactly one under `reduce`. A rule in the sheet is
+@@ -252,6 +259,20 @@ one-way latency per move" understated it. Guarded by `test/clock.test.js`, which
+ over eighty plies at 250ms latency and asserts the two views never part by more than the tolerance,
+ and by `test/shell.test.js`. **Not verified with two real peers** — nothing in this sandbox can be.
+ 
++### The result card is a dialog that is not modal
++
++`role="dialog"`, focus moves into it when it arrives, and **Escape dismisses it** (sets
++`resultDismissed`, returns focus to the board). It is deliberately not `showModal()`: the loss card's
++own "See that move" reads the board behind it, and a modal would make that board inert. Before this
++it was a `role="group"` that took focus and could not be closed from the keyboard — the shape of a
++dialog without the contract. The selected square also carries `aria-selected`.
++
++### The rules name the draws
++
++Stalemate and threefold repetition end games — 13 of 16 self-play games at the Learning level — and
++the dialog said nothing about either while the result cards named both. One sentence in the
++"things that trip people up" section, identical on both pages, guarded by `test/rules-copy.test.js`.
++
+ ### The end of a match is announced by focus, not by the toast
+ 
+ When the overlay arrives, focus moves to `.result-card` — `tabindex="-1"`, named by its headline and
+@@ -405,6 +426,8 @@ Honest list of what is not done and what cannot be checked from a sandbox:
+ 
+ Newest first. One line per decision that changed how the app behaves.
+ 
++- The result card is a dialog that Escape closes; the selected square says so; the waiting dots stop
++  after three loops; the rules dialog names stalemate and repetition.
+ - Navigations are served from the cache generation their modules come from, so one visit is one
+   build.
+ - The search's cache stores bound flags and answers exactly; the repetition map is shared along the
+diff --git a/game.html b/game.html
+index c6acffa..ce3465c 100644
+--- a/game.html
++++ b/game.html
+@@ -116,7 +116,7 @@
+           <div id="board" class="board" role="grid" aria-label="Schness board" tabindex="0"
+                aria-describedby="board-help"></div>
+           <div id="result-overlay" class="result-overlay" hidden>
+-            <section class="result-card" role="group" tabindex="-1" aria-labelledby="result-headline" aria-describedby="result-detail">
++            <section class="result-card" role="dialog" tabindex="-1" aria-labelledby="result-headline" aria-describedby="result-detail">
+               <p id="result-eyebrow" class="eyebrow"></p>
+               <h2 id="result-headline"></h2>
+               <p id="result-detail" class="result-detail"></p>
+@@ -302,8 +302,9 @@
+         <figcaption>White’s bishop was captured earlier, so it came back to White’s own reserve. The dashed ring is c2, one of the empty squares it can drop onto.</figcaption>
+       </figure>
+       <section class="rules-gotchas">
+-        <h3>Two things that trip people up</h3>
++        <h3>Three things that trip people up</h3>
+         <p>A deployed piece may not put the enemy king in check on the turn it lands. And a piece dropped on the far row is not promoted; there are no pawns.</p>
++        <p>A game can also end in a draw: when the side to move has no legal move and is not in check (stalemate), or when the same position, reserves included, comes up for the third time.</p>
+       </section>
+     </div>
+     <div class="dialog-foot">
+diff --git a/index.html b/index.html
+index bda022b..ac0e5ec 100644
+--- a/index.html
++++ b/index.html
+@@ -143,8 +143,9 @@
+         <figcaption>White’s bishop was captured earlier, so it came back to White’s own reserve. The dashed ring is c2, one of the empty squares it can drop onto.</figcaption>
+       </figure>
+       <section class="rules-gotchas">
+-        <h3>Two things that trip people up</h3>
++        <h3>Three things that trip people up</h3>
+         <p>A deployed piece may not put the enemy king in check on the turn it lands. And a piece dropped on the far row is not promoted; there are no pawns.</p>
++        <p>A game can also end in a draw: when the side to move has no legal move and is not in check (stalemate), or when the same position, reserves included, comes up for the third time.</p>
+       </section>
+     </div>
+     <div class="dialog-foot">
+diff --git a/src/main.js b/src/main.js
+index 375ea59..b1918c2 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -207,6 +207,15 @@ moveForward.addEventListener('click', () => stepReview(1));
+ undoButton.addEventListener('click', undoTurn);
+ resignButton.addEventListener('click', resign);
+ resultHome.addEventListener('click', () => window.location.assign('./'));
++// The card takes focus like a dialog, so it closes like one. It is not modal
++// on purpose — the board behind it is what "See that move" reads.
++resultCard.addEventListener('keydown', (event) => {
++  if (event.key !== 'Escape') return;
++  event.preventDefault();
++  resultDismissed = true;
++  render();
++  board.focus();
++});
+ document.querySelectorAll('[data-open-sound]').forEach((button) =>
+   button.addEventListener('click', () => soundDialog.showModal()));
+ soundDialog.querySelectorAll('[data-cue]').forEach((input) => {
+@@ -1296,7 +1305,9 @@ function render() {
+     button.classList.toggle('is-cursor', keyboardActive && visual === cursor);
+     button.replaceChildren();
+     if (occupant) button.append(pieceElement(occupant.owner, occupant.piece));
+-    button.classList.toggle('selected', selection?.type === 'board' && selection.square === square);
++    const isSelected = selection?.type === 'board' && selection.square === square;
++    button.classList.toggle('selected', isSelected);
++    button.setAttribute('aria-selected', String(isSelected));
+     button.classList.toggle('target', targets.has(square));
+     button.classList.toggle('placement', placingKing && targets.has(square));
+     button.classList.toggle('capture', targets.has(square) && Boolean(occupant));
+diff --git a/styles.css b/styles.css
+index 2deb6d7..d8deaff 100644
+--- a/styles.css
++++ b/styles.css
+@@ -1310,7 +1310,10 @@
+ 
+ @media (prefers-reduced-motion: no-preference) {
+   .pulse i {
+-    animation: listening 1.1s ease-in-out infinite;
++    /* Three loops, 3.3s: under the five seconds after which WCAG 2.2.2 wants
++       a way to pause anything that moves beside other content. The status
++       text keeps saying "Listening" when the dots have come to rest. */
++    animation: listening 1.1s ease-in-out 3;
+   }
+ 
+   .pulse i:nth-child(2) {
+@@ -2023,7 +2026,7 @@
+    * saying it. Nothing here translates, scales or rotates.
+    */
+   .pulse i {
+-    animation: listening-still 1.5s ease-in-out infinite;
++    animation: listening-still 1.5s ease-in-out 3;
+   }
+ 
+   .pulse i:nth-child(2) {
+diff --git a/sw.js b/sw.js
+index f47dcc6..01883fb 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,7 +1,7 @@
+ // Bumped whenever anything in SHELL changes. The fetch handler below no longer
+ // depends on remembering to do it — it revalidates in the background — but a
+ // bump is still the only thing that refreshes every client on the same visit.
+-const CACHE = 'schness-v44';
++const CACHE = 'schness-v45';
+ const SHELL = [
+   './',
+   './index.html',
+diff --git a/test/rules-copy.test.js b/test/rules-copy.test.js
+index 980b430..e003888 100644
+--- a/test/rules-copy.test.js
++++ b/test/rules-copy.test.js
+@@ -51,3 +51,13 @@ test('both pages tell the same story about captures', async () => {
+   assert.ok(rule(lobby), 'the lobby lost its capture rule');
+   assert.equal(rule(lobby), rule(invite), 'the two pages describe captures differently');
+ });
++
++test('both pages name the two draws, in the same words', async () => {
++  // The engine ends games by stalemate and by threefold repetition, the result
++  // cards name both, and the rules said nothing about either.
++  const [lobby, game] = await Promise.all(PAGES.map((page) => readFile(resolve(root, page), 'utf8')));
++  const sentence = /A game can also end in a draw:[^<]+third time\./;
++  assert.match(lobby, sentence);
++  assert.match(game, sentence);
++  assert.equal(lobby.match(sentence)[0], game.match(sentence)[0]);
++});
+diff --git a/test/shell.test.js b/test/shell.test.js
+index bb74ec5..686be1c 100644
+--- a/test/shell.test.js
++++ b/test/shell.test.js
+@@ -173,6 +173,15 @@ test('a captured piece flies to the reserve of whoever owned it', async () => {
+   assert.match(body, /last\.from === null/);
+ });
+ 
++test('the waiting dots come to rest before five seconds, under both settings', async () => {
++  const css = await readFile(resolve(root, 'styles.css'), 'utf8');
++  // WCAG 2.2.2: anything that moves for more than five seconds beside other
++  // content needs a pause control. Three loops of either animation is under.
++  assert.match(css, /animation: listening 1\.1s ease-in-out 3;/);
++  assert.match(css, /animation: listening-still 1\.5s ease-in-out 3;/);
++  assert.doesNotMatch(css, /\.pulse i \{[^}]*infinite/);
++});
++
+ test('the sheet gates its motion, including the transforms added later', async () => {
+   const css = await readFile(resolve(root, 'styles.css'), 'utf8');
+   assert.match(css, /\.square\.is-sliding \.piece \{[^}]*visibility: hidden/);
+@@ -243,7 +252,11 @@ test('the outcome is stated once, and the rail belongs to a live match', async (
+   // the frame the card arrives — renderResult runs on every render. Before
+   // this, an ending nobody's move delivered (a resignation, your own mate)
+   // was announced by nothing at all and left focus on a covered square.
+-  assert.match(html, /class="result-card"[^>]*tabindex="-1"[^>]*aria-labelledby="result-headline"[^>]*aria-describedby="result-detail"/);
++  assert.match(html, /class="result-card" role="dialog" tabindex="-1"[^>]*aria-labelledby="result-headline"[^>]*aria-describedby="result-detail"/);
++  // A dialog closes from the keyboard; this one used to take focus and not.
++  assert.match(main, /resultCard\.addEventListener\('keydown'/);
++  assert.match(main, /if \(event\.key !== 'Escape'\) return;[\s\S]{0,120}resultDismissed = true;/);
++  assert.match(main, /button\.setAttribute\('aria-selected', String\(isSelected\)\);/);
+   assert.match(main, /const arriving = resultOverlay\.hidden;/);
+   assert.match(main, /if \(!arriving \|\| resultAnnounced\) return;/);
+   assert.match(main, /resultCard\.focus\(\{ preventScroll: true \}\);/);
+@@ -309,7 +322,7 @@ test('lobby and game are separate documents with rules and home navigation', asy
+   // The rules dialog is four numbered rules, a worked board and the gotchas.
+   assert.match(html, /Schness in four rules/);
+   assert.equal([...html.matchAll(/<li><strong>/g)].length, 4);
+-  assert.match(html, /Two things that trip people up/);
++  assert.match(html, /Three things that trip people up/);
+   assert.match(html, /class="rules-confirm"[^>]*>Got it</);
+   // Nothing opens the rules for you, so there is no "don't show this" to offer.
+   assert.doesNotMatch(html, /id="rules-optout"/);
+-- 
+2.43.0
+

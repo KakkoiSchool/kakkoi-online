@@ -1,0 +1,17 @@
+import { chromium } from 'playwright';
+const base = 'http://127.0.0.1:8899'; const id = '11111111-2222-4333-8444-555555555555';
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+const ctx = await browser.newContext({ viewport: { width: 900, height: 800 } }); const page = await ctx.newPage();
+const errors = []; page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); }); page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+await page.addInitScript(() => localStorage.setItem('schness-clock', '3+2')); await page.clock.install();
+await page.goto(`${base}/game.html?game=${id}&mode=bot`); await page.clock.runFor(500);
+const read = () => page.evaluate(() => ({ me: document.querUSelector ? null : document.querySelector('#human-clock').textContent, bot: document.querySelector('#opponent-clock').textContent, title: document.querySelector('#turn-title').textContent }));
+const t0 = await read(); await page.clock.runFor(10_000); const t1 = await read();
+await page.click('.square.placement'); await page.clock.runFor(300);
+for (let i = 0; i < 40 && (await read()).title !== 'Your turn'; i++) await page.clock.runFor(250);
+const t2 = await read(); await page.clock.runFor(10_000); const t3 = await read();
+console.log('[placement timed] before placing:', t0, '-> 10s later:', t1);
+console.log('[after both placements]', t2, '-> 10s later:', t3, '(human clock must keep falling: placement charged, play phase ticking)');
+await page.clock.runFor(200_000);
+console.log('[flag]', await page.evaluate(() => `${document.querySelector('#result-eyebrow').textContent} / ${document.querySelector('#result-headline').textContent}`), '| console errors:', errors.length, errors.slice(0, 2));
+await browser.close();
