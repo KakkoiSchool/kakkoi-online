@@ -267,12 +267,76 @@
       is(made.fits, false, `fits (${made.size} characters, budget ${URL_BUDGET})`);
     });
 
-    // ------------------------------------------------- and the shipping town
+    // ------------------------------------------------------------------ doors
+    //
+    // A door is the one thing in a map that points at something outside it, so
+    // half of what makes it right cannot be checked from here at all — whether
+    // the map it names exists, and whether the square it arrives on is a wall,
+    // are questions for `src/places.js`, which has every map at once. These are
+    // the half that is local.
+
+    const doored = (door, extra) => room(12, 10, { doors: [door], ...extra });
+    const WAY = { col: 1, row: 1, to: 'somewhere-else', spawn: { col: 3, row: 4 } };
+
+    test('a map with a door in a room you can reach is a place', () => {
+      const result = check(doored(WAY), { cells: CELLS });
+      is(result.ok, true, 'ok — ' + result.problems.join(' / '));
+    });
+
+    test('a map with no doors at all is still a place', () => {
+      is(check(room(), { cells: CELLS }).ok, true, 'ok');
+    });
+
+    test('a door off the edge of the map is refused', () => {
+      has(check(doored({ ...WAY, col: 99 }), { cells: CELLS }).problems, 'not on the map');
+    });
+
+    test('a door drawn inside a wall is refused, because nobody could use it', () => {
+      has(check(doored({ ...WAY, col: 0, row: 0 }), { cells: CELLS }).problems, 'inside a wall');
+    });
+
+    test('a door that does not say where it goes is refused', () => {
+      has(check(doored({ col: 1, row: 1, spawn: { col: 3, row: 4 } }), { cells: CELLS }).problems,
+          'which map');
+    });
+
+    test('a door naming something a file cannot be called is refused', () => {
+      has(check(doored({ ...WAY, to: '../../etc/passwd' }), { cells: CELLS }).problems, 'which map');
+    });
+
+    test('a door that does not say where you come out is refused', () => {
+      has(check(doored({ col: 1, row: 1, to: 'elsewhere' }), { cells: CELLS }).problems,
+          'where you come out');
+    });
+
+    test('two doors on one square are refused', () => {
+      const both = room(12, 10, { doors: [WAY, { ...WAY, to: 'a-third-place' }] });
+      has(check(both, { cells: CELLS }).problems, 'same square');
+    });
+
+    test('a list of doors that is not a list is refused', () => {
+      has(check(room(12, 10, { doors: 'yes please' }), { cells: CELLS }).problems, 'not a list');
+    });
+
+    test('doors survive being written out and read back', () => {
+      const there = check(JSON.parse(toJson(doored(WAY))), { cells: CELLS });
+      is(there.ok, true, 'ok — ' + there.problems.join(' / '));
+      is(JSON.parse(toJson(doored(WAY))).doors[0].to, 'somewhere-else', 'where it goes');
+      is(JSON.parse(toJson(doored(WAY))).doors[0].spawn.row, 4, 'where you come out');
+    });
+
+    test('a map with no doors does not grow an empty list on the way through', () => {
+      is('doors' in JSON.parse(toJson(room())), false, 'it invented a doors field');
+    });
+
+    // ------------------------------------------------- and the shipping maps
 
     const summary = document.querySelector('#summary');
-    fetch('../data/maps/town.json')
-      .then((r) => r.json())
-      .then((town) => {
+    Promise.all([
+      fetch('../data/maps/town.json').then((r) => r.json()),
+      fetch('../data/maps/maps.json').then((r) => r.json()),
+    ])
+      .then(async ([town, listing]) => {
         test('the town that ships is a place', () => {
           const result = check(town, { cells: CELLS });
           is(result.ok, true, 'ok — ' + result.problems.join(' / '));
@@ -286,6 +350,58 @@
           const used = new Set([...town.ground, ...town.decor.filter((n) => n >= 0)]);
           const gone = [...used].filter((n) => !isPaintable(n));
           if (gone.length) throw new Error(`the town uses ${gone.join(', ')}, which the palette dropped`);
+        });
+
+        // Every map named in `maps.json`, not only the town: a place that ships
+        // broken is a place a child walks into.
+        const maps = new Map();
+        for (const id of listing.places) {
+          maps.set(id, await fetch(`../data/maps/${id}.json`).then((r) => r.json()));
+        }
+
+        for (const [id, map] of maps) {
+          test(`${id} ships as a place`, () => {
+            const result = check(map, { cells: CELLS });
+            is(result.ok, true, 'ok — ' + result.problems.join(' / '));
+          });
+
+          test(`${id} is made only of tiles the map maker still offers`, () => {
+            const used = new Set([...map.ground, ...map.decor.filter((n) => n >= 0)]);
+            const gone = [...used].filter((n) => !isPaintable(n));
+            if (gone.length) throw new Error(`${id} uses ${gone.join(', ')}, which the palette dropped`);
+          });
+        }
+
+        // The half `check()` cannot see, done here across all of them at once —
+        // the same question `src/places.js` asks at boot, asked where a red row
+        // can be looked at.
+        test('every door leads to a real square in a real map', () => {
+          for (const [id, map] of maps) {
+            for (const door of map.doors || []) {
+              const to = maps.get(door.to);
+              if (!to) throw new Error(`${id} has a door to "${door.to}", which is not a map here`);
+              if (door.spawn.col >= to.width || door.spawn.row >= to.height) {
+                throw new Error(`${id}'s door to ${door.to} arrives off the edge of it`);
+              }
+              const world = createWorld(to);
+              if (world.isSolid(door.spawn.col, door.spawn.row)) {
+                throw new Error(`${id}'s door to ${door.to} arrives inside a wall`);
+              }
+            }
+          }
+        });
+
+        test('the map the game starts in is one of the maps', () => {
+          if (!maps.has(listing.start)) {
+            throw new Error(`maps.json starts in "${listing.start}", which is not in its own list`);
+          }
+        });
+
+        test('you can get back from everywhere the town leads to', () => {
+          for (const door of town.doors || []) {
+            const back = (maps.get(door.to)?.doors || []).some((d) => d.to === 'town');
+            if (!back) throw new Error(`${door.to} has no way back to the town`);
+          }
         });
       })
       .catch((err) => test('the town that ships is a place', () => { throw err; }))

@@ -12,7 +12,7 @@
 import { startLoop } from './loop.js';
 import { createInput } from './input.js';
 import { loadAtlas } from './sprites.js';
-import { loadWorld } from './world.js';
+import { loadPlaces } from './places.js';
 import { createCamera, fitCanvas, createMapLayer, drawMap, drawActor, drawMarker } from './render.js';
 import { applyScale } from './ui/scale.js';
 import { installGlyphs } from './ui/glyphs.js';
@@ -37,6 +37,7 @@ import { createPausedCard } from './ui/paused.js';
 import { createSettings } from './ui/settings.js';
 import { createHelp } from './ui/help.js';
 import { writeSave, clearSave, writeSafetySeen } from './save.js';
+import { createBuild, buildWords } from './build.js';
 
 const canvas = document.querySelector('#world');
 if (!canvas) throw new Error('no #world canvas in index.html');
@@ -48,6 +49,13 @@ ctx.imageSmoothingEnabled = false;   // pixel art: never smooth it
 // in the corner is an <svg><use> pointing into it, and it is in the page from
 // the moment this module runs.
 installGlyphs();
+
+// The service worker, and the one question it can answer that nobody else can:
+// which cached build is actually serving this device. Registered at module
+// scope, before `boot()` starts awaiting things, because it waits for `load`
+// and `load` is not going to wait for us. See src/build.js.
+const build = createBuild();
+build.register();
 
 const arena = document.querySelector('#arena');
 const tags = document.querySelector('#tags');
@@ -122,8 +130,8 @@ async function boot() {
   const dungeon = loadAtlas('./vendor/kenney/tiny-dungeon.png', { cell: 16, cols: 12 });
   const creatures = loadAtlas('./vendor/opengameart/tiny-creatures.png', { cell: 16, cols: 10 });
 
-  const [world, monsters, tuning, cosmetics] = await Promise.all([
-    loadWorld('./data/maps/town.json'),
+  const [places, monsters, tuning, cosmetics] = await Promise.all([
+    loadPlaces('./data/maps/maps.json'),
     loadMonsters('./data/monsters.json'),
     loadJSON('./data/tuning.json'),
     loadLooks('./data/cosmetics.json'),
@@ -132,6 +140,32 @@ async function boot() {
   ]);
 
   const identity = createIdentity(monsters);
+
+  // ------------------------------------------------------------- where we are
+  //
+  // There is more than one map now (M8), so `world` is no longer the world: it
+  // is whichever of them the player is standing in, and it changes when they
+  // walk through a door. Everything below that used to close over one map now
+  // closes over this variable, and `goThrough()` is the one place that moves it.
+  //
+  // The town is where Flint stands and where Aniki turns up on the hour. Both
+  // of them are fixtures of a particular square in a particular map, so both are
+  // town-only, and walking into the caves is genuinely walking away from the
+  // fight. That is a design decision and not an oversight: it gives the town
+  // something to be, and a second map full of the same three things as the first
+  // one would not be a second place.
+  const TOWN = places.start;
+
+  // A save can name a map that has since been renamed or removed. The position
+  // in it was measured in that map and means nothing in any other, so both go.
+  if (identity.place && !places.has(identity.place)) {
+    console.warn(`save: "${identity.place}" is not a map in this build — starting in ${TOWN}`);
+    identity.setPlace('');
+    identity.position = null;
+  }
+
+  let world = places.get(identity.place) || places.get(TOWN);
+  identity.setPlace(world.id);
 
   // What can be worn, and what has been earned. `wins` is the counting and the
   // chests; `looks` is the painting. Neither knows about the other, and the
@@ -192,17 +226,51 @@ async function boot() {
   say('');
 
   // ------------------------------------------------------------ other people
-  const net = joinRoom({ world, identity, monsters, tuning });
+  const net = joinRoom({ world, places, identity, monsters, tuning });
   net.follow(player);                       // says where we are, posHz times a second
 
   const chat = createChat({ net, self: player });
   createChatBar({ root: document.querySelector('#chatbar'), chat });
 
   // ------------------------------------------------------ the small furniture
+  // ------------------------------------------------ what copy of this is this
+  //
+  // The last row of the settings panel, and the only part of the interface that
+  // is not for playing. Two of the three things in ISSUES.md are hard to
+  // investigate for the same reason: a device running a months-old cached build
+  // looks exactly like one running today's. Issue #2 says in bold to confirm the
+  // cache version on both devices before testing, and both devices are phones.
+  //
+  // So it is on the screen: which build is answering, how many relays are up,
+  // and who this browser is to everybody else. Read when the panel opens rather
+  // than at boot, because at boot no relay has connected and the answer would be
+  // "0 of 6" for everybody, forever.
+  const aboutEl = document.querySelector('#about');
+
+  async function showAbout() {
+    if (!aboutEl) return;
+    aboutEl.textContent = 'Looking…';
+    const state = await build.describe();
+    const relays = net.relays();
+    const open = relays.filter((relay) => relay.open).length;
+    aboutEl.textContent = [
+      buildWords(state),
+      `Relays: ${open} of ${relays.length} answering.`,
+      `This browser is ${net.selfId.slice(0, 8)} to everybody else.`,
+    ].join(' ');
+  }
+
+  // A newer worker has taken this page over, so what is on screen is the old
+  // build and a reload is the whole fix. We say so instead of reloading: this
+  // could land in the middle of a duel, and a game that restarts itself under
+  // somebody is a worse bug than the one being fixed.
+  build.onUpdate(() => say('A new version has arrived — reload when you are ready.'));
+
   const settings = createSettings({
     button: document.querySelector('#settingsBtn'),
     panel: document.querySelector('#settings'),
     install: document.querySelector('#installBtn'),
+    onOpen: showAbout,
   });
   const help = createHelp({ root: document.querySelector('#controls'), world });
 
@@ -236,17 +304,35 @@ async function boot() {
   // has actually happened is that nobody can find you. The game itself carries
   // on: the world, your monster and Flint are all cached, and other players are
   // the one thing being offline takes away.
+  /**
+   * Somebody we can see: in the room, in THIS map, and has said where they are.
+   *
+   * Since M8 the second of those can be false, and it is the one that matters:
+   * a peer in the caves has coordinates measured in the caves, and drawing them
+   * at those numbers in the town would stand a stranger in the middle of the
+   * plaza who is not there and cannot be talked to.
+   */
+  const alongside = (peer) => peer.x !== null && peer.place === world.id;
+
   const showOnline = () => {
-    const others = net.count();
-    if (!navigator.onLine && others === 0) {
+    const all = net.peers();
+    const others = all.filter(alongside).length;
+    const elsewhere = all.filter((peer) => peer.place !== world.id).length;
+    if (!navigator.onLine && all.length === 0) {
       hudOnline.textContent = 'No network — nobody can find you';
       hudOnline.classList.add('is-offline');
       return;
     }
     hudOnline.classList.remove('is-offline');
-    hudOnline.textContent = others === 0
+    // Counted for this map, and the rest of the world mentioned rather than
+    // hidden: "Just you here for now" while four people are in the caves is
+    // true about this room and a lie about the game.
+    const here = others === 0
       ? 'Just you here for now'
       : `${others + 1} here — you and ${others === 1 ? '1 other' : `${others} others`}`;
+    hudOnline.textContent = elsewhere
+      ? `${here} · ${elsewhere} somewhere else`
+      : here;
   };
   net.onPeerJoin(showOnline);
   net.onPeerLeave(showOnline);
@@ -280,13 +366,13 @@ async function boot() {
   // Flint stands in the plaza so there is always somebody to fight — this game
   // will usually have one person in it. He is challenged exactly the way a
   // person is, and `duel.js` is never told which one it has.
-  const npc = createNpc({ monsters, world, tuning });
+  const npc = createNpc({ monsters, world: places.get(TOWN), tuning });
 
   // Aniki, on the hour. He is not a duel and deliberately not in `duel.js`: a
   // boss five people fight at once is a different fight with the same three
   // moves, and `duel.js` is a tested one-against-one machine that should stay
   // one. He needs the network, because everybody's move is everybody's business.
-  const aniki = { id: ANIKI.id, name: ANIKI.name, body: anikiBody(world, monsters), look: ANIKI.look };
+  const aniki = { id: ANIKI.id, name: ANIKI.name, body: anikiBody(places.get(TOWN), monsters), look: ANIKI.look };
   const boss = createBoss({ tuning, net });
   const bossScreen = createBossScreen({ root: document.querySelector('#boss'), boss });
 
@@ -355,12 +441,17 @@ async function boot() {
    * asks which it is. Everybody else answers the same questions as a peer.
    */
   function challengeable() {
-    const list = [{ id: npc.id, name: npc.name, body: npc.body, link: () => npc.link() }];
-    if (boss.present && !boss.felled) {
+    // Flint stands in the plaza and Aniki turns up in it; neither of them is
+    // anywhere else, so in any other map the list starts empty. See the note on
+    // TOWN above.
+    const list = world.id === TOWN
+      ? [{ id: npc.id, name: npc.name, body: npc.body, link: () => npc.link() }]
+      : [];
+    if (world.id === TOWN && boss.present && !boss.felled) {
       list.push({ id: aniki.id, name: aniki.name, body: aniki.body, boss: true });
     }
     for (const peer of net.peers()) {
-      if (peer.x === null) continue;
+      if (!alongside(peer)) continue;
       list.push({ id: peer.id, name: peer.name, body: peer.body, link: () => net.linkTo(peer.id) });
     }
     return list;
@@ -380,6 +471,78 @@ async function boot() {
   }
 
   let near = null;
+
+  // ------------------------------------------------------------------- doors
+  //
+  // The square the player's feet are on, as an index into the current map. Feet
+  // rather than the middle of the box, and the middle of the feet rather than a
+  // corner, so that walking onto a door means what it looks like: the monster is
+  // standing on it, not brushing past its edge.
+  const footTile = () => {
+    const t = world.tile;
+    const col = Math.floor((player.x + player.w / 2) / t);
+    const row = Math.floor((player.y + player.h - 1) / t);
+    return { col, row, at: row * world.cols + col };
+  };
+
+  /**
+   * Which square we were last on. A door fires when the feet ARRIVE on it, not
+   * while they are on it, and this is what tells those apart.
+   *
+   * Without it, a door you are standing on fires every frame — and since the
+   * far end of every door is a square in another map, that is a player bouncing
+   * between two maps thirty times a second. Arriving sets it to the square we
+   * arrive on, so even a door whose far end is another door lets go of you.
+   */
+  let standingOn = footTile().at;
+
+  /**
+   * Walk through a door: change which map is the world.
+   *
+   * Everything that was built out of the old map is rebuilt here, and there are
+   * exactly three of them — the camera, which clamps to the map's size; the
+   * player's position, which is measured in it; and what everybody else is told,
+   * because a position without a map is a pair of numbers about nowhere. The
+   * tile cache is not in the list only because `drawMap` notices for itself that
+   * the map it painted is no longer the map it is being asked for.
+   *
+   * The save is written immediately rather than left to the twice-a-second
+   * timer: shutting the lid on the threshold and coming back into the wrong map
+   * is a small thing that would feel like the game losing your place.
+   */
+  function goThrough(door) {
+    const next = places.get(door.to);
+    if (!next) {
+      // `places.js` drops doors that lead nowhere at boot, so this is the case
+      // where something has gone wrong since — and standing in a doorway that
+      // says nothing is worse than being told.
+      say('That way is shut.');
+      return;
+    }
+
+    world = next;
+    identity.setPlace(world.id);
+
+    const t = world.tile;
+    player.x = door.spawn.col * t + (t - player.w) / 2;
+    player.y = door.spawn.row * t + (t - player.h) - 4;
+
+    camera = createCamera(canvas, world, view);
+    camera.follow(player);
+    standingOn = footTile().at;
+
+    hudPlace.textContent = `${identity.creature.name} · ${world.name}`;
+    near = null;
+    hideNearby();
+
+    // Tell the room before anything else moves: until this lands, everybody
+    // else is holding coordinates of ours that belong to the map we have left.
+    net.sendPlace();
+    persist(identity, player);
+    showOnline();
+    audio.play('ping');
+    say(world.name);
+  }
 
   function hideNearby() { nearbyBtn.hidden = true; }
 
@@ -491,6 +654,19 @@ async function boot() {
       // against a wall for ten seconds has not learned anything about walking.
       help.update(moved);
 
+      // Standing somewhere new? Then this is the moment a door on that square
+      // goes off. It is checked after the walking and before the camera, so the
+      // camera that gets followed is the new map's.
+      const foot = footTile();
+      if (foot.at !== standingOn) {
+        standingOn = foot.at;
+        const door = world.doorAt(foot.col, foot.row);
+        // `busy` cannot be true here — a duel refuses to move the player at all,
+        // so the foot square cannot change during one — and it is checked anyway,
+        // because "cannot happen" is how a fight ends up half in another map.
+        if (door && !busy) goThrough(door);
+      }
+
       camera.follow(player);
 
       // Who is within arm's reach? Recomputed every frame because everyone in
@@ -524,16 +700,21 @@ async function boot() {
 
       // Everyone in the room, sorted by how far down the screen their feet are,
       // so a monster standing in front of another one is drawn in front of it.
+      const inTown = world.id === TOWN;
       const cast = [
         { id: 'you', body: player, name: identity.name, self: true, look: identity.look, monster: identity.creature },
-        { id: npc.id, body: npc.body, name: npc.name, self: false, look: BARE, monster: monsterOf(npc.monster) },
-        // Twice the size, and only while the clock says he is here.
-        ...(boss.present && !boss.felled
+        // Flint, and only where Flint is.
+        ...(inTown
+          ? [{ id: npc.id, body: npc.body, name: npc.name, self: false, look: BARE, monster: monsterOf(npc.monster) }]
+          : []),
+        // Twice the size, and only while the clock says he is here — and only
+        // in the plaza he turns up in.
+        ...(inTown && boss.present && !boss.felled
           ? [{ id: aniki.id, body: aniki.body, name: aniki.name, self: false,
                look: aniki.look, monster: monsterOf(ANIKI.monster), big: ANIKI.size }]
           : []),
         ...net.peers()
-          .filter((peer) => peer.x !== null)
+          .filter(alongside)
           .map((peer) => ({
             id: peer.id, name: peer.name, said: peer.said, body: peer.body, self: false,
             look: peer.look, monster: monsterOf(peer.monster),
@@ -624,6 +805,10 @@ async function boot() {
         monster: identity.monster,
         x: player.x,
         y: player.y,
+        // Without this the new window opens in the town holding the caves'
+        // coordinates, which is the same bug the `place` field exists to stop —
+        // only against yourself.
+        place: identity.place,
         safety: identity.safetySeen,
       };
     },
@@ -688,8 +873,14 @@ async function boot() {
 
   // A handle for verification, and for the stages that come next.
   globalThis.game = {
-    world, player, camera, identity, monsters, input, tuning, flush,
+    player, identity, monsters, input, tuning, flush, places,
+    // Both of these are swapped when a door is walked through, so they are read
+    // when asked for rather than captured now.
+    get world() { return world; },
+    get camera() { return camera; },
+    goThrough,
     net, chat, duel, npc, audio, session, resume, settings, help, fit, spectate, loop, wins, looks, boss,
+    build, showAbout,
     get paused() { return !session.active; },
     /** Who the Challenge button is about right now, or null. */
     get near() { return near; },
@@ -712,6 +903,9 @@ function adopt(identity, monsters, state) {
   const known = monsters.some((m) => m.id === state.monster);
   if (!known) return console.warn('session: handover named a monster this build has not got');
   identity.setMonster(state.monster);
+  // The map comes with the position and is checked in the same breath as it —
+  // a map this build has not got is handled where the save's is, in `boot()`.
+  if (typeof state.place === 'string') identity.setPlace(state.place);
   identity.position = { x: state.x, y: state.y };
   console.info('session: carried on from the window that had the game');
 }

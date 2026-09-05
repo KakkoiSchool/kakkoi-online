@@ -359,6 +359,22 @@ p { text-wrap: pretty; }
 }
 
 #settings a:hover { color: var(--gold); }
+
+/* The build line. Not a control, so it is not shaped like one: no border, no
+   height, and small enough that it reads as a footnote to the menu rather than
+   as another thing to press. It wraps, because a cache name plus a relay count
+   does not fit on one line of a phone and truncating the version number would
+   defeat the entire point of printing it. */
+.settings-note {
+  flex: 0 0 auto;
+  margin: 0.2rem 0 0;
+  padding: 0 0.6rem 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+.settings-note:empty { display: none; }
 #settings button[aria-pressed="true"] { color: var(--gold); box-shadow: inset 0 0 0 0.14rem var(--gold), var(--lift); }
 
 /* ------------------------------------------------------------- the help line */

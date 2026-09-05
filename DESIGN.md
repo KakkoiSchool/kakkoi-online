@@ -40,8 +40,8 @@ and invented AI mistakes, and students notice immediately.
 | M7 | Aniki, the raid, the achievement | A36–A38 |
 | M8 | a second map, and the door into it | A39+ |
 
-M5, M6 and M7 are **built**; the argument for all of them, and what changed on the way, is in
-`PLAN.md`. M8 is split out of M7 and not started. Lesson numbers are provisional.
+M5, M6, M7 and M8 are **built**; the argument for all of them, and what changed on the way, is in
+`PLAN.md`. Lesson numbers are provisional.
 
 A10 deploys to the live URL **before M0**, so every milestone lands in public.
 
@@ -277,6 +277,72 @@ dice about a third of the time so he never becomes predictable himself.
 `onMessage`, `onClose` — and that is the entire interface between the duel and the outside world. All
 five duel messages ride one trystero action, because a duel is one conversation and one action keeps
 it in order. `net.js` is still the only file that has heard of trystero.
+
+## A second map, and the door into it (M8)
+
+`PLAN.md` deferred this out of M7 with a list of what it would actually cost, and the list was right:
+*a door tile, a save that knows which map you are in, a camera and a world that can be swapped
+underneath the loop, and — the part that makes it a milestone rather than an afternoon — peers who are
+in a different room, which the position protocol has no way to say.* All four are here. This is the
+record of how each was answered.
+
+**A map's id is its filename.** `data/maps/town.json` is `town`. It is not a field inside the file,
+and that is the decision everything else rests on: two maps cannot claim the same id, a student who
+loads the town in the map maker and proposes their edit of it has not accidentally proposed a second
+thing called `town`, and there is no way for the name a person reads ("Kakkoi Town") to drift away from
+the name a door points at. `data/maps/maps.json` lists the ids; `src/places.js` turns each into a path.
+The name is for reading and can be changed freely; the id is for pointing at and cannot.
+
+**A door is a square, not a picture.** `doors` in a map file is a list of `{ col, row, to, spawn }`.
+The tile painted there is only what it looks like. This is not fastidiousness: the sheet has one
+doorway picture and the town uses it as scenery in a dozen places, so "you walk through anything that
+looks like a door" would teleport a child out of the world every time they walked past a house. Both
+thresholds that ship are painted with tile 43 so that a way through *looks* like one, and that is a
+choice about art, made separately.
+
+**Every map is loaded at boot, not on the way through the door.** A door that pauses is a door that
+feels broken, and a map fetched at the moment it is walked into is a map that is missing on a train —
+the whole game is built to open with no network. Two maps of a few kilobytes are nothing beside the two
+atlases that were already being waited for. This is a decision with a limit in it and the limit is
+named in the code: `MAX_PLACES` in `places.js` is a note saying that forty student maps is the moment
+to load them lazily instead.
+
+**Doors are checked twice, in two different places, because they are two different questions.**
+`map-check.js` sees one map, so it can tell you a door is off the edge, on a wall, unreachable, missing
+its destination or naming something a file cannot be called. It cannot tell you whether the map it
+names exists or whether the square it arrives on is solid — those need every map at once, which is
+`places.js`, at boot, with a console warning naming the map and the door. A door that fails there is
+dropped rather than crashed on: the rest of the world is still a world.
+
+**A peer's position is checked against the map THEY are in.** This is the piece the plan called the
+hard part and it is. (400, 300) is a square in the town and a square in the mine and they are not the
+same square. So `hello` carries a `place`, a `place` message is sent when it changes — deliberately
+*not* in the position packet, which goes out ten times a second and is the subject of ISSUES #1 — and
+`net.js` validates incoming coordinates against the bounds of the map the sender claims, not ours. On
+hearing a peer has moved map, their position is **forgotten**: the numbers we hold were measured
+somewhere else, and holding them for the fifth of a second until the next packet lands would stand a
+stranger in the middle of a room they have never been in.
+
+A map this build has not got is *remembered, not refused*. A peer on a newer build standing in a map we
+do not have is somebody we cannot draw, which is the same answer as "somewhere else"; refusing the
+field would leave them apparently standing in the town. What is refused is a value that is not a map
+name at all.
+
+**Flint and Aniki are fixtures of the town.** Both stand on a particular square of a particular map,
+so neither is anywhere else, and walking into the mine is genuinely walking away from the fight. That
+is a decision and not an oversight: it gives the town something to be, and a second place containing
+the same three things as the first would not be a second place. It has a cost, and the cost is that a
+player alone in the mine has nobody to fight — which is what the mine is for. It is somewhere to go
+*with* somebody.
+
+**The online badge counts this room and mentions the rest.** "Just you here for now" while four people
+are in the mine is true about the room and a lie about the game, so it says `· 4 somewhere else`.
+
+**What M8 did not do.** The map maker has no door tool. A student can draw a place; they cannot draw
+the way into it, and the door has to be added to `town.json` by whoever merges the map. `toJson` does
+carry doors through, so opening the town in the map maker and writing it back out no longer seals the
+town shut — which it would have done, silently, and is the kind of bug worth naming. A door tool is
+editor work and belongs with the editor.
 
 ## Aniki, and what five browsers can agree on (M7)
 

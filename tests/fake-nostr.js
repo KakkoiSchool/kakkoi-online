@@ -14,6 +14,16 @@
 
 export const selfId = 'me-000000';
 
+/**
+ * The real one hands back the live relay sockets, which the settings panel
+ * counts to say "6 of 6 answering". There is no socket in here to hand back, so
+ * this says so honestly — and by existing at all it keeps `net.js` importable
+ * unmodified, which is this file's entire job.
+ */
+export function getRelaySockets() {
+  return {};
+}
+
 let latest = null;
 
 export function joinRoom(config, roomId) {

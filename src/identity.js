@@ -66,6 +66,13 @@ export function createIdentity(monsters) {
      * the character — `main.js` sets this from `wins.js` once that is loaded.
      */
     look: 0,
+    /**
+     * Which map we are standing in, as a map id — see the note at the top of
+     * `world.js`. Read from the save, because coming back to the game should
+     * put you where you left it and not in the town every time; `main.js`
+     * decides what to do when the save names a map this build has not got.
+     */
+    place: typeof saved?.place === 'string' ? saved.place : '',
 
     get chosen() { return identity.monster >= 0 && identity.name.length > 0; },
     get creature() { return monsters.find((m) => m.id === identity.monster) || monsters[0]; },
@@ -73,6 +80,7 @@ export function createIdentity(monsters) {
     setName(raw) { identity.name = cleanName(raw); },
     setMonster(id) { identity.monster = id; },
     setLook(id) { identity.look = Number.isInteger(id) && id > 0 ? id : 0; },
+    setPlace(id) { identity.place = typeof id === 'string' ? id : ''; },
   };
 
   if (saved && !known) console.warn('save named monster', saved.monster, '— not in this build, asking again');
@@ -87,6 +95,7 @@ export function persist(identity, box) {
     monster: identity.monster,
     x: box.x,
     y: box.y,
+    place: identity.place,
     safety: identity.safetySeen,
   });
 }

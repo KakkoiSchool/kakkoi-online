@@ -22,6 +22,13 @@ rounds. Nobody announces him: every browser works out that he is due from the cl
 His wounds last the hour and yours last the fight, so being knocked out means walking back up to him,
 not waiting for next time. Beat him and you get a mark no chest can give.
 
+**There is a way out of town.** An archway in the north wall of the north-west room leads down into
+**The Old Mine** — the same sand the town stands on, with the rock left around it. It is open to
+everybody: a game that usually has one person in it should not put its only new place behind its
+hardest fight. Flint and Aniki both stay in the plaza, so the mine is somewhere to go *with* somebody
+rather than somewhere to fight. Where you are is in the HUD, other players in the mine cannot see you
+in the town and vice versa, and the game remembers which one you were in when you come back.
+
 **Chests** open at 10, 25, 50 and 100 duels won: a colour, a pair of shades, another colour, a crown.
 They are looks and nothing else — the animal you picked already changes nothing in a fight, and a
 reward that changed one would undo the only promise the duel makes. Everyone else sees what you are
@@ -102,10 +109,13 @@ src/ui/glyphs.js    the pixel glyphs — the three moves, three faces, and the �
 src/ui/bubbles.js   name plates and head bubbles, as DOM over the canvas
 src/map-check.js    is this map a place? — shared by the map maker and its tests
 src/tiles.js        which pictures a map may be made of, and which are left out
+src/places.js       every map there is, and whether the doors between them join up
+src/build.js        which cached copy of the game this device is actually running
 editor/             the map maker: paint a map, check it, propose it as a pull request
 tests/*.test.html   tests you open in a browser
 demos/NN-name/      one standalone demo per lesson: open its index.html and look at it
-data/*.json         every balance number, the monsters, the map
+data/*.json         every balance number, the monsters, the looks
+data/maps/          every place there is, and maps.json, which names them
 vendor/             pinned third-party files, fonts included (see vendor/README.md)
 audio/              CC0 sound (see audio/README.md)
 ```

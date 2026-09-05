@@ -1,0 +1,8 @@
+{
+  "_comment": "Every place there is. A name here is a FILE in this folder — `town` is `town.json` — and it is also the id one browser tells another when it says which map its player is standing in. See src/places.js, which loads all of them at boot, and the note at the top of src/world.js about why the id is the filename and not a field inside the file.",
+  "start": "town",
+  "places": [
+    "town",
+    "old-mine"
+  ]
+}

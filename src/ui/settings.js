@@ -15,7 +15,14 @@
  * this screen: opening it must not move the world by a pixel.
  */
 
-export function createSettings({ button, panel, install }) {
+/**
+ * `onOpen` is called every time the panel is opened, and exists for one row in
+ * it: the build line, which reports which cached copy of the game is answering
+ * and how many relays are up. Both of those are true only at the moment they
+ * are read, so they are read when somebody looks — not once at boot, when the
+ * relays have not connected yet and the answer would be a confident lie.
+ */
+export function createSettings({ button, panel, install, onOpen = () => {} }) {
   if (!button || !panel) return { open: () => {}, close: () => {}, get isOpen() { return false; } };
 
   wireInstall(install);
@@ -25,6 +32,8 @@ export function createSettings({ button, panel, install }) {
   function open() {
     panel.hidden = false;
     button.setAttribute('aria-expanded', 'true');
+    // Whatever this asks for, it must not be able to stop the panel opening.
+    try { onOpen(); } catch (err) { console.warn('settings: onOpen threw —', err.message); }
   }
 
   function close() {

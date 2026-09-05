@@ -96,8 +96,9 @@ export function createCamera(canvas, world, view = { zoom: 1 }) {
 }
 
 /**
- * The tile map only changes when the camera moves or the canvas resizes -
- * the tiles under it never do, today. Redrawing all ~650 of them from
+ * The tile map only changes when the camera moves, the canvas resizes, or the
+ * player walks through a door into a different map — the tiles under it never
+ * do. Redrawing all ~650 of them from
  * scratch every frame, whether or not the camera had gone anywhere, was one
  * of the two things this game was doing 60 (or 120) times a second for no
  * reason (see ISSUES.md #1). So the map is painted once, onto a canvas
@@ -114,6 +115,11 @@ export function createMapLayer() {
     canvas: document.createElement('canvas'),
     // NaN so the very first call never matches and always paints.
     x: NaN, y: NaN, width: NaN, height: NaN, zoom: NaN,
+    // And which map those pixels are OF. Without this, walking through a door
+    // and arriving with the camera at the same corner it was already in — which
+    // is exactly what happens at the edge of a small map — would blit the town
+    // over the caves and keep doing it until somebody moved.
+    world: null,
   };
 }
 
@@ -122,7 +128,7 @@ export function drawMap(ctx, layer, world, atlas, camera, zoom = 1) {
   const height = ctx.canvas.height;
   const stale = layer.x !== camera.x || layer.y !== camera.y ||
                 layer.width !== width || layer.height !== height ||
-                layer.zoom !== zoom;
+                layer.zoom !== zoom || layer.world !== world;
 
   if (stale) {
     if (layer.canvas.width !== width) layer.canvas.width = width;
@@ -138,6 +144,7 @@ export function drawMap(ctx, layer, world, atlas, camera, zoom = 1) {
     layer.width = width;
     layer.height = height;
     layer.zoom = zoom;
+    layer.world = world;
   }
 
   // The blit is in screen pixels, so it goes under whatever transform the

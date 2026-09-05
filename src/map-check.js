@@ -94,6 +94,8 @@ export function check(map, { cells = Infinity, allowed = paintable } = {}) {
     say(`The starting square (${spawn.col}, ${spawn.row}) is off the edge of the map.`);
   }
 
+  checkDoors(map, width, height, say);
+
   if (problems.length) return { ok: false, problems, reachable: new Set(), floor: 0 };
 
   // Everything above was about the file. This is about the place: walk it.
@@ -115,6 +117,18 @@ export function check(map, { cells = Infinity, allowed = paintable } = {}) {
   // the player is meant to be able to stand, so anything they cannot reach is
   // either a door you forgot or a room you meant to fill in. The town that
   // ships has none: 653 squares of floor, 653 of them reachable.
+  // A door drawn into a wall, or into a room the player cannot get to, is a door
+  // that does not exist. It is checked here rather than above because it takes
+  // the same flood fill the rest of this section runs on.
+  for (const door of Array.isArray(map.doors) ? map.doors : []) {
+    if (!door || !Number.isInteger(door.col) || !Number.isInteger(door.row)) continue;
+    if (door.col >= width || door.row >= height) continue;
+    if (!reachable.has(door.row * width + door.col)) {
+      say(`The door at (${door.col}, ${door.row}) is inside a wall, or in a part of the ` +
+          `map the player cannot walk to. Nobody can ever use it.`);
+    }
+  }
+
   const cutOff = countFloor(world) - reachable.size;
   if (cutOff > 0) {
     say(`${cutOff} ${cutOff === 1 ? 'square' : 'squares'} of floor cannot be reached from the start ` +
@@ -122,6 +136,59 @@ export function check(map, { cells = Infinity, allowed = paintable } = {}) {
   }
 
   return { ok: problems.length === 0, problems, reachable, floor: reachable.size, cutOff };
+}
+
+/**
+ * The doors, as far as one map on its own can tell.
+ *
+ * `doors` is optional: a map with none is a place you can only be put down in,
+ * which is what every map in this game was until M8 and is still a perfectly
+ * good thing for a map to be.
+ *
+ * **What cannot be checked from here.** Whether `to` names a map that exists,
+ * and whether the square it arrives on is inside a wall, are questions about a
+ * map this function has never seen. They are answered at boot instead, by
+ * `src/places.js`, which has all of them at once. So this checks the half that
+ * is local — the door is on this map, it is somewhere you could stand, it says
+ * where it goes, and it says where you come out — and says nothing about the
+ * far end.
+ */
+function checkDoors(map, width, height, say) {
+  if (map.doors === undefined) return;
+  if (!Array.isArray(map.doors)) return say('The list of doors is not a list.');
+  if (map.doors.length > 8) {
+    say(`There are ${map.doors.length} doors; a map may have up to 8.`);
+  }
+
+  const seen = new Set();
+  map.doors.forEach((door, n) => {
+    const which = `Door ${n + 1}`;
+    if (!door || typeof door !== 'object' || Array.isArray(door)) {
+      return say(`${which} is not a door.`);
+    }
+    if (!Number.isInteger(door.col) || !Number.isInteger(door.row) ||
+        door.col < 0 || door.row < 0 || door.col >= width || door.row >= height) {
+      return say(`${which} is not on the map.`);
+    }
+    const at = door.row * width + door.col;
+    if (seen.has(at)) {
+      say(`${which} is on the same square as another door, (${door.col}, ${door.row}).`);
+    }
+    seen.add(at);
+
+    // A map id is a filename, so it may only be what a filename may be — see the
+    // note at the top of `world.js`.
+    if (typeof door.to !== 'string' || !/^[a-z0-9][a-z0-9-]{0,31}$/.test(door.to)) {
+      say(`${which} does not say which map it goes to, or names one in a way a ` +
+          `file cannot be named: lower case letters, digits and dashes only.`);
+    }
+
+    const to = door.spawn;
+    if (!to || !Number.isInteger(to.col) || !Number.isInteger(to.row) ||
+        to.col < 0 || to.row < 0) {
+      say(`${which} does not say where you come out.`);
+    }
+  });
 }
 
 /** Every square that is not a wall — everywhere the player is meant to stand. */
@@ -176,9 +243,23 @@ export function toJson(map) {
     `  "height": ${map.height}`,
     `  "spawn": { "col": ${map.spawn.col}, "row": ${map.spawn.row} }`,
     `  "solid": [${map.solid.join(', ')}]`,
-    `  "ground": [${map.ground.join(',')}]`,
-    `  "decor": [${map.decor.join(',')}]`,
   ];
+
+  // The map maker has no door tool, and a map with no doors should not grow an
+  // empty list just for passing through it. But a map that HAS doors must come
+  // out of here with them: `editor/main.js` adopts a loaded map whole, so the
+  // only way to lose them is to forget them here — and losing them silently
+  // would turn "I opened the town in the map maker and looked at it" into a
+  // pull request that seals the town shut.
+  if (Array.isArray(map.doors) && map.doors.length) {
+    const doors = map.doors.map((door) =>
+      `    { "col": ${door.col}, "row": ${door.row}, "to": ${JSON.stringify(door.to)}, ` +
+      `"spawn": { "col": ${door.spawn.col}, "row": ${door.spawn.row} } }`);
+    rows.push(`  "doors": [\n${doors.join(',\n')}\n  ]`);
+  }
+
+  rows.push(`  "ground": [${map.ground.join(',')}]`);
+  rows.push(`  "decor": [${map.decor.join(',')}]`);
   return `{\n${rows.join(',\n')}\n}\n`;
 }
 
