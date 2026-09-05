@@ -98,6 +98,12 @@ export function loadSave() {
     // exactly what `false` means. The version goes up when a field changes
     // meaning, not when one appears.
     safety: data.safety === true,
+    // And M8 added this one, under the same rule. Which map the position above
+    // was measured in: a save written before there was anywhere but the town
+    // has no answer, and an empty string means "wherever the game starts",
+    // which for that save is exactly right. `src/main.js` is what decides
+    // whether the map named here still exists.
+    place: typeof data.place === 'string' ? data.place.slice(0, 32) : '',
   };
 }
 
@@ -110,6 +116,7 @@ export function writeSave(state) {
     monster: state.monster,
     x: Math.round(state.x),
     y: Math.round(state.y),
+    place: typeof state.place === 'string' ? state.place : '',
     safety: state.safety === true,
   };
   try {

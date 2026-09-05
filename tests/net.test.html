@@ -197,6 +197,116 @@
       is(closed, 1, 'the fight was told');
     });
 
+    // ------------------------------------------------- more than one place
+    //
+    // Since M8 a pair of coordinates means nothing without the map it was
+    // measured in: (400, 300) is a square in the town AND a square in the mine,
+    // and they are not the same square. These are the rows that go red if a
+    // peer in one map can be drawn, believed or challenged in another.
+
+    const TOWN = { id: 'town', tile: 32, width: 1536, height: 1152 };
+    const MINE = { id: 'mine', tile: 32, width: 1024, height: 768 };
+
+    /** A room that knows about two maps, the way the real game does. */
+    function world() {
+      const maps = new Map([['town', TOWN], ['mine', MINE]]);
+      const net = joinRoom({
+        world: TOWN,
+        places: { start: 'town', has: (id) => maps.has(id), get: (id) => maps.get(id) || null },
+        identity: { name: 'Kiri', monster: 0, place: 'town' },
+        monsters: MONSTERS,
+        tuning: { posHz: 10, interpDelayMs: 150 },
+      });
+      return { net, wire: harness() };
+    }
+
+    test('somebody who says nothing about where they are is in the starting map', () => {
+      const { net, wire } = world();
+      arrive(wire, 'p1');
+      is(net.peer('p1').place, 'town', 'where we think they are');
+    });
+
+    test('a greeting can say which map somebody is in', () => {
+      const { net, wire } = world();
+      wire.join('p1');
+      wire.deliver('hello', { name: 'Rue', monster: 1, place: 'mine' }, 'p1');
+      is(net.peer('p1').place, 'mine', 'where they said');
+    });
+
+    test('walking through a door moves them, and forgets where they were', () => {
+      const { net, wire } = world();
+      arrive(wire, 'p1');
+      is(net.peer('p1').x, 400, 'where they were');
+      wire.deliver('place', { p: 'mine' }, 'p1');
+      is(net.peer('p1').place, 'mine', 'where they are now');
+      // The coordinates we held were measured in the town. Keeping them would
+      // stand them at the town's (400, 300) inside the mine, which is a stranger
+      // appearing in a room they have never been in.
+      is(net.peer('p1').x, null, 'the old position');
+      is(net.peer('p1').history.length, 0, 'the trail behind them');
+    });
+
+    test('a position is checked against the map THEY are in, not ours', () => {
+      const { net, wire } = world();
+      arrive(wire, 'p1');
+      wire.deliver('place', { p: 'mine' }, 'p1');
+      // Inside the town and past the end of the smaller mine: believable from
+      // where we are standing, impossible from where they are.
+      wire.deliver('move', { x: 1400, y: 300, m: 1 }, 'p1');
+      is(net.peer('p1').x, null, 'they did not move');
+      wire.deliver('move', { x: 900, y: 300, m: 1 }, 'p1');
+      is(net.peer('p1').x, 900, 'and a real one is believed');
+    });
+
+    test('a map this build has not got is remembered, not argued with', () => {
+      const { net, wire } = world();
+      arrive(wire, 'p1');
+      wire.deliver('place', { p: 'somewhere-new' }, 'p1');
+      is(net.peer('p1').place, 'somewhere-new', 'where they said');
+      // Nowhere to draw them and no bounds to check them against, so their
+      // position stops being believed until they come back somewhere we know.
+      wire.deliver('move', { x: 400, y: 300, m: 1 }, 'p1');
+      is(net.peer('p1').x, null, 'a position in a map we have not got');
+    });
+
+    test('something that is not a map name at all is refused', () => {
+      const { net, wire } = world();
+      arrive(wire, 'p1');
+      const before = net.dropped.message;
+      wire.deliver('place', { p: '../../town' }, 'p1');
+      is(net.peer('p1').place, 'town', 'they did not move');
+      is(net.dropped.message, before + 1, 'and it was counted');
+    });
+
+    // -------------------------------------------- and saying it only once
+
+    test('standing still stops costing a packet ten times a second', () => {
+      const { net } = room();
+      const box = { x: 100, y: 100 };
+      net.sendPosition(box);
+      const first = net.lastSent;
+      is(net.sendPosition(box), null, 'the second identical packet');
+      is(net.sendPosition(box), null, 'and the third');
+      is(net.saved.positions, 2, 'how many were saved');
+      is(net.lastSent, first, 'what everybody still believes');
+    });
+
+    test('but moving one pixel is said at once', () => {
+      const { net } = room();
+      net.sendPosition({ x: 100, y: 100 });
+      const said = net.sendPosition({ x: 101, y: 100 });
+      is(said?.x, 101, 'the new position went out');
+    });
+
+    test('and a packet aimed at one person always goes, however stale', () => {
+      const { net, wire } = room();
+      wire.join('p1');
+      const box = { x: 100, y: 100 };
+      net.sendPosition(box);
+      // Somebody who has just arrived has never heard any of this.
+      is(net.sendPosition(box, 'p1')?.x, 100, 'the greeting position');
+    });
+
     const summary = document.querySelector('#summary');
     summary.textContent = `${passed} passed, ${failed} failed`;
     summary.className = failed ? 'fail' : 'pass';

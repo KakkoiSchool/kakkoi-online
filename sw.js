@@ -53,7 +53,7 @@
  */
 const FAMILY = 'kakkoi-online-';
 
-const CACHE = `${FAMILY}v19`;
+const CACHE = `${FAMILY}v20`;
 
 /**
  * Where the install writes down how it went. It is a cache entry rather than a
@@ -87,6 +87,7 @@ const SHELL = [
   './src/input.js',
   './src/sprites.js',
   './src/world.js',
+  './src/places.js',
   './src/render.js',
   './src/save.js',
   './src/build.js',
@@ -141,7 +142,13 @@ const SHELL = [
   './vendor/kenney/tiny-dungeon.png',
   './vendor/opengameart/tiny-creatures.png',
 
+  // Every place there is, and the list that names them. `places.js` loads all
+  // of them at boot, so all of them have to be here or the game opens offline
+  // with a door that leads nowhere.
+  './data/maps/maps.json',
   './data/maps/town.json',
+  './data/maps/old-mine.json',
+
   './data/monsters.json',
   './data/cosmetics.json',
   './data/tuning.json',

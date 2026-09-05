@@ -3,11 +3,19 @@
 The plan for the three features that make up **part 3 of the course**. It was written before any of
 it existed, so that the expensive decisions were made in prose where they are cheap to change.
 
-**Status: M5, M6 and M7 are built.** What was decided here is what shipped, with the recommended
+**Status: M5, M6, M7 and M8 are built.** What was decided here is what shipped, with the recommended
 answers taken for every open question, and `DESIGN.md` now carries the design of each as it actually
 turned out. Three things below did not survive contact with the code, and each is marked **[changed]**
 where they appear: Aniki's lives, the new area, and the map maker's palette. The rest of this
 document stands as written.
+
+**M8 has since been built too**, and the note below that deferred it turned out to be an accurate
+estimate rather than a pessimistic one: all four of the things it listed were needed, and the fourth —
+peers in a different room — really was the one that made it a milestone. `DESIGN.md`, "A second map,
+and the door into it (M8)", is the record of how each was answered. The second place is
+`data/maps/old-mine.json`, reached through the archway in the north wall of the north-west room, and
+it is open to everybody rather than unlocked by beating Aniki: a game that usually has one person in
+it should not put its only new place behind its hardest fight.
 
 Read `DESIGN.md` first if you have not: it is the record of why the game is what it is, and this plan
 is bound by it.
@@ -314,7 +322,7 @@ everything. And reading a review: someone will ask them to change something.
 | **M5** | Chests, cosmetics, the `look` message | Smallest, self-contained, and it establishes how a cosmetic crosses the wire before anything else needs to |
 | **M6** | The level editor, validation, the PR button | Independent of the other two, teaches the highest-value thing, and it is what *makes* the new area |
 | **M7** | Aniki, the raid, the achievement | Hardest, and it is the only one that wants something the other two have already built |
-| **M8** | A second map, and the door into it | Split out of M7: see the note on the new area above |
+| **M8** | A second map, and the door into it | Split out of M7: see the note on the new area above. **Built** — see `DESIGN.md` |
 
 The boss is last because it needs the most from the rest: an achievement worth showing off (M5's
 cosmetics), and somewhere to unlock (M6's editor, which is how the new area gets drawn). Building it

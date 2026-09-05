@@ -61,7 +61,14 @@ export { selfId };
  *     peers(), peer(id), count(), update(now, dt), leave(), dropped
  *   }
  */
-export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }) {
+/**
+ * A map id is a filename — see the note at the top of `world.js`. It arrives
+ * over the wire from a computer we do not control, so it is checked like
+ * everything else that does.
+ */
+const PLACE = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+export function joinRoom({ world, places, identity, monsters, tuning, roomId = ROOM_ID }) {
   const room = trysteroJoin({ appId: APP_ID, relayUrls: RELAYS }, roomId);
 
   const [sendMove, onMove] = room.makeAction('move');
@@ -70,6 +77,30 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
 
   const interpDelay = number(tuning.interpDelayMs, 150);
   const posEvery = 1000 / Math.max(1, number(tuning.posHz, 10));
+
+  /**
+   * Which map somebody is standing in, and where that leaves this file.
+   *
+   * The game has more than one place in it since M8, and the position protocol
+   * had no way to say which one a pair of coordinates belongs to — which is
+   * exactly why PLAN.md called the second map a milestone and not an afternoon.
+   * (240, 500) means two different squares in two different maps, and drawing a
+   * peer in the caves at the town's (240, 500) would put a stranger in the
+   * middle of the plaza who is not there.
+   *
+   * The place does NOT ride in the position packet. That goes out `posHz` times
+   * a second and ISSUES.md #1 is a phone getting hot; a map id changes when
+   * somebody walks through a door, which is a handful of times an hour. So it
+   * goes where the look goes: in the greeting everybody gets on arrival, and in
+   * its own message when it changes. Exactly the pattern `sendLook` uses, for
+   * exactly the same reason.
+   *
+   * `places` is optional. Given one map and no registry — which is how the
+   * tests build a room — everybody is in the same place and there is nothing to
+   * tell apart.
+   */
+  const home = places?.start || world?.id || '';
+  const boundsFor = (peer) => (places ? places.get(peer.place) : world);
 
   /** id -> peer record. The only thing this module keeps. */
   const peers = new Map();
@@ -133,6 +164,8 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
       fightUntil: 0,
       /** Which look they are wearing, or 0 for none. See `src/looks.js`. */
       look: 0,
+      /** Which map they are standing in. See the note on `home` above. */
+      place: home,
       history: [],
       seenAt: performance.now(),
     };
@@ -257,6 +290,10 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
 
     applyMonster(peer, data.monster);
     applyLook(peer, data.look);
+    // Only if they said. A peer running a build from before there was anywhere
+    // else to be has not got the field, and the right answer for them is the
+    // starting map, which is where `makePeer` has already put them.
+    if (data.place !== undefined) applyPlace(peer, data.place);
   });
 
   /**
@@ -272,16 +309,47 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     applyLook(peer, payload?.l);
   });
 
+  /**
+   * Somebody has walked through a door. Registered beside the look above and
+   * for the same reason: where a peer is standing is this file's business, and
+   * it is four lines.
+   *
+   * Their position is deliberately forgotten on the way. The coordinates we
+   * hold for them were measured in the map they have just left, and drawing
+   * them at those numbers in the map they have just entered is the bug this
+   * whole field exists to prevent — for the fifth of a second before their next
+   * position packet lands, they would be standing somewhere they have never
+   * been. `x === null` is the shape `main.js` already skips.
+   */
+  action('place');
+  messageHandlers.push((kind, payload, id) => {
+    if (kind !== 'place') return;
+    const peer = peers.get(id);
+    if (!peer) { dropped.gone++; return; }
+    if (!applyPlace(peer, payload?.p)) return;
+    peer.x = null;
+    peer.y = null;
+    peer.history.length = 0;
+  });
+
   onMove((data, id) => {
     const peer = present(id);
     if (!peer) { dropped.gone++; return; }
     if (!data || typeof data !== 'object') { dropped.position++; return; }
 
+    // Bounds belong to the map THEY are standing in, not the one we are: the
+    // caves are smaller than the town, and checking a peer in the town against
+    // the caves' edges would refuse half the town as impossible. A place this
+    // build has not got has no bounds to check against and nowhere to be drawn,
+    // so the position is dropped rather than believed.
+    const bounds = boundsFor(peer);
+    if (!bounds) { dropped.position++; return; }
+
     const x = Number(data.x);
     const y = Number(data.y);
     if (!Number.isFinite(x) || !Number.isFinite(y) ||
-        x < -world.tile || y < -world.tile ||
-        x > world.width + world.tile || y > world.height + world.tile) {
+        x < -bounds.tile || y < -bounds.tile ||
+        x > bounds.width + bounds.tile || y > bounds.height + bounds.tile) {
       dropped.position++;
       return;
     }
@@ -317,6 +385,19 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     return true;
   }
 
+  /**
+   * A map this build has never heard of is not refused — it is remembered as
+   * given. A peer on a newer build standing in a map we do not have is somebody
+   * we cannot draw, which is the same answer as "somewhere else", and refusing
+   * the field would leave them apparently standing in the town instead. What
+   * IS refused is a value that is not a map name at all.
+   */
+  function applyPlace(peer, id) {
+    if (typeof id !== 'string' || !PLACE.test(id)) { dropped.message++; return false; }
+    peer.place = id;
+    return true;
+  }
+
   function applyMonster(peer, id) {
     const monster = Number.isInteger(id) ? monsters.find((m) => m.id === id) : undefined;
     if (!monster) { dropped.monster++; return false; }
@@ -328,7 +409,12 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
   // ---------------------------------------------------------------- talking
 
   function greeting() {
-    return { name: identity.name, monster: identity.monster, look: identity.look || 0 };
+    return {
+      name: identity.name,
+      monster: identity.monster,
+      look: identity.look || 0,
+      place: identity.place || home,
+    };
   }
 
   /**
@@ -341,6 +427,22 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
    */
   function sendLook() {
     send('look', { l: identity.look || 0 });
+  }
+
+  /**
+   * Tell the room we have gone through a door.
+   *
+   * Sent immediately, before the next position packet, so that nobody draws us
+   * at our new coordinates on their old map. The position that follows is a
+   * fresh one in the new place, and `sendPosition` is nudged into sending it
+   * even though we may not have moved a pixel since — arriving somewhere else
+   * standing exactly where we stood is a real thing that happens, and it is not
+   * a reason to say nothing.
+   */
+  function sendPlace() {
+    send('place', { p: identity.place || home });
+    lastSent = null;
+    sendPosition(lastBox);
   }
 
   /** Whole pixels: half a pixel of a peer's position is not worth the bytes. */
@@ -522,6 +624,9 @@ export function joinRoom({ world, identity, monsters, tuning, roomId = ROOM_ID }
     send,
     relays,
     sendLook,
+    sendPlace,
+    /** Where a player with no opinion on the matter is standing. */
+    home,
     sendPosition,
     follow,
     update,
