@@ -183,15 +183,18 @@ first file.
   `disconnected`, which makes `canHumanAct()` false, but never stops the ticker. On your turn your
   clock runs down while you cannot move, and you are flagged. Patched: the ticker stops and
   `clockSince` is cleared.
-- **Two clocks, not one.** *By reading; needs two peers to reproduce.* The comment says the sides
-  "stay in step without a shared timer to negotiate". They do not: each side charges the mover from
-  the moment it *receives* the previous move, so the receiver's view of the opponent's clock runs
-  ahead by one-way latency on every move — three seconds over a sixty-ply game at 50ms. The flag is
-  decided locally and never sent. When one side sees the other flag, it sets `resigned` and shows the
-  card; the other side, still with time, plays a move; `receivePeerAction` checks only
-  `disconnected` and whose turn it is, so the move is applied over the finished game. Not patched —
-  it is a protocol change: carry the mover's remaining time in the action message and have the
-  receiver adopt it, and let a flag be claimed by the side whose own clock ran out.
+- **Two clocks, not one — and worse than first written.** *By reading; needs two peers to
+  reproduce.* The first version of this review said the sides drift by one-way latency per move. That
+  understated it: `receivePeerAction` never called `chargeClock` at all. Only `commit()` charges,
+  and only local moves go through `commit()`, so each player's own clock paid for both sides'
+  thinking between their own moves, and the opponent's clock on screen jumped back up on every
+  move. The flag was decided locally and never sent, and a move arriving after one side had ended
+  the game was applied over it. **Fixed in `schness-one-clock.patch`**: the action message carries the
+  mover's account of both clocks; the receiver charges the mover for elapsed time and adopts the
+  mover's own number within a 3s tolerance; a flag is a control message, called at once for your own
+  clock and after the tolerance for the opponent's; late moves are ignored; both placements are
+  timed. A replay test at 250ms latency keeps the two views within tolerance over eighty plies.
+  Verified in Chromium for the bot path only.
 - **A takeback charges the wrong side.** *By reading.* `takeBack` leaves `clockSince` where it was,
   so the player now on move is charged for the time the other side spent thinking, on both screens
   at different amounts. Patched: the mover's clock restarts at the takeback; nothing is refunded.
@@ -280,11 +283,8 @@ cheap probe.
 
 ## 3. What I would do next, in order
 
-1. **Make the online clock one clock.** Carry the mover's remaining time in the action message, let
-   the receiver adopt it, and let a flag be claimed only by the side whose own clock ran out. Every
-   other piece of online state is guarded by a hash; the clock is the one that is not, and it can end
-   a match differently on the two screens. The copy and stop-on-leave fixes in the patch are the
-   half that needs no protocol.
+1. **Make the online clock one clock.** Done in `schness-one-clock.patch` (see above); what remains
+   is a real two-peer match to confirm it, which no sandbox can provide.
 2. **Make matchmaking failure observable before buying TURN.** Surface the relay-level offer/answer
    and the ICE `failed` state from the vendored trystero. That replaces a 45-second guess with "your
    friend opened the link; the connection failed", and it is the only way to learn whether the NAT

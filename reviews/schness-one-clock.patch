@@ -1,0 +1,402 @@
+From 26ffe7e99a1e75ddf42c436a209621eb0fe9ee5c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 5 Sep 2026 18:13:04 +0000
+Subject: [PATCH] Keep one clock between two players, and make a flag a message
+
+The receiving side never charged the clock: receivePeerAction applied the
+move and left the clock alone, so each player's own clock paid for both
+sides' thinking between their own moves, and the opponent's clock on screen
+jumped back up on every move. Each side also decided a flag alone and never
+said so.
+
+- A move carries the mover's account of both clocks; the receiver charges
+  the mover for the elapsed time, then adopts the mover's own number for the
+  mover's side, capped at its own view plus SYNC_TOLERANCE (3s). No report,
+  or a malformed one, leaves the local view alone, so an older build still
+  plays.
+- A flag is sent as control { kind: 'flag', side }. Your own is called at
+  once; the opponent's is called locally only after the tolerance, as the
+  fallback. A claim that we flagged is checked against our own clock.
+- A move arriving after the match ended is ignored, not applied over it.
+- Both king placements are timed, on both screens.
+
+test/clock.test.js replays the protocol over eighty plies at 250ms latency
+and asserts the two views never part by more than the tolerance. Verified in
+Chromium for the bot path: placement charged, play ticking, flag copy. Not
+verified with two real peers. CACHE v42 -> v43.
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ DECISIONS.md       | 41 ++++++++++++++++++++++------
+ src/clock.js       | 31 +++++++++++++++++++++
+ src/main.js        | 68 ++++++++++++++++++++++++++++++++++++----------
+ sw.js              |  2 +-
+ test/clock.test.js | 61 +++++++++++++++++++++++++++++++++++++++--
+ test/shell.test.js | 16 +++++++++++
+ 6 files changed, 193 insertions(+), 26 deletions(-)
+
+diff --git a/DECISIONS.md b/DECISIONS.md
+index 638d2c3..18ce58a 100644
+--- a/DECISIONS.md
++++ b/DECISIONS.md
+@@ -218,6 +218,31 @@ The rules dialog opens from the Rules button and nowhere else. It used to open m
+ board the first time you played, which contradicted "starts instantly" and left the board
+ unclickable. The lobby's three-rule strip and the turn card carry first-run guidance instead.
+ 
++### The clock is one clock, kept by two players
++
++`main.js` `chargeClock`, `src/clock.js` `adoptReport`. Whoever just moved is charged, on both screens,
++for the time since the clock last changed hands; and the move itself carries the mover's own account
++of both clocks (`clock` on the action message), which the receiver adopts for the mover's side only,
++capped at its own view plus `SYNC_TOLERANCE` (3s). Each side is the authority on its own time — it
++alone knows when it pressed the clock — and the cap is what a lying peer is limited to gaining per
++move. A message without the field (an older cached build) or with a malformed one leaves the local
++view alone, so mixed builds still play.
++
++A flag is a message too. Your own clock reaching zero is yours to call, at once, and it is sent as
++`control { kind: 'flag', side }`. The opponent's clock on your screen runs one network trip behind
++theirs, so their screen calls it first; yours calls it only after the tolerance, as the fallback for a
++peer that never does. A claim that *you* flagged is checked against your own clock before it is
++believed. A move that arrives after the match has ended is ignored rather than applied over it.
++
++Both king placements are timed, on both screens. The clock stops only when the match is over.
++
++Before this the receiving side charged nobody: `receivePeerAction` never touched the clock, so each
++player's own clock paid for both sides' thinking between their own moves, and the opponent's clock on
++screen jumped back up on every move. The earlier note in this file that the two sides "drift by
++one-way latency per move" understated it. Guarded by `test/clock.test.js`, which replays the protocol
++over eighty plies at 250ms latency and asserts the two views never part by more than the tolerance,
++and by `test/shell.test.js`. **Not verified with two real peers** — nothing in this sandbox can be.
++
+ ### The end of a match is announced by focus, not by the toast
+ 
+ When the overlay arrives, focus moves to `.result-card` — `tabindex="-1"`, named by its headline and
+@@ -342,15 +367,11 @@ Honest list of what is not done and what cannot be checked from a sandbox:
+   shows the rich install dialog both need hardware.
+ - **Sound design.** There are cues and they are off until asked for, but nothing here is composed;
+   it is the largest remaining gap in game feel and it cannot be judged from a sandbox.
+-- **The clocks in an online match are two clocks, not one.** Each side charges the mover from the
+-  moment it *sees* the previous move, so the receiver's view of the opponent's clock runs ahead by
+-  one-way latency on every move — 50ms × 60 plies is three seconds, enough to flip a flag. The flag
+-  itself is decided locally and never sent: one side can see a time loss while the other plays on,
+-  and the move it then sends is applied over the finished game. The fix is for a move to carry the
+-  mover's remaining time and for the receiver to adopt it; nothing here does that yet.
+-- **A takeback does not refund clock time**, on purpose, and until this change it also charged the
+-  next player for the time the other side had spent thinking. It now restarts the mover's clock at
+-  the moment of the takeback.
++- **The online clock has never run between two real peers.** The protocol is in "The clock is one
++  clock" and is exercised by a replay in the suite; a real match on a real network is what would
++  confirm it.
++- **A takeback does not refund clock time**, on purpose. It restarts the mover's clock at the moment
++  of the takeback.
+ - **Sharp plays itself to a draw.** Sixteen self-play games at depth 4 from every king placement:
+   fourteen ended in threefold repetition, mean 27 moves. At depth 3, none did (7–6 with three games
+   past 100 moves). The search scores a draw as 0 and equal material as roughly 0, so it shuffles.
+@@ -363,6 +384,8 @@ Honest list of what is not done and what cannot be checked from a sandbox:
+ 
+ Newest first. One line per decision that changed how the app behaves.
+ 
++- A move carries the mover's clocks and the receiver adopts them within a tolerance; a flag is a
++  message; both king placements are timed. The receiving side used to charge nobody.
+ - A time loss is reported as a time loss, not a resignation; the clock stops when the opponent
+   drops; a takeback restarts the mover's clock and the bot worker; both pages carry a CSP.
+ - Occupants are frozen shared values, which enforces what step 3 of the search work assumed and
+diff --git a/src/clock.js b/src/clock.js
+index aba8f0a..b36b4b4 100644
+--- a/src/clock.js
++++ b/src/clock.js
+@@ -9,6 +9,13 @@ export const CLOCK_PRESETS = Object.freeze([
+ 
+ export const LOW_TIME = 30;
+ 
++/**
++ * How far apart, in seconds, two players' views of one clock are allowed to
++ * be before one is disbelieved. It covers one move's network latency with
++ * room to spare; a peer cannot gain more than this per move by lying.
++ */
++export const SYNC_TOLERANCE = 3;
++
+ export function clockPreset(id) {
+   return CLOCK_PRESETS.find((preset) => preset.id === id) ?? CLOCK_PRESETS[0];
+ }
+@@ -46,6 +53,30 @@ export function flagged(clock) {
+   return null;
+ }
+ 
++/** What a move carries: the mover's own account of both clocks after the move. */
++export function clockReport(clock) {
++  if (!isTimed(clock)) return null;
++  return { [WHITE]: clock[WHITE], [BLACK]: clock[BLACK] };
++}
++
++export function isClockReport(value) {
++  return Boolean(value) && typeof value === 'object' &&
++    [WHITE, BLACK].every((side) => Number.isFinite(value[side]) && value[side] >= 0);
++}
++
++/**
++ * Adopt the mover's account of its own clock, within tolerance of what the
++ * receiver has already worked out for it. Each side is the authority on its
++ * own time — it alone knows when it pressed the clock — so the receiver takes
++ * the mover's number unless it is implausibly generous, and never touches its
++ * own side. A report that is missing or malformed leaves the local view alone,
++ * which is also what keeps a player on an older build in the game.
++ */
++export function adoptReport(clock, mover, report) {
++  if (!isTimed(clock) || !isClockReport(report)) return clock;
++  return { ...clock, [mover]: Math.min(report[mover], clock[mover] + SYNC_TOLERANCE) };
++}
++
+ export function isLow(seconds) {
+   return seconds < LOW_TIME;
+ }
+diff --git a/src/main.js b/src/main.js
+index 7959044..375ea59 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -16,7 +16,9 @@ import {
+   botDifficulty, clockMode, difficultyDepth,
+   setSoundSettings, soundSettings,
+ } from './settings.js';
+-import { addIncrement, createClock, flagged, formatClock, isLow, isTimed, spend } from './clock.js';
++import {
++  SYNC_TOLERANCE, addIncrement, adoptReport, clockReport, createClock, flagged, formatClock, isLow, isTimed, spend,
++} from './clock.js';
+ import { createSoundBoard } from './sound.js';
+ import { initTheme } from './theme.js';
+ 
+@@ -671,7 +673,7 @@ function appendChatEvent(text, actions = []) {
+ }
+ 
+ function receivePeerAction(message) {
+-  if (mode !== 'online' || disconnected || position.turn === humanColor) return;
++  if (mode !== 'online' || disconnected || matchOver() || position.turn === humanColor) return;
+   try {
+     const before = position;
+     // The engine's own object for the action, not the peer's: the message
+@@ -685,6 +687,7 @@ function receivePeerAction(message) {
+     lastAction = action;
+     selection = null;
+     reviewPly = null;
++    chargeClock(before.turn, message.clock);
+     announceOpponentAction();
+     render();
+   } catch (error) {
+@@ -1077,6 +1080,18 @@ function receiveControl(payload) {
+     updateCommunicationUi();
+     return;
+   }
++  if (payload?.kind === 'flag') {
++    if (!isTimed(clock) || matchOver()) return;
++    // Their own flag is theirs to call. A claim that *we* flagged is checked
++    // against our own clock, which is the authority on our time.
++    const side = payload.side === humanColor ? humanColor : opponent(humanColor);
++    if (side === humanColor) {
++      const spent = clockSince === null || position.turn !== humanColor ? 0 : (Date.now() - clockSince) / 1000;
++      if (clock[humanColor] - spent > SYNC_TOLERANCE) return;
++    }
++    declareFlag(side);
++    return;
++  }
+   if (payload?.kind === 'resign') {
+     resigned = opponent(humanColor);
+     appendChatEvent(`${opponentLabel} resigned`);
+@@ -1130,7 +1145,9 @@ async function copyGameText() {
+ function play(action) {
+   const message = mode === 'online' ? makeActionMessage(position, action) : null;
+   commit(action);
+-  if (message) sendGameMessage(message);
++  // Built before the move so an illegal one throws before anything changes;
++  // the clocks are read after it, because that is the account the peer adopts.
++  if (message) sendGameMessage({ ...message, clock: clockReport(clock) });
+   render();
+   if (mode === 'bot' && !getResult(position) && position.turn !== humanColor) requestBotMove();
+   if (flagged(clock)) stopClockTicking();
+@@ -1160,14 +1177,24 @@ function playCue(action, captured) {
+ }
+ 
+ /**
+- * Each side runs the clock locally off the moves it sees, so the two stay in
+- * step without a shared timer to negotiate.
++ * One clock, kept by two players. Whoever just moved is charged for the time
++ * since the clock last changed hands, on both screens — and the mover's move
++ * carries its own account of its clock, which the receiver adopts within
++ * `SYNC_TOLERANCE`. Without the report the receiver's view of the mover ran
++ * behind by one network trip per move; without the tolerance the mover could
++ * report anything. Before this, the receiving side charged nobody at all: each
++ * player's own clock paid for both sides' thinking, and the opponent's clock
++ * on screen jumped back up on every move.
++ *
++ * The clock runs from the first king placement — both placements are timed,
++ * on both screens — and stops only when the match is over.
+  */
+-function chargeClock(mover) {
++function chargeClock(mover, report = null) {
+   if (!isTimed(clock)) return;
+   if (clockSince !== null) clock = spend(clock, mover, Date.now() - clockSince);
+   clock = addIncrement(clock, mover);
+-  clockSince = position.phase === 'play' && !getResult(position) ? Date.now() : null;
++  clock = adoptReport(clock, mover, report);
++  clockSince = getResult(position) ? null : Date.now();
+   renderClocks();
+ }
+ 
+@@ -1178,19 +1205,32 @@ function startClockTicking() {
+     if (clockSince === null) return;
+     const running = position.turn;
+     const left = clock[running] - (Date.now() - clockSince) / 1000;
+-    if (left <= 0) {
+-      clock = spend(clock, running, Date.now() - clockSince);
+-      clockSince = null;
+-      resigned = running;
+-      lostOnTime = true;
+-      announce(`${running === humanColor ? 'You' : opponentLabel} ran out of time.`);
+-      render();
++    // Your own flag is yours to call, at once. The opponent's clock on this
++    // screen runs a network trip behind theirs, so their own screen calls it
++    // first and tells us; calling it here after the tolerance is the fallback
++    // for a peer that never does.
++    const grace = mode === 'online' && running !== humanColor ? SYNC_TOLERANCE : 0;
++    if (left <= -grace) {
++      declareFlag(running);
++      if (mode === 'online' && network?.matched) {
++        try { network.sendControl({ kind: 'flag', side: running }); } catch { /* They will call it themselves. */ }
++      }
+       return;
+     }
+     renderClocks();
+   }, 250);
+ }
+ 
++/** The match ends on time for `side`, however we learned it. */
++function declareFlag(side) {
++  clock = { ...clock, [side]: 0 };
++  clockSince = null;
++  resigned = side;
++  lostOnTime = true;
++  announce(`${side === humanColor ? 'You' : opponentLabel} ran out of time.`);
++  render();
++}
++
+ function stopClockTicking() {
+   if (clockTimer) clearInterval(clockTimer);
+   clockTimer = null;
+diff --git a/sw.js b/sw.js
+index 2b17d4f..3fe572b 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,7 +1,7 @@
+ // Bumped whenever anything in SHELL changes. The fetch handler below no longer
+ // depends on remembering to do it — it revalidates in the background — but a
+ // bump is still the only thing that refreshes every client on the same visit.
+-const CACHE = 'schness-v42';
++const CACHE = 'schness-v43';
+ const SHELL = [
+   './',
+   './index.html',
+diff --git a/test/clock.test.js b/test/clock.test.js
+index 322dd2d..a455b9f 100644
+--- a/test/clock.test.js
++++ b/test/clock.test.js
+@@ -1,8 +1,8 @@
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import {
+-  CLOCK_PRESETS, addIncrement, clockPreset, createClock, flagged, formatClock,
+-  isLow, isTimed, spend,
++  CLOCK_PRESETS, SYNC_TOLERANCE, addIncrement, adoptReport, clockPreset, clockReport, createClock,
++  flagged, formatClock, isClockReport, isLow, isTimed, spend,
+ } from '../src/clock.js';
+ 
+ test('the clock is untimed by default', () => {
+@@ -53,3 +53,60 @@ test('clocks read as whole seconds and go low under thirty', () => {
+   assert.ok(isLow(29));
+   assert.ok(!isLow(30));
+ });
++
++test('a move carries the mover\'s account of both clocks, or nothing when untimed', () => {
++  assert.deepEqual(clockReport(spend(createClock('3+2'), 'white', 4000)), { white: 176, black: 180 });
++  assert.equal(clockReport(createClock()), null);
++  assert.ok(isClockReport({ white: 1, black: 0 }));
++  for (const bad of [null, 'x', {}, { white: 1 }, { white: -1, black: 2 }, { white: NaN, black: 2 }, { white: '3', black: 2 }]) {
++    assert.equal(isClockReport(bad), false, JSON.stringify(bad));
++  }
++});
++
++test('the receiver adopts the mover\'s own clock, but never more than tolerance above its own view', () => {
++  const view = { ...createClock('3+2'), white: 100, black: 150 };
++  // A mover reporting less than we thought is conceding time: taken as is.
++  assert.equal(adoptReport(view, 'white', { white: 97, black: 999 }).white, 97);
++  // The report never touches the receiver's own side, whatever it says.
++  assert.equal(adoptReport(view, 'white', { white: 97, black: 999 }).black, 150);
++  // Latency makes an honest report a little generous; a lie is capped there.
++  assert.equal(adoptReport(view, 'white', { white: 102, black: 150 }).white, 102);
++  assert.equal(adoptReport(view, 'white', { white: 500, black: 150 }).white, 100 + SYNC_TOLERANCE);
++  // No report (an older build), a malformed one, or an untimed game: local view stands.
++  assert.equal(adoptReport(view, 'white', undefined), view);
++  assert.equal(adoptReport(view, 'white', { white: 'lots' }), view);
++  assert.deepEqual(adoptReport(createClock(), 'white', { white: 1, black: 1 }), createClock());
++});
++
++/*
++ * The protocol main.js runs, replayed here without the DOM: each side charges
++ * whoever moved for the time since its clock last changed hands, and the
++ * receiver then adopts the mover's report. Before the report existed the
++ * receiving side charged nobody, so a player's own clock paid for both sides.
++ */
++test('two players keep one clock: their views never drift past the tolerance', () => {
++  const latency = 250; // ms one way, deliberately bad
++  const sides = { white: { clock: createClock('3+2'), since: 0 }, black: { clock: createClock('3+2'), since: latency } };
++  let now = 0;
++  const charge = (view, mover, at, report) => {
++    view.clock = spend(view.clock, mover, at - view.since);
++    view.clock = addIncrement(view.clock, mover);
++    view.clock = adoptReport(view.clock, mover, report);
++    view.since = at;
++  };
++  let mover = 'white';
++  for (let ply = 0; ply < 80; ply += 1) {
++    const think = 1000 + ((ply * 7919) % 5000); // 1-6 s, not symmetric
++    now += think;
++    charge(sides[mover], mover, now, null);               // the mover presses its clock
++    const report = clockReport(sides[mover].clock);       // and its move carries the account
++    const other = mover === 'white' ? 'black' : 'white';
++    charge(sides[other], mover, now + latency, report);   // which lands one trip later
++    const gap = Math.abs(sides.white.clock[mover] - sides.black.clock[mover]);
++    assert.ok(gap <= SYNC_TOLERANCE, `ply ${ply}: views of ${mover} differ by ${gap}s`);
++    mover = other;
++  }
++  // The mover's own screen is the authority, and the other screen agrees to the second.
++  assert.ok(Math.abs(sides.white.clock.white - sides.black.clock.white) < 0.001);
++  assert.ok(Math.abs(sides.white.clock.black - sides.black.clock.black) < 0.001);
++});
+diff --git a/test/shell.test.js b/test/shell.test.js
+index 046df64..90ac361 100644
+--- a/test/shell.test.js
++++ b/test/shell.test.js
+@@ -454,6 +454,22 @@ test('lobby and game are separate documents with rules and home navigation', asy
+   assert.doesNotMatch(html, />4 × 4 chess</);
+ });
+ 
++test('a move carries the clock, the receiver settles it, and a flag is a message', async () => {
++  const main = await readFile(resolve(root, 'src/main.js'), 'utf8');
++  // The receiving side used to charge nobody: the mover's clock was only ever
++  // spent on the mover's own screen, for the whole time between its own moves.
++  assert.match(main, /chargeClock\(before\.turn, message\.clock\);/);
++  assert.match(main, /sendGameMessage\(\{ \.\.\.message, clock: clockReport\(clock\) \}\);/);
++  assert.match(main, /clock = adoptReport\(clock, mover, report\);/);
++  // A flag is told to the other side, and a claim about our own time is
++  // checked against our own clock before it is believed.
++  assert.match(main, /network\.sendControl\(\{ kind: 'flag', side: running \}\)/);
++  assert.match(main, /payload\?\.kind === 'flag'/);
++  assert.match(main, /if \(clock\[humanColor\] - spent > SYNC_TOLERANCE\) return;/);
++  // And a move that arrives after the match ended is not applied over it.
++  assert.match(main, /if \(mode !== 'online' \|\| disconnected \|\| matchOver\(\) \|\| position\.turn === humanColor\) return;/);
++});
++
+ test('a deploy reaches players who already have the app cached', async () => {
+   const sw = await readFile(resolve(root, 'sw.js'), 'utf8');
+   // Cache-first with no revalidation meant a deploy that did not bump CACHE
+-- 
+2.43.0
+
