@@ -22,6 +22,7 @@ cp src/rules.js src/bot.js .
 | `rep_growth.mjs` | depth-4 search time with an empty repetition map vs a 150-entry one |
 | `selfplay.mjs D1 D2 CAP` | self-play from all 16 king placements at the given depths |
 | `browser_checks.mjs` | Playwright + Chromium: tap-target heights at three viewports, a bot game under the meta CSP, a 3+2 clock run to zero with a faked timer |
+| `turn_card_shift.mjs` | Playwright + Chromium: the turn card, reserve row, rail and board coordinates through king placement, idle, reserve selection, deselection and board selection at five viewports, plus the page's bottom gap. Produced the numbers in `../schness-turn-card-jitter.md` |
 
 `browser_checks.mjs` needs `python3 -m http.server 8899` serving the checkout and a Playwright
 install; it points at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, which is the sandbox
