@@ -53,7 +53,7 @@
  */
 const FAMILY = 'kakkoi-online-';
 
-const CACHE = `${FAMILY}v20`;
+const CACHE = `${FAMILY}v21`;
 
 /**
  * Where the install writes down how it went. It is a cache entry rather than a
@@ -129,13 +129,25 @@ const SHELL = [
   './editor/main.js',
   './editor/submit.js',
 
-  // trystero, and only the files it actually pulls in.
-  './vendor/trystero/nostr.js',
-  './vendor/trystero/node-crypto.js',
-  './vendor/trystero/node-chunk.js',
-  './vendor/trystero/src/strategy.js',
-  './vendor/trystero/src/utils.js',
-  './vendor/trystero/src/crypto.js',
+  // p2p-core, and only the files `src/net.js` actually pulls in: the room, its
+  // transports and the trystero inside it. `vendor/trystero/` itself belongs to
+  // the demos now and is deliberately not here.
+  './vendor/p2p-core/p2p-core.js',
+  './vendor/p2p-core/src/relays.js',
+  './vendor/p2p-core/src/room.js',
+  './vendor/p2p-core/src/route.js',
+  './vendor/p2p-core/src/transports/memory.js',
+  './vendor/p2p-core/src/transports/pair.js',
+  './vendor/p2p-core/src/transports/relays.js',
+  './vendor/p2p-core/src/transports/server.js',
+  './vendor/p2p-core/src/transports/tabs.js',
+  './vendor/p2p-core/src/util.js',
+  './vendor/p2p-core/vendor/trystero/node-chunk.js',
+  './vendor/p2p-core/vendor/trystero/node-crypto.js',
+  './vendor/p2p-core/vendor/trystero/nostr.js',
+  './vendor/p2p-core/vendor/trystero/src/crypto.js',
+  './vendor/p2p-core/vendor/trystero/src/strategy.js',
+  './vendor/p2p-core/vendor/trystero/src/utils.js',
 
   // The two atlases the game draws with. The other two sheets in vendor/ belong
   // to the demos and are deliberately not here.

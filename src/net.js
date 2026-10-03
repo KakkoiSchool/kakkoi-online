@@ -1,9 +1,9 @@
 /**
  * Stage 2 — other people (lessons A12 and A13).
  *
- * This is the ONLY module allowed to know that trystero exists. Everything else
- * talks to the shape below, so the rest of the game never learns what a relay
- * is.
+ * This is the ONLY module allowed to know that p2p-core (and, inside it,
+ * trystero) exists. Everything else talks to the shape below, so the rest of
+ * the game never learns what a relay is.
  *
  * Three ideas, and they are the whole file:
  *
@@ -23,23 +23,19 @@
  * ago, sliding between the two samples either side of that moment. Being an
  * eyeblink behind is invisible; teleporting is not.
  */
-import { joinRoom as trysteroJoin, selfId, getRelaySockets } from '../vendor/trystero/nostr.js';
+import { joinRoom as p2pJoin, selfId, RELAYS as SHARED_RELAYS } from '../vendor/p2p-core/p2p-core.js';
 import { cleanName } from './identity.js';
 
 /**
  * The noticeboards where two browsers leave a note saying "I am here".
- * Several, because any one of them can be busy, full, or simply gone —
- * verbatim from `demos/12-other-people/main.js`, which is the list currently
- * known to work.
+ * Several, because any one of them can be busy, full, or simply gone.
+ *
+ * The list is p2p-core's (`vendor/p2p-core/src/relays.js`), shared by every
+ * game built on it: all six this file used to name, plus the others schness
+ * found, minus the ones FAILURES.md caught refusing our notes. Two players
+ * only meet on a relay they both dial, so it only ever grows.
  */
-export const RELAYS = [
-  'wss://relay.snort.social',
-  'wss://nostr.sathoarder.com',
-  'wss://nostr.vulpem.com',
-  'wss://relay.primal.net',
-  'wss://nostr.mom',
-  'wss://offchain.pub',
-];
+export const RELAYS = SHARED_RELAYS;
 
 /** The demos use throwaway rooms. The real game has one town, and it is here. */
 export const APP_ID = 'kakkoi-online';
@@ -69,7 +65,13 @@ export { selfId };
 const PLACE = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 export function joinRoom({ world, places, identity, monsters, tuning, roomId = ROOM_ID }) {
-  const room = trysteroJoin({ appId: APP_ID, relayUrls: RELAYS }, roomId);
+  // Two tabs of one browser share one localStorage, so they are the same
+  // character, and `session.js` pauses the older one. They must not also meet
+  // each other as two players: `sameBrowser: false` keeps tabs of this
+  // browser apart on every route, the relays included. Everything else —
+  // the relays, and a local `npx p2p-core serve` this page was loaded from, for
+  // a classroom with no internet — is p2p-core's default.
+  const room = p2pJoin({ app: APP_ID, room: roomId, relays: RELAYS, allow: { sameBrowser: false } });
 
   const [sendMove, onMove] = room.makeAction('move');
   const [sendHello, onHello] = room.makeAction('hello');
@@ -107,6 +109,18 @@ export function joinRoom({ world, places, identity, monsters, tuning, roomId = R
 
   /** Everything we refused, by reason. Handy in the console, honest in a lesson. */
   const dropped = { position: 0, monster: 0, name: 0, message: 0, gone: 0 };
+
+  // A packet from somebody who has gone now usually stops one step earlier,
+  // inside p2p-core, which drops anything from an id it does not hold as a
+  // peer. It is the same refusal `present()` makes below, so it is counted in
+  // the same place: `gone` is ours plus p2p-core's, and `dropped.gone++` still
+  // works.
+  let goneHere = 0;
+  Object.defineProperty(dropped, 'gone', {
+    enumerable: true,
+    get: () => goneHere + room.stats.dropped.unknownPeer,
+    set: (value) => { goneHere = value - room.stats.dropped.unknownPeer; },
+  });
 
   /**
    * Everybody trystero currently holds a connection to.
@@ -550,18 +564,8 @@ export function joinRoom({ world, places, identity, monsters, tuning, roomId = R
    * made of.
    */
   function relays() {
-    let sockets = {};
-    try {
-      sockets = getRelaySockets() || {};
-    } catch (err) {
-      console.warn('net: could not read the relay sockets —', err.message);
-    }
-    return RELAYS.map((url) => {
-      // Browsers normalise `wss://host` to `wss://host/`; trystero keys them by
-      // whichever string it was handed, so look for both.
-      const socket = sockets[url] || sockets[`${url}/`];
-      return { url, open: socket?.readyState === WebSocket.OPEN };
-    });
+    const live = room.status().transports.relays?.relays;
+    return RELAYS.map((url) => ({ url, open: !!live?.find((relay) => relay.url === url)?.open }));
   }
 
   // ------------------------------------------------------------ drawing them

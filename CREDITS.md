@@ -15,7 +15,8 @@ CC0 requires no attribution. We credit anyway, because that is the habit worth c
   https://opengameart.org/content/happy-adventure-loop
 
 ## Code
-- **trystero** by Dan Motzenbecker (MIT) — https://github.com/dmotz/trystero
+- **p2p-core** by KakkoiDev (MIT) — https://github.com/KakkoiDev/p2p-core — how players find each other
+- **trystero** by Dan Motzenbecker (MIT) — https://github.com/dmotz/trystero — inside p2p-core, and in the demos
 - **Bun** (MIT) — https://bun.com
 
 ## Type
