@@ -13,15 +13,16 @@
     .fail { color: #ff7b72; }
   </style>
 
-  <!-- src/net.js is the only file that knows trystero exists, which is what
+  <!-- src/net.js is the only file that knows p2p-core exists, which is what
        makes it hard to test: there is no network in here to drive. This points
-       that one import at tests/fake-nostr.js, so net.js runs UNMODIFIED against
-       a room this page can shout into. The game itself is untouched — an import
-       map only applies to the page that declares it. -->
+       the one file inside p2p-core that touches the network — its vendored
+       trystero — at tests/fake-nostr.js, so net.js and p2p-core run UNMODIFIED
+       against a room this page can shout into. The game itself is untouched:
+       an import map only applies to the page that declares it. -->
   <script type="importmap">
     {
       "imports": {
-        "/vendor/trystero/nostr.js": "/tests/fake-nostr.js"
+        "/vendor/p2p-core/vendor/trystero/nostr.js": "/tests/fake-nostr.js"
       }
     }
   </script>

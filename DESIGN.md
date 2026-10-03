@@ -93,7 +93,7 @@ src/
   render.js         camera (clamped to the map), tiles, monsters, nameplates, speech bubbles
   save.js           localStorage, versioned, refuses anything it does not recognise
   identity.js       a lasting random id, your name, your monster
-  net.js            the ONLY module that knows trystero exists: room, presence, positions
+  net.js            the ONLY module that knows p2p-core (and trystero) exists: room, presence, positions
   chat.js           six preset phrases; sends the index, checks every arrival
   ui/onboarding.js  the name panel, the monster picker and the card about other people
   ui/chatbar.js     one finger-sized button per phrase. no text box, anywhere
@@ -137,11 +137,25 @@ missing does not need a new version number: absent means `false`, which is exact
 
 ## Other people (stage 2)
 
-**Finding each other.** `src/net.js` is the only file that has ever heard of trystero. It joins one
-stable room — appId `kakkoi-online`, room `town` — through the same four nostr relays the A12 demo
-uses, because relays die and that list is the one currently known to work. There is no server: the
-relays are only a noticeboard where two browsers leave a note, and once they have found each other
-they talk directly.
+**Finding each other.** `src/net.js` is the only file that has ever heard of the network. It joins
+one stable room — appId `kakkoi-online`, room `town` — through
+[p2p-core](https://github.com/KakkoiDev/p2p-core), vendored in `vendor/p2p-core/`: the library this
+file's ideas were extracted into, so schness and the next game get them too. Under it is the same
+trystero 0.21.5 and the same nostr relays, now p2p-core's shared list — the six this file used to
+name plus the ones schness found, minus the ones FAILURES.md caught refusing our notes. There is no
+server: the relays are only a noticeboard where two browsers leave a note, and once they have found
+each other they talk directly.
+
+What changed on the wire: nothing. Same app id, room, action names and trystero, so a cached build
+from before the move and one after still meet — checked in Chromium, old↔new both ways, through a
+local nostr relay. What p2p-core adds: a page served by `npx p2p-core serve` on a laptop finds the
+other players through that laptop, so a classroom with no internet has a town. Tabs of one browser
+are kept apart (`allow: { sameBrowser: false }`), because they are one character and `session.js`
+pauses the older one; without that they would meet as two players over a BroadcastChannel.
+
+Do not edit `vendor/p2p-core/`. Upgrade it with
+`npx --yes github:KakkoiDev/p2p-core#vX.Y.Z vendor vendor/p2p-core`, refresh the p2p-core lines in
+`sw.js` from `npx --yes github:KakkoiDev/p2p-core#vX.Y.Z files ./vendor/p2p-core/`, and bump `CACHE`.
 
 **Positions.** Ten times a second (`posHz` in `data/tuning.json`), never per frame. Each packet is
 `{x, y, m}` — whole pixels and the sender's monster id, so a peer whose greeting we missed is still
@@ -193,10 +207,16 @@ departed player, or a stranger who never joined at all. The caller drops the mes
 `net.dropped.gone`. Somebody who joins again gets a real record again, because the join is what puts
 them back in `here`.
 
+Since the move to p2p-core most of those packets stop one step earlier: p2p-core drops anything from an
+id it does not hold as a peer. That is the same refusal, so `net.dropped.gone` counts both — ours plus
+p2p-core's `room.stats.dropped.unknownPeer` — and the tests that assert the count still mean what they
+say.
+
 `tests/net.test.html` covers it, and needs a word of explanation: `net.js` is the only file that knows
-trystero exists, which is exactly what makes it hard to test, because there is no network in the page
-to drive. The test uses an **import map** to point that one specifier at `tests/fake-nostr.js`, so
-`net.js` runs unmodified against a room the test can shout into — join, leave, and deliver, in any
+the network exists, which is exactly what makes it hard to test, because there is no network in the
+page to drive. The test uses an **import map** to point the trystero inside p2p-core
+(`/vendor/p2p-core/vendor/trystero/nostr.js`) at `tests/fake-nostr.js`, so `net.js` and p2p-core run
+unmodified against a room the test can shout into — join, leave, and deliver, in any
 order, including the order that was the bug. An import map only applies to the page that declares it,
 so the game is untouched. Six of its eleven rows fail against the build this fixed.
 
@@ -276,7 +296,7 @@ dice about a third of the time so he never becomes predictable himself.
 **The link.** `net.linkTo(id)` and `npc.link()` return the same five things — `id`, `name`, `send`,
 `onMessage`, `onClose` — and that is the entire interface between the duel and the outside world. All
 five duel messages ride one trystero action, because a duel is one conversation and one action keeps
-it in order. `net.js` is still the only file that has heard of trystero.
+it in order. `net.js` is still the only file that has heard of the network.
 
 ## A second map, and the door into it (M8)
 
@@ -874,7 +894,7 @@ background the launcher is welcome to eat. Without that, the launcher crops the 
 scope root, which is `start_url`, and `./index.html` — and for nothing else. The first version answered
 *every* navigation with the shell, and so served the game in place of `tests/rules.test.html`: the
 scope is the whole origin, and "every navigation" is every other page in the repo. It precaches a
-hand-written list of every file the game actually loads — html, css, js, the six trystero modules, the two atlases it draws with, `data/*.json` and the
+hand-written list of every file the game actually loads — html, css, js, the p2p-core modules `net.js` reaches and the six trystero modules inside them, the two atlases it draws with, `data/*.json` and the
 audio — and serves exactly those cache-first. Everything else goes to the network and is never cached,
 so nothing can go stale by accident. The list is written out rather than crawled because there is no
 build step here to crawl with, and a list you can read is a list you can check.

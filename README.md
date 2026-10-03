@@ -95,7 +95,7 @@ sw.js               caches the app shell so the game opens offline. BUMP ITS CAC
 icons/              the tab icon and the home-screen icons, one drawing on a 16x16 grid
 src/main.js         boot and wiring only — everything else is one idea per file
 src/loop.js         the requestAnimationFrame loop
-src/net.js          the only file that knows trystero exists
+src/net.js          the only file that knows the network exists (via vendor/p2p-core)
 src/duel.js         the challenge state machine and the rounds
 src/npc.js          Flint — answers the same questions a peer does, so duel.js cannot tell
 src/boss.js         Aniki: a shared clock, a seeded dice, and what browsers can agree on
@@ -147,6 +147,10 @@ Three rules that shape the codebase:
 
 Fork, deploy to `your-name.github.io/kakkoi-online/`, and **you can still play with everyone else** —
 peers find each other through a public relay, not through this domain. Your copy, same world.
+
+**No internet?** On any laptop on the Wi-Fi, run `npx --yes github:KakkoiDev/p2p-core#v0.1.0 serve .`
+in this folder and have everyone open the address it prints (it prints a QR code too). The game finds
+the other players through that laptop, and needs nothing else.
 
 ## What is next
 
