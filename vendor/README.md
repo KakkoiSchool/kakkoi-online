@@ -8,7 +8,7 @@ Populate with `make vendor` (to be added) or by hand:
 | File | Source | Licence |
 |---|---|---|
 | `fonts/` ✅ **vendored 2026-08-19** — the latin subsets of two webfonts (33 kB the pair) | see "Fonts" below | OFL 1.1 |
-| `trystero/` ✅ **vendored 2026-08-16, trystero@0.21.5** (nostr strategy, 6 files, 37 kB) — **the demos only** since 2026-10-03: lessons A12/A13 teach trystero itself, so they keep importing it directly | see table below | MIT |
+| `trystero/` ✅ **vendored 2026-08-16, trystero@0.21.5** (nostr strategy, 6 files, 37 kB) — legacy reference copy; A12/A13 and the game now use `p2p-core`, which carries its own pinned Trystero internally | see table below | MIT |
 | `p2p-core/` ✅ **vendored 2026-10-03, p2p-core v0.1.0** — what `src/net.js` uses; carries its own copy of trystero 0.21.5. Copied with `npx p2p-core vendor`; never edit it here | https://github.com/KakkoiDev/p2p-core | MIT |
 | `kenney/` ✅ **vendored 2026-08-16** — three sprite atlases + their licence files (22 kB) | see "Sprite atlases" below | CC0 |
 | `opengameart/` ✅ **vendored 2026-08-16** — one sprite atlas + its licence file (12 kB) | see "Sprite atlases" below | CC0 |
@@ -96,7 +96,7 @@ in their **License** row; the OpenGameArt page states `License(s): CC0`.
   (his `License.txt`). It matches those two by construction. **It is not a Kenney pack**, and Kenney
   publishes no pack of that name.
 
-## `trystero/` — trystero 0.21.5, nostr strategy
+## `trystero/` — legacy reference copy of trystero 0.21.5, nostr strategy
 
 There is no bundler in this project, so trystero is vendored as a **closed set of ES modules with
 relative imports**. Each file was fetched from esm.sh (which pre-compiles the package to browser
